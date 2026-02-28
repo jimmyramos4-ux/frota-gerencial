@@ -1,0 +1,467 @@
+import { useState, useEffect, useMemo } from 'react';
+import {
+    ComposedChart, BarChart, Bar, Line, XAxis, YAxis, CartesianGrid,
+    Tooltip, Legend, ResponsiveContainer, ReferenceLine
+} from 'recharts';
+import { Fuel, Droplets, Route, TrendingUp, TrendingDown, Gauge, Award, AlertTriangle } from 'lucide-react';
+
+const API = import.meta.env.VITE_API_BASE || '';
+
+const MES_LABELS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+const GRUPO_CORES = {
+    'RODOTREM': '#3b82f6',
+    'CONTAINER - RODOTREM': '#8b5cf6',
+    'CIMENTO MS': '#f59e0b',
+    'CONTAINER - 4 EIXO': '#10b981',
+    'SEM GRUPO': '#6b7280',
+};
+
+function fmtMes(mes) {
+    const m = parseInt(mes.split('-')[1]) - 1;
+    return MES_LABELS[m] + '.';
+}
+function fmtBRL(v) {
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(v);
+}
+function fmtNum(v, dec = 0) {
+    return new Intl.NumberFormat('pt-BR', { minimumFractionDigits: dec, maximumFractionDigits: dec }).format(v);
+}
+
+// ── Cor por percentil para a tabela ──────────────────────────────────────────
+function mediaColor(value, p25, p75) {
+    if (value === null || value === undefined) return { bg: '', text: '' };
+    if (value >= p75) return { bg: 'bg-emerald-100', text: 'text-emerald-800 font-bold' };
+    if (value >= p25) return { bg: 'bg-sky-50',      text: 'text-sky-700' };
+    return                  { bg: 'bg-red-50',        text: 'text-red-600' };
+}
+
+// ── KPI Card ─────────────────────────────────────────────────────────────────
+function KPICard({ icon, label, value, sub, trend, iconBg }) {
+    const isPos = trend > 0;
+    return (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex flex-col gap-3">
+            <div className="flex items-start justify-between">
+                <div className={`p-2 rounded-lg ${iconBg}`}>{icon}</div>
+                {trend !== null && trend !== undefined && (
+                    <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full flex items-center gap-0.5 ${isPos ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
+                        {isPos ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
+                        {Math.abs(trend).toFixed(1)}%
+                    </span>
+                )}
+            </div>
+            <div>
+                <div className="text-2xl font-extrabold text-gray-800 leading-tight">{value}</div>
+                <div className="text-xs font-semibold text-gray-500 mt-0.5 uppercase tracking-wide">{label}</div>
+                {sub && <div className="text-[11px] text-gray-400 mt-0.5">{sub}</div>}
+            </div>
+        </div>
+    );
+}
+
+// ── Tooltip customizado ───────────────────────────────────────────────────────
+function CustomTooltipTrend({ active, payload, label }) {
+    if (!active || !payload?.length) return null;
+    return (
+        <div className="bg-white border border-gray-200 rounded-xl shadow-lg p-3 text-xs min-w-[170px]">
+            <p className="font-bold text-gray-700 mb-2">{label}</p>
+            {payload.map((p, i) => (
+                <div key={i} className="flex justify-between gap-4 py-0.5">
+                    <span style={{ color: p.color }} className="font-medium">{p.name}</span>
+                    <span className="font-bold text-gray-800">{typeof p.value === 'number' ? p.value.toFixed(3) : p.value}</span>
+                </div>
+            ))}
+        </div>
+    );
+}
+
+// ── Componente principal ──────────────────────────────────────────────────────
+export default function CombustivelPage() {
+    const [ano, setAno] = useState(2025);
+    const [grupo, setGrupo] = useState('TODOS');
+    const [data, setData] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [trendMetric, setTrendMetric] = useState('media'); // 'media' | 'custo' | 'litros'
+    const [tabelaOrdem, setTabelaOrdem] = useState('media_anual'); // 'media_anual' | 'placa' | 'grupo'
+    const [filterGrupoTabela, setFilterGrupoTabela] = useState('TODOS');
+
+    useEffect(() => {
+        const fetch_ = async () => {
+            setLoading(true);
+            try {
+                const r = await fetch(`${API}/api/combustivel?year=${ano}&group=${encodeURIComponent(grupo)}&metodo=${metodo}`);
+                const j = await r.json();
+                setData(j.data);
+            } catch (e) {
+                console.error(e);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetch_();
+    }, [ano, grupo]);
+
+    // Calcular percentis p25/p75 para coloração da tabela
+    const { p25, p75 } = useMemo(() => {
+        if (!data?.tabela_veiculos) return { p25: 2.0, p75: 2.5 };
+        const all = data.tabela_veiculos.flatMap(v => Object.values(v.meses).filter(x => x !== null));
+        if (!all.length) return { p25: 2.0, p75: 2.5 };
+        const sorted = [...all].sort((a, b) => a - b);
+        return {
+            p25: sorted[Math.floor(sorted.length * 0.25)],
+            p75: sorted[Math.floor(sorted.length * 0.75)],
+        };
+    }, [data]);
+
+    // Meses filtrados pelo ano selecionado
+    const mesesDoAno = useMemo(() => {
+        if (!data?.all_months) return [];
+        return data.all_months.filter(m => m.startsWith(String(ano)));
+    }, [data, ano]);
+
+    // Tabela filtrada e ordenada
+    const tabelaFiltrada = useMemo(() => {
+        if (!data?.tabela_veiculos) return [];
+        let rows = [...data.tabela_veiculos];
+        if (filterGrupoTabela !== 'TODOS') rows = rows.filter(r => r.grupo === filterGrupoTabela);
+        if (tabelaOrdem === 'placa') rows.sort((a, b) => a.placa.localeCompare(b.placa));
+        else if (tabelaOrdem === 'grupo') rows.sort((a, b) => a.grupo.localeCompare(b.grupo));
+        else rows.sort((a, b) => (b.media_anual ?? 0) - (a.media_anual ?? 0));
+        return rows;
+    }, [data, filterGrupoTabela, tabelaOrdem]);
+
+    // Média global por mês (para linha de referência na tabela)
+    const mediaPorMes = useMemo(() => {
+        if (!data?.monthly_trend) return {};
+        const map = {};
+        data.monthly_trend.forEach(m => { map[m.mes] = m.media_km_l; });
+        return map;
+    }, [data]);
+
+    if (loading) return (
+        <div className="flex items-center justify-center h-64">
+            <div className="text-xl text-[#0b4d3c] animate-pulse font-bold">Carregando dados de combustível...</div>
+        </div>
+    );
+
+    const { kpis, monthly_trend, por_grupo, ranking, anos } = data || {};
+
+    // ── Dados do gráfico de tendência ─────────────────────────────────────────
+    const trendData = (monthly_trend || []).map(m => ({
+        mes: fmtMes(m.mes),
+        'km/L': m.media_km_l,
+        'R$/L': m.custo_litro,
+        'Litros (mil)': +(m.litros / 1000).toFixed(1),
+        'Custo (R$ mil)': +(m.custo / 1000).toFixed(0),
+        var_media: m.var_media,
+    }));
+
+    // ── Dados do gráfico de grupos ────────────────────────────────────────────
+    const grupoData = (por_grupo || []).map(g => ({
+        grupo: g.grupo.replace('CONTAINER - ', 'CONT. '),
+        'km/L': g.media_km_l,
+        'Custo (R$ mi)': +(g.custo / 1_000_000).toFixed(2),
+        'Litros (mil)': +(g.litros / 1000).toFixed(0),
+        fill: GRUPO_CORES[g.grupo] || '#6b7280',
+    }));
+
+    const mediaGeral = kpis?.media_km_l;
+
+    return (
+        <div className="max-w-[1700px] mx-auto">
+
+            {/* ── Header de filtros ── */}
+            <div className="sticky top-0 z-40 pt-6 pb-4 bg-[#f3f4f6]">
+                <div className="bg-white px-5 py-3 rounded-xl shadow-sm border border-gray-100 flex flex-wrap items-center gap-3">
+                    <Fuel size={18} className="text-[#0b4d3c]" />
+                    <span className="font-bold text-sm text-gray-700 mr-2 uppercase tracking-wider">Combustível</span>
+                    <div className="w-px h-5 bg-gray-200" />
+
+                    <span className="text-xs font-bold text-gray-400 tracking-widest">ANO</span>
+                    {(anos || [2025, 2026]).map(y => (
+                        <button key={y} onClick={() => setAno(y)}
+                            className={`px-3 py-1.5 rounded-full text-sm font-semibold border transition-colors ${ano === y ? 'bg-[#0b4d3c] text-white border-[#0b4d3c]' : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'}`}>
+                            {y}
+                        </button>
+                    ))}
+
+                    <div className="w-px h-5 bg-gray-200" />
+                    <span className="text-xs font-bold text-gray-400 tracking-widest">GRUPO</span>
+                    <select value={grupo} onChange={e => setGrupo(e.target.value)}
+                        className="bg-white text-gray-600 px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-medium focus:border-[#0b4d3c] outline-none">
+                        <option value="TODOS">Todos os grupos</option>
+                        {(data?.grupos || []).map(g => <option key={g} value={g}>{g}</option>)}
+                    </select>
+                </div>
+            </div>
+
+            {/* ── KPI Cards ── */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-4 mb-6">
+                <KPICard icon={<Droplets size={20} className="text-blue-600" />} iconBg="bg-blue-50"
+                    label="Total Abastecido" value={`${fmtNum(kpis?.total_litros ?? 0)} L`}
+                    sub={`${fmtNum(kpis?.total_abast ?? 0)} abastecimentos`} trend={null} />
+                <KPICard icon={<span className="text-emerald-600 font-bold text-base">R$</span>} iconBg="bg-emerald-50"
+                    label="Custo Total" value={fmtBRL(kpis?.total_custo ?? 0)}
+                    sub={`Média ${fmtBRL(kpis?.custo_por_litro ?? 0)}/L`} trend={null} />
+                <KPICard icon={<Route size={20} className="text-violet-600" />} iconBg="bg-violet-50"
+                    label="KM Rodados" value={`${fmtNum(kpis?.total_km ?? 0)} km`}
+                    sub={`R$ ${fmtNum(kpis?.custo_por_km ?? 0, 2)}/km`} trend={null} />
+                <KPICard icon={<Gauge size={20} className="text-amber-600" />} iconBg="bg-amber-50"
+                    label="Média km/L" value={`${fmtNum(kpis?.media_km_l ?? 0, 2)} km/L`}
+                    sub="Média geral da frota" trend={kpis?.var_media_mom} />
+                <KPICard icon={<Fuel size={20} className="text-[#0b4d3c]" />} iconBg="bg-[#e6f4f0]"
+                    label="R$/Litro Médio" value={`R$ ${fmtNum(kpis?.custo_por_litro ?? 0, 3)}`}
+                    sub={`R$ ${fmtNum(kpis?.custo_por_km ?? 0, 3)}/km`} trend={null} />
+            </div>
+
+            {/* ── Gráficos: Tendência + Grupos ── */}
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-5 mb-6">
+
+                {/* Tendência mensal */}
+                <div className="xl:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+                    <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                        <div>
+                            <h3 className="font-bold text-gray-800 text-sm uppercase tracking-wider">Tendência Mensal</h3>
+                            <p className="text-xs text-gray-400 mt-0.5">Evolução de consumo e custo por mês</p>
+                        </div>
+                        <div className="flex gap-1">
+                            {[['media', 'km/L'], ['custo', 'R$/L'], ['litros', 'Volume']].map(([k, l]) => (
+                                <button key={k} onClick={() => setTrendMetric(k)}
+                                    className={`px-3 py-1 rounded-lg text-xs font-semibold border transition-colors ${trendMetric === k ? 'bg-[#0b4d3c] text-white border-[#0b4d3c]' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}>
+                                    {l}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                    <ResponsiveContainer width="100%" height={260}>
+                        {trendMetric === 'media' ? (
+                            <ComposedChart data={trendData} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                                <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
+                                <YAxis yAxisId="left" domain={['auto', 'auto']} tick={{ fontSize: 11 }} tickFormatter={v => v.toFixed(2)} />
+                                <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} tickFormatter={v => v.toFixed(2)} />
+                                <Tooltip content={<CustomTooltipTrend />} />
+                                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
+                                <Bar yAxisId="right" dataKey="Litros (mil)" fill="#bfdbfe" radius={[3, 3, 0, 0]} name="Litros (mil)" />
+                                <Line yAxisId="left" type="monotone" dataKey="km/L" stroke="#0b4d3c" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                                {mediaGeral && <ReferenceLine yAxisId="left" y={mediaGeral} stroke="#f59e0b" strokeDasharray="4 4" strokeWidth={1.5} label={{ value: `Média ${mediaGeral?.toFixed(2)}`, fontSize: 10, fill: '#f59e0b', position: 'insideTopRight' }} />}
+                            </ComposedChart>
+                        ) : trendMetric === 'custo' ? (
+                            <ComposedChart data={trendData} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                                <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
+                                <YAxis yAxisId="left" domain={['auto', 'auto']} tick={{ fontSize: 11 }} tickFormatter={v => `R$${v.toFixed(2)}`} />
+                                <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} />
+                                <Tooltip content={<CustomTooltipTrend />} />
+                                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
+                                <Bar yAxisId="right" dataKey="Custo (R$ mil)" fill="#fde68a" radius={[3, 3, 0, 0]} name="Custo (R$ mil)" />
+                                <Line yAxisId="left" type="monotone" dataKey="R$/L" stroke="#ef4444" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                            </ComposedChart>
+                        ) : (
+                            <ComposedChart data={trendData} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                                <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
+                                <YAxis tick={{ fontSize: 11 }} />
+                                <Tooltip content={<CustomTooltipTrend />} />
+                                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
+                                <Bar dataKey="Litros (mil)" fill="#3b82f6" radius={[3, 3, 0, 0]} />
+                                <Bar dataKey="Custo (R$ mil)" fill="#f59e0b" radius={[3, 3, 0, 0]} />
+                            </ComposedChart>
+                        )}
+                    </ResponsiveContainer>
+                </div>
+
+                {/* Por Grupo */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+                    <div className="mb-4">
+                        <h3 className="font-bold text-gray-800 text-sm uppercase tracking-wider">Consumo por Grupo</h3>
+                        <p className="text-xs text-gray-400 mt-0.5">km/L médio e custo total</p>
+                    </div>
+                    <ResponsiveContainer width="100%" height={130}>
+                        <BarChart data={grupoData} layout="vertical" margin={{ top: 0, right: 10, left: 10, bottom: 0 }}>
+                            <XAxis type="number" tick={{ fontSize: 10 }} domain={[0, 'auto']} tickFormatter={v => v.toFixed(1)} />
+                            <YAxis type="category" dataKey="grupo" tick={{ fontSize: 10 }} width={90} />
+                            <Tooltip formatter={(v, n) => [v.toFixed(3), n]} />
+                            <Bar dataKey="km/L" fill="#0b4d3c" radius={[0, 4, 4, 0]}>
+                                {grupoData.map((entry, i) => (
+                                    <rect key={i} fill={entry.fill} />
+                                ))}
+                            </Bar>
+                        </BarChart>
+                    </ResponsiveContainer>
+
+                    {/* Tabela resumo por grupo */}
+                    <div className="mt-4 space-y-2">
+                        {(por_grupo || []).map(g => (
+                            <div key={g.grupo} className="flex items-center justify-between text-xs">
+                                <div className="flex items-center gap-2">
+                                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: GRUPO_CORES[g.grupo] || '#6b7280' }} />
+                                    <span className="text-gray-600 truncate max-w-[130px]">{g.grupo}</span>
+                                </div>
+                                <div className="flex gap-3">
+                                    <span className="font-bold text-[#0b4d3c]">{g.media_km_l?.toFixed(2)} km/L</span>
+                                    <span className="text-gray-400">{fmtBRL(g.custo)}</span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+
+            {/* ── Ranking top/bottom ── */}
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 mb-6">
+                {/* Melhores */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+                    <div className="flex items-center gap-2 mb-4">
+                        <Award size={16} className="text-emerald-600" />
+                        <h3 className="font-bold text-sm text-gray-800 uppercase tracking-wider">Melhores Consumidores</h3>
+                        <span className="text-xs text-gray-400 ml-auto">maior km/L = mais eficiente</span>
+                    </div>
+                    <div className="space-y-2">
+                        {(ranking || []).slice(0, 8).map((r, i) => {
+                            const pct = ((r.media_anual - (ranking.at(-1)?.media_anual ?? 0)) / ((ranking[0]?.media_anual ?? 1) - (ranking.at(-1)?.media_anual ?? 0))) * 100;
+                            return (
+                                <div key={r.placa} className="flex items-center gap-3">
+                                    <span className="text-xs font-bold text-gray-400 w-5 text-right">{i + 1}</span>
+                                    <span className="font-mono text-xs font-bold text-gray-700 w-20">{r.placa}</span>
+                                    <div className="flex-1 bg-gray-100 rounded-full h-4 relative overflow-hidden">
+                                        <div className="h-full bg-emerald-400 rounded-full transition-all" style={{ width: `${Math.max(pct, 5)}%` }} />
+                                    </div>
+                                    <span className="text-xs font-bold text-emerald-700 w-16 text-right">{r.media_anual?.toFixed(2)} km/L</span>
+                                    <span className="text-[10px] text-gray-400 w-20 hidden xl:block">{r.grupo?.slice(0, 12)}</span>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                {/* Piores */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+                    <div className="flex items-center gap-2 mb-4">
+                        <AlertTriangle size={16} className="text-amber-500" />
+                        <h3 className="font-bold text-sm text-gray-800 uppercase tracking-wider">Atenção — Menor Eficiência</h3>
+                        <span className="text-xs text-gray-400 ml-auto">menor km/L = pior consumo</span>
+                    </div>
+                    <div className="space-y-2">
+                        {(ranking || []).slice(-8).reverse().map((r, i) => {
+                            const pct = ((r.media_anual - (ranking.at(-1)?.media_anual ?? 0)) / ((ranking[0]?.media_anual ?? 1) - (ranking.at(-1)?.media_anual ?? 0))) * 100;
+                            return (
+                                <div key={r.placa} className="flex items-center gap-3">
+                                    <span className="text-xs font-bold text-gray-400 w-5 text-right">{(ranking || []).length - i}</span>
+                                    <span className="font-mono text-xs font-bold text-gray-700 w-20">{r.placa}</span>
+                                    <div className="flex-1 bg-gray-100 rounded-full h-4 relative overflow-hidden">
+                                        <div className="h-full bg-amber-400 rounded-full transition-all" style={{ width: `${Math.max(pct, 5)}%` }} />
+                                    </div>
+                                    <span className="text-xs font-bold text-amber-700 w-16 text-right">{r.media_anual?.toFixed(2)} km/L</span>
+                                    <span className="text-[10px] text-gray-400 w-20 hidden xl:block">{r.grupo?.slice(0, 12)}</span>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            </div>
+
+            {/* ── Tabela Veículos x Mês ── */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 mb-8">
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                    <div>
+                        <h3 className="font-bold text-gray-800 uppercase tracking-wider text-sm">
+                            Comparativo de Média de Combustível dos Veículos
+                        </h3>
+                        <p className="text-xs text-gray-400 mt-0.5">km/L por veículo a cada mês — {ano}</p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <select value={filterGrupoTabela} onChange={e => setFilterGrupoTabela(e.target.value)}
+                            className="bg-white text-gray-600 px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-medium focus:border-[#0b4d3c] outline-none">
+                            <option value="TODOS">Todos os grupos</option>
+                            {(data?.grupos || []).map(g => <option key={g} value={g}>{g}</option>)}
+                        </select>
+                        <select value={tabelaOrdem} onChange={e => setTabelaOrdem(e.target.value)}
+                            className="bg-white text-gray-600 px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-medium focus:border-[#0b4d3c] outline-none">
+                            <option value="media_anual">Ordenar: Média</option>
+                            <option value="placa">Ordenar: Placa</option>
+                            <option value="grupo">Ordenar: Grupo</option>
+                        </select>
+                        {/* Legenda de cores */}
+                        <div className="flex items-center gap-1.5 text-[10px] text-gray-500">
+                            <span className="w-3 h-3 rounded bg-emerald-100 border border-emerald-200" />Alto
+                            <span className="w-3 h-3 rounded bg-sky-50 border border-sky-200 ml-1" />Médio
+                            <span className="w-3 h-3 rounded bg-red-50 border border-red-200 ml-1" />Baixo
+                        </div>
+                    </div>
+                </div>
+
+                <div className="overflow-auto rounded-lg border border-gray-100">
+                    <table className="w-full text-xs text-left min-w-max">
+                        <thead>
+                            <tr className="bg-[#0b4d3c] text-white">
+                                <th className="px-3 py-2.5 font-bold sticky left-0 bg-[#0b4d3c] min-w-[120px]">Veículo</th>
+                                <th className="px-2 py-2.5 font-semibold text-[10px] text-emerald-200 min-w-[64px]">Grupo</th>
+                                {mesesDoAno.map(m => (
+                                    <th key={m} className="px-2 py-2.5 font-semibold text-center min-w-[54px]">{fmtMes(m)}</th>
+                                ))}
+                                <th className="px-3 py-2.5 font-bold text-center bg-[#083d2e] min-w-[64px]">Média A.</th>
+                                <th className="px-3 py-2.5 font-semibold text-center text-[10px] text-emerald-200 min-w-[80px]">Total KM</th>
+                            </tr>
+                            {/* Linha de média geral */}
+                            <tr className="bg-[#e6f4f0] border-b border-gray-200">
+                                <td className="px-3 py-1.5 font-bold text-[#0b4d3c] sticky left-0 bg-[#e6f4f0]">Média Frota</td>
+                                <td className="px-2 py-1.5" />
+                                {mesesDoAno.map(m => (
+                                    <td key={m} className="px-2 py-1.5 text-center font-bold text-[#0b4d3c]">
+                                        {mediaPorMes[m] ? mediaPorMes[m].toFixed(2) : '—'}
+                                    </td>
+                                ))}
+                                <td className="px-3 py-1.5 text-center font-extrabold text-[#0b4d3c] bg-[#d0ece6]">
+                                    {kpis?.media_km_l?.toFixed(2)}
+                                </td>
+                                <td className="px-3 py-1.5 text-center text-[#0b4d3c]">
+                                    {fmtNum(kpis?.total_km ?? 0)}
+                                </td>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {tabelaFiltrada.map((veh, idx) => {
+                                const isEven = idx % 2 === 0;
+                                return (
+                                    <tr key={veh.placa} className={isEven ? 'bg-white hover:bg-gray-50' : 'bg-gray-50/60 hover:bg-gray-100/60'}>
+                                        <td className={`px-3 py-2 font-mono font-bold text-gray-800 sticky left-0 ${isEven ? 'bg-white' : 'bg-gray-50/60'}`}>
+                                            {veh.placa}
+                                        </td>
+                                        <td className="px-2 py-2">
+                                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold" style={{ background: GRUPO_CORES[veh.grupo] + '22', color: GRUPO_CORES[veh.grupo] || '#666' }}>
+                                                {veh.grupo?.replace('CONTAINER - ', 'CT.')}
+                                            </span>
+                                        </td>
+                                        {mesesDoAno.map(m => {
+                                            const val = veh.meses[m];
+                                            const { bg, text } = mediaColor(val, p25, p75);
+                                            return (
+                                                <td key={m} className={`px-2 py-2 text-center text-xs ${bg} ${text}`}>
+                                                    {val !== null && val !== undefined ? val.toFixed(2) : <span className="text-gray-300">—</span>}
+                                                </td>
+                                            );
+                                        })}
+                                        <td className={`px-3 py-2 text-center font-extrabold text-sm ${mediaColor(veh.media_anual, p25, p75).bg} ${mediaColor(veh.media_anual, p25, p75).text}`}>
+                                            {veh.media_anual !== null ? veh.media_anual.toFixed(2) : '—'}
+                                        </td>
+                                        <td className="px-3 py-2 text-center text-gray-500">
+                                            {fmtNum(veh.total_km)}
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+                <div className="mt-2 text-[10px] text-gray-400 text-right">
+                    {tabelaFiltrada.length} veículos · km/L calculado como km rodados ÷ litros abastecidos no período
+                </div>
+            </div>
+        </div>
+    );
+}
+
+
+<system-reminder>
+Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
+</system-reminder>
