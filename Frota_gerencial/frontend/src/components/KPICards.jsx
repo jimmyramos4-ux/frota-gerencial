@@ -3,7 +3,7 @@ import { TrendingUp, TrendingDown, Recycle, HardHat, DollarSign, BarChart2, Penc
 
 function fmt(value) {
   if (value == null || isNaN(value)) return '—';
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value);
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
 }
 
 function pct(value, total) {

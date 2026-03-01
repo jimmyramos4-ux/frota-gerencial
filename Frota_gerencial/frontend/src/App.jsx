@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 const API = import.meta.env.VITE_API_BASE || '';
 import Sidebar from './components/Sidebar';
 import KPICards from './components/KPICards';
@@ -107,6 +107,23 @@ function App() {
     };
     fetchData();
   }, [mes, ano, fleetType, grupo]);
+
+  // Acumulado por placa/motorista até o dia selecionado
+  const cumulativePlacasData = useMemo(() => {
+    if (!selectedDay) return [];
+    const filtered = (ultimosCarregamentos.sucata || []).filter(r => r.data && parseInt(r.data.split('-')[2]) <= selectedDay);
+    const byPlaca = {};
+    filtered.forEach(r => { if (r.placa) byPlaca[r.placa] = (byPlaca[r.placa] || 0) + (r.valor || 0); });
+    return Object.entries(byPlaca).map(([placa, valor]) => ({ placa, valor })).sort((a, b) => b.valor - a.valor);
+  }, [selectedDay, ultimosCarregamentos.sucata]);
+
+  const cumulativeDriverData = useMemo(() => {
+    if (!selectedDay) return [];
+    const filtered = (ultimosCarregamentos.sucata || []).filter(r => r.data && parseInt(r.data.split('-')[2]) <= selectedDay);
+    const byDriver = {};
+    filtered.forEach(r => { if (r.motorista) byDriver[r.motorista] = (byDriver[r.motorista] || 0) + (r.valor || 0); });
+    return Object.entries(byDriver).map(([motorista, valor]) => ({ motorista, valor })).sort((a, b) => b.valor - a.valor);
+  }, [selectedDay, ultimosCarregamentos.sucata]);
 
   // Mock data to use while loading or if data is empty for the demo
   const mockRenderData = dados?.kpis ? { ...dados.kpis, meta: metaManual } : {
@@ -242,8 +259,8 @@ function App() {
                       <FaturamentoPlaca
                         monthData={dados?.placas_mensal || []}
                         monthDriverData={dados?.motoristas_mensal || []}
-                        data={dayDetail.placas_data}
-                        dayDriverData={dayDetail.motoristas_data || []}
+                        data={cumulativePlacasData}
+                        dayDriverData={cumulativeDriverData}
                         selectedDay={selectedDay}
                       />
                     </div>
@@ -264,10 +281,10 @@ function App() {
               {/* Linha completa: Últimos Carregamentos — empilhados, cada um de fora a fora */}
               <div className="mt-6 flex flex-col gap-6">
                 <div className="w-full">
-                  <UltimosCarregamentos data={ultimosCarregamentos.sucata || []} title="ÚLTIMOS CARREGAMENTOS SUCATA" showFilter={true} />
+                  <UltimosCarregamentos data={ultimosCarregamentos.sucata || []} title="ÚLTIMOS CARREGAMENTOS SUCATA" showFilter={true} selectedDay={selectedDay} />
                 </div>
                 <div className="w-full">
-                  <UltimosCarregamentosCimento data={ultimosCarregamentos.cimento || []} />
+                  <UltimosCarregamentosCimento data={ultimosCarregamentos.cimento || []} selectedDay={selectedDay} />
                 </div>
               </div>
             </div>

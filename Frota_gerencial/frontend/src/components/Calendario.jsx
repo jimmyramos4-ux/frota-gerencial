@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
+import { Pencil } from 'lucide-react';
 import { getFeriadosMes } from '../utils/feriados';
 
-export default function Calendario({ dailyData = [], previousDailyData = [], mes, ano }) {
+export default function Calendario({ dailyData = [], previousDailyData = [], mes, ano, selectedDay, setSelectedDay }) {
     // Estados do Calendário
     const [metaDiaria, setMetaDiaria] = useState(150000);
     const [isEditingMeta, setIsEditingMeta] = useState(false);
     const [tempMeta, setTempMeta] = useState(150000);
     const [filtroAtivo, setFiltroAtivo] = useState('Todos'); // 'Bateu Meta', 'Não Bateu Meta', 'Todos'
-    const [selectedDay, setSelectedDay] = useState(null);
 
     // Determine o número de dias no mês
     const currentDate = new Date(ano || new Date().getFullYear(), (mes || new Date().getMonth() + 1) - 1, 1);
@@ -136,8 +136,9 @@ export default function Calendario({ dailyData = [], previousDailyData = [], mes
                     ) : (
                         <button
                             onClick={() => { setTempMeta(metaDiaria); setIsEditingMeta(true); }}
-                            className="text-white/80 hover:text-white flex items-center gap-1 text-[11px] font-bold border border-white/30 hover:border-white px-2 py-1 rounded transition"
+                            className="text-white/80 hover:text-white flex items-center gap-1.5 text-[11px] font-bold border border-white/30 hover:border-white px-2 py-1 rounded transition whitespace-nowrap"
                         >
+                            <Pencil size={11} />
                             META DIÁRIA (R$ {(metaDiaria / 1000).toFixed(0)}k)
                         </button>
                     )}

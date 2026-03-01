@@ -7,7 +7,7 @@ const PLANILHA_COR = {
     INTERCEMENT: 'bg-orange-100 text-orange-700',
 };
 
-export default function UltimosCarregamentosCimento({ data = [] }) {
+export default function UltimosCarregamentosCimento({ data = [], selectedDay = null }) {
     const [filterMotorista, setFilterMotorista] = useState('');
 
     const fmtData = (str) => {
@@ -32,7 +32,11 @@ export default function UltimosCarregamentosCimento({ data = [] }) {
         return isNaN(n) ? '-' : String(Math.round(n));
     };
 
-    const baseData = data.filter(r => isValidDestino(r.destino));
+    const dayFiltered = selectedDay
+        ? data.filter(r => r.data && parseInt(r.data.split('-')[2]) <= selectedDay)
+        : data;
+
+    const baseData = dayFiltered.filter(r => isValidDestino(r.destino));
 
     const filteredData = filterMotorista.trim()
         ? baseData.filter(r => r.motorista?.toLowerCase().includes(filterMotorista.toLowerCase()))
@@ -42,8 +46,13 @@ export default function UltimosCarregamentosCimento({ data = [] }) {
         <div className="bg-white rounded-xl shadow-md p-4 flex flex-col">
             {/* Header */}
             <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-                <h3 className="text-gray-800 font-extrabold uppercase tracking-widest text-sm">
+                <h3 className="text-gray-800 font-extrabold uppercase tracking-widest text-sm flex items-center gap-2">
                     ÚLTIMOS CARREGAMENTOS CIMENTO
+                    {selectedDay && (
+                        <span className="text-[10px] font-bold bg-[#147a61] text-white px-2 py-0.5 rounded-full normal-case tracking-normal">
+                            Até dia {selectedDay}
+                        </span>
+                    )}
                 </h3>
                 <div className="flex items-center gap-3">
                     <input

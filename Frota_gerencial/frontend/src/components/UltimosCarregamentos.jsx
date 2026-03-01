@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-export default function UltimosCarregamentos({ data = [], title = "ÚLTIMOS CARREGAMENTOS", showFilter = false }) {
+export default function UltimosCarregamentos({ data = [], title = "ÚLTIMOS CARREGAMENTOS", showFilter = false, selectedDay = null }) {
     const [filterMotorista, setFilterMotorista] = useState('');
 
     const fmt = (val) =>
@@ -19,16 +19,25 @@ export default function UltimosCarregamentos({ data = [], title = "ÚLTIMOS CARR
         return 'bg-gray-100 text-gray-600';
     };
 
-    const filteredData = (showFilter && filterMotorista.trim())
-        ? data.filter(r => r.motorista?.toLowerCase().includes(filterMotorista.toLowerCase()))
+    const dayFiltered = selectedDay
+        ? data.filter(r => r.data && parseInt(r.data.split('-')[2]) <= selectedDay)
         : data;
+
+    const filteredData = (showFilter && filterMotorista.trim())
+        ? dayFiltered.filter(r => r.motorista?.toLowerCase().includes(filterMotorista.toLowerCase()))
+        : dayFiltered;
 
     return (
         <div className="bg-white rounded-xl shadow-md p-4 flex flex-col">
             {/* Header */}
             <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-                <h3 className="text-gray-800 font-extrabold uppercase tracking-widest text-sm">
+                <h3 className="text-gray-800 font-extrabold uppercase tracking-widest text-sm flex items-center gap-2">
                     {title}
+                    {selectedDay && (
+                        <span className="text-[10px] font-bold bg-[#147a61] text-white px-2 py-0.5 rounded-full normal-case tracking-normal">
+                            Até dia {selectedDay}
+                        </span>
+                    )}
                 </h3>
                 <div className="flex items-center gap-3">
                     {showFilter && (
