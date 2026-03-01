@@ -81,6 +81,7 @@ export default function CombustivelPage() {
     const [ano, setAno] = useState(2025);
     const [grupo, setGrupo] = useState('TODOS');
     const [selectedMonths, setSelectedMonths] = useState([]); // [] = todos
+    const [metodo, setMetodo] = useState('ponderada'); // 'ponderada' | 'tanque_cheio'
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [trendMetric, setTrendMetric] = useState('media'); // 'media' | 'custo' | 'litros'
@@ -97,7 +98,7 @@ export default function CombustivelPage() {
         const fetch_ = async () => {
             setLoading(true);
             try {
-                let url = `${API}/api/combustivel?year=${ano}&group=${encodeURIComponent(grupo)}`;
+                let url = `${API}/api/combustivel?year=${ano}&group=${encodeURIComponent(grupo)}&metodo=${metodo}`;
                 if (selectedMonths.length > 0) url += `&months=${selectedMonths.join(',')}`;
                 const r = await fetch(url);
                 const j = await r.json();
@@ -109,7 +110,7 @@ export default function CombustivelPage() {
             }
         };
         fetch_();
-    }, [ano, grupo, selectedMonths]);
+    }, [ano, grupo, selectedMonths, metodo]);
 
     // Calcular percentis p25/p75 para coloração da tabela
     const { p25, p75 } = useMemo(() => {
@@ -212,6 +213,24 @@ export default function CombustivelPage() {
                             </button>
                         );
                     })}
+
+                    <div className="w-px h-5 bg-gray-200" />
+                    <span className="text-xs font-bold text-gray-400 tracking-widest">MÉTODO</span>
+                    <button
+                        onClick={() => setMetodo('ponderada')}
+                        className={`px-3 py-1.5 rounded-l-lg text-xs font-semibold border transition-colors ${metodo === 'ponderada' ? 'bg-[#0b4d3c] text-white border-[#0b4d3c]' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}>
+                        Ponderada
+                    </button>
+                    <button
+                        onClick={() => setMetodo('tanque_cheio')}
+                        className={`px-3 py-1.5 rounded-r-lg text-xs font-semibold border-t border-b border-r transition-colors ${metodo === 'tanque_cheio' ? 'bg-[#0b4d3c] text-white border-[#0b4d3c]' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}>
+                        Tanque Cheio
+                    </button>
+                    {metodo === 'tanque_cheio' && data?.kpis?.cobertura_tc != null && (
+                        <span className="text-[10px] font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+                            {data.kpis.cobertura_tc}% cobertura TC
+                        </span>
+                    )}
 
                     <div className="w-px h-5 bg-gray-200" />
                     <span className="text-xs font-bold text-gray-400 tracking-widest">GRUPO</span>
