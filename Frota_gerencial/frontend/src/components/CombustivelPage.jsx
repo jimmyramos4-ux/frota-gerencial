@@ -27,27 +27,35 @@ function fmtNum(v, dec = 0) {
     return new Intl.NumberFormat('pt-BR', { minimumFractionDigits: dec, maximumFractionDigits: dec }).format(v);
 }
 
-// ── Cor por percentil para a tabela ──────────────────────────────────────────
+// ── Cor por percentil — agora recebe p25/p75 do grupo ────────────────────────
 function mediaColor(value, p25, p75) {
     if (value === null || value === undefined) return { bg: '', text: '' };
+    if (p25 == null || p75 == null) return { bg: '', text: '' };
     if (value >= p75) return { bg: 'bg-emerald-100', text: 'text-emerald-800 font-bold' };
     if (value >= p25) return { bg: 'bg-sky-50',      text: 'text-sky-700' };
     return                  { bg: 'bg-red-50',        text: 'text-red-600' };
 }
 
 // ── KPI Card ─────────────────────────────────────────────────────────────────
-function KPICard({ icon, label, value, sub, trend, iconBg }) {
+function KPICard({ icon, label, value, sub, trend, iconBg, badge }) {
     const isPos = trend > 0;
     return (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex flex-col gap-3">
             <div className="flex items-start justify-between">
                 <div className={`p-2 rounded-lg ${iconBg}`}>{icon}</div>
-                {trend !== null && trend !== undefined && (
-                    <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full flex items-center gap-0.5 ${isPos ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
-                        {isPos ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
-                        {Math.abs(trend).toFixed(1)}%
-                    </span>
-                )}
+                <div className="flex flex-col items-end gap-1">
+                    {badge && (
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 uppercase tracking-wide">
+                            {badge}
+                        </span>
+                    )}
+                    {trend !== null && trend !== undefined && (
+                        <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full flex items-center gap-0.5 ${isPos ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
+                            {isPos ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
+                            {Math.abs(trend).toFixed(1)}%
+                        </span>
+                    )}
+                </div>
             </div>
             <div>
                 <div className="text-2xl font-extrabold text-gray-800 leading-tight">{value}</div>
@@ -74,18 +82,31 @@ function CustomTooltipTrend({ active, payload, label }) {
     );
 }
 
+// ── Indicador de ordenação nas colunas ───────────────────────────────────────
+function SortIcon({ col, sortCol, sortDir }) {
+    if (sortCol !== col) return <span className="text-white/30 ml-0.5 text-[9px]">⇅</span>;
+    return <span className="ml-0.5 text-[9px]">{sortDir === 'asc' ? '▲' : '▼'}</span>;
+}
+
 // ── Componente principal ──────────────────────────────────────────────────────
 const MES_NOMES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
 export default function CombustivelPage() {
     const [ano, setAno] = useState(2025);
     const [grupo, setGrupo] = useState('TODOS');
-    const [selectedMonths, setSelectedMonths] = useState([]); // [] = todos
-    const [metodo, setMetodo] = useState('ponderada'); // 'ponderada' | 'tanque_cheio'
-    const [data, setData] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [trendMetric, setTrendMetric] = useState('media'); // 'media' | 'custo' | 'litros'
-    const [tabelaOrdem, setTabelaOrdem] = useState('media_anual'); // 'media_anual' | 'placa' | 'grupo'
+    const [selectedMonths, setSelectedMonths] = useState([]);
+    const [metodo, setMetodo] = useState('ponderada'); // afeta apenas ranking + tabela
+
+    // dataPonderada: sempre ponderada → KPIs, Tendência, Consumo por Grupo
+    // dataMetodo: método selecionado → Ranking + Tabela Comparativo
+    const [dataPonderada, setDataPonderada] = useState(null);
+    const [dataMetodo, setDataMetodo] = useState(null);
+    const [loadingPonderada, setLoadingPonderada] = useState(true);
+    const [loadingMetodo, setLoadingMetodo] = useState(true);
+
+    const [trendMetric, setTrendMetric] = useState('media');
+    const [sortCol, setSortCol] = useState('media_anual');
+    const [sortDir, setSortDir] = useState('desc');
     const [filterGrupoTabela, setFilterGrupoTabela] = useState('TODOS');
 
     const toggleMes = (m) => {
@@ -94,70 +115,128 @@ export default function CombustivelPage() {
         );
     };
 
+    const handleSort = (col) => {
+        if (sortCol === col) {
+            setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortCol(col);
+            setSortDir(col === 'placa' || col === 'grupo' ? 'asc' : 'desc');
+        }
+    };
+
+    // Fetch sempre ponderada (KPIs, Tendência, Grupos)
     useEffect(() => {
         const fetch_ = async () => {
-            setLoading(true);
+            setLoadingPonderada(true);
+            try {
+                let url = `${API}/api/combustivel?year=${ano}&group=${encodeURIComponent(grupo)}&metodo=ponderada`;
+                if (selectedMonths.length > 0) url += `&months=${selectedMonths.join(',')}`;
+                const r = await fetch(url);
+                const j = await r.json();
+                setDataPonderada(j.data);
+            } catch (e) {
+                console.error(e);
+            } finally {
+                setLoadingPonderada(false);
+            }
+        };
+        fetch_();
+    }, [ano, grupo, selectedMonths]);
+
+    // Fetch com método selecionado (Ranking + Tabela)
+    useEffect(() => {
+        const fetch_ = async () => {
+            setLoadingMetodo(true);
             try {
                 let url = `${API}/api/combustivel?year=${ano}&group=${encodeURIComponent(grupo)}&metodo=${metodo}`;
                 if (selectedMonths.length > 0) url += `&months=${selectedMonths.join(',')}`;
                 const r = await fetch(url);
                 const j = await r.json();
-                setData(j.data);
+                setDataMetodo(j.data);
             } catch (e) {
                 console.error(e);
             } finally {
-                setLoading(false);
+                setLoadingMetodo(false);
             }
         };
         fetch_();
     }, [ano, grupo, selectedMonths, metodo]);
 
-    // Calcular percentis p25/p75 para coloração da tabela
-    const { p25, p75 } = useMemo(() => {
-        if (!data?.tabela_veiculos) return { p25: 2.0, p75: 2.5 };
-        const all = data.tabela_veiculos.flatMap(v => Object.values(v.meses).filter(x => x !== null));
-        if (!all.length) return { p25: 2.0, p75: 2.5 };
-        const sorted = [...all].sort((a, b) => a - b);
-        return {
-            p25: sorted[Math.floor(sorted.length * 0.25)],
-            p75: sorted[Math.floor(sorted.length * 0.75)],
-        };
-    }, [data]);
+    // Percentis p25/p75 POR GRUPO para coloração condicional da tabela
+    const grupoPct = useMemo(() => {
+        if (!dataMetodo?.tabela_veiculos) return {};
+        const grouped = {};
+        dataMetodo.tabela_veiculos.forEach(v => {
+            const g = v.grupo || 'SEM GRUPO';
+            if (!grouped[g]) grouped[g] = [];
+            Object.values(v.meses).forEach(val => {
+                if (val !== null && val !== undefined) grouped[g].push(val);
+            });
+        });
+        const map = {};
+        Object.entries(grouped).forEach(([g, vals]) => {
+            const sorted = [...vals].sort((a, b) => a - b);
+            map[g] = {
+                p25: sorted[Math.floor(sorted.length * 0.25)] ?? 2.0,
+                p75: sorted[Math.floor(sorted.length * 0.75)] ?? 2.5,
+            };
+        });
+        return map;
+    }, [dataMetodo]);
 
-    // Meses filtrados pelo ano selecionado
+    // Meses do ano selecionado (a partir do dataMetodo)
     const mesesDoAno = useMemo(() => {
-        if (!data?.all_months) return [];
-        return data.all_months.filter(m => m.startsWith(String(ano)));
-    }, [data, ano]);
+        if (!dataMetodo?.all_months) return [];
+        return dataMetodo.all_months.filter(m => m.startsWith(String(ano)));
+    }, [dataMetodo, ano]);
 
     // Tabela filtrada e ordenada
     const tabelaFiltrada = useMemo(() => {
-        if (!data?.tabela_veiculos) return [];
-        let rows = [...data.tabela_veiculos];
+        if (!dataMetodo?.tabela_veiculos) return [];
+        let rows = [...dataMetodo.tabela_veiculos];
         if (filterGrupoTabela !== 'TODOS') rows = rows.filter(r => r.grupo === filterGrupoTabela);
-        if (tabelaOrdem === 'placa') rows.sort((a, b) => a.placa.localeCompare(b.placa));
-        else if (tabelaOrdem === 'grupo') rows.sort((a, b) => a.grupo.localeCompare(b.grupo));
-        else rows.sort((a, b) => (b.media_anual ?? 0) - (a.media_anual ?? 0));
+        rows.sort((a, b) => {
+            if (sortCol === 'placa') {
+                return sortDir === 'asc' ? a.placa.localeCompare(b.placa) : b.placa.localeCompare(a.placa);
+            }
+            if (sortCol === 'grupo') {
+                return sortDir === 'asc'
+                    ? (a.grupo || '').localeCompare(b.grupo || '')
+                    : (b.grupo || '').localeCompare(a.grupo || '');
+            }
+            if (sortCol === 'total_km') {
+                const av = a.total_km ?? 0, bv = b.total_km ?? 0;
+                return sortDir === 'asc' ? av - bv : bv - av;
+            }
+            if (mesesDoAno.includes(sortCol)) {
+                const av = a.meses[sortCol] ?? -1, bv = b.meses[sortCol] ?? -1;
+                return sortDir === 'asc' ? av - bv : bv - av;
+            }
+            // media_anual (default)
+            const av = a.media_anual ?? -1, bv = b.media_anual ?? -1;
+            return sortDir === 'asc' ? av - bv : bv - av;
+        });
         return rows;
-    }, [data, filterGrupoTabela, tabelaOrdem]);
+    }, [dataMetodo, filterGrupoTabela, sortCol, sortDir, mesesDoAno]);
 
-    // Média global por mês (para linha de referência na tabela)
+    // Média por mês para linha de referência na tabela (usa dataMetodo para coerência)
     const mediaPorMes = useMemo(() => {
-        if (!data?.monthly_trend) return {};
+        if (!dataMetodo?.monthly_trend) return {};
         const map = {};
-        data.monthly_trend.forEach(m => { map[m.mes] = m.media_km_l; });
+        dataMetodo.monthly_trend.forEach(m => { map[m.mes] = m.media_km_l; });
         return map;
-    }, [data]);
+    }, [dataMetodo]);
 
-    if (loading) return (
+    if (loadingPonderada && !dataPonderada) return (
         <div className="flex items-center justify-center h-64">
             <div className="text-xl text-[#0b4d3c] animate-pulse font-bold">Carregando dados de combustível...</div>
         </div>
     );
 
-    const { kpis, monthly_trend, por_grupo, ranking, anos } = data || {};
+    const { kpis, monthly_trend, por_grupo, anos } = dataPonderada || {};
+    const { ranking } = dataMetodo || {};
 
-    // ── Dados do gráfico de tendência ─────────────────────────────────────────
+    // Dados do gráfico de tendência (sempre ponderada)
     const trendData = (monthly_trend || []).map(m => ({
         mes: fmtMes(m.mes),
         'km/L': m.media_km_l,
@@ -167,7 +246,7 @@ export default function CombustivelPage() {
         var_media: m.var_media,
     }));
 
-    // ── Dados do gráfico de grupos ────────────────────────────────────────────
+    // Dados do gráfico de grupos (sempre ponderada)
     const grupoData = (por_grupo || []).map(g => ({
         grupo: g.grupo.replace('CONTAINER - ', 'CONT. '),
         'km/L': g.media_km_l,
@@ -181,7 +260,7 @@ export default function CombustivelPage() {
     return (
         <div className="max-w-[1700px] mx-auto">
 
-            {/* ── Header de filtros ── */}
+            {/* ── Header de filtros (sem toggle de método) ── */}
             <div className="sticky top-0 z-40 pt-6 pb-4 bg-[#f3f4f6]">
                 <div className="bg-white px-5 py-3 rounded-xl shadow-sm border border-gray-100 flex flex-wrap items-center gap-x-3 gap-y-2">
                     <Fuel size={18} className="text-[#0b4d3c]" />
@@ -215,34 +294,16 @@ export default function CombustivelPage() {
                     })}
 
                     <div className="w-px h-5 bg-gray-200" />
-                    <span className="text-xs font-bold text-gray-400 tracking-widest">MÉTODO</span>
-                    <button
-                        onClick={() => setMetodo('ponderada')}
-                        className={`px-3 py-1.5 rounded-l-lg text-xs font-semibold border transition-colors ${metodo === 'ponderada' ? 'bg-[#0b4d3c] text-white border-[#0b4d3c]' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}>
-                        Ponderada
-                    </button>
-                    <button
-                        onClick={() => setMetodo('tanque_cheio')}
-                        className={`px-3 py-1.5 rounded-r-lg text-xs font-semibold border-t border-b border-r transition-colors ${metodo === 'tanque_cheio' ? 'bg-[#0b4d3c] text-white border-[#0b4d3c]' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}>
-                        Tanque Cheio
-                    </button>
-                    {metodo === 'tanque_cheio' && data?.kpis?.cobertura_tc != null && (
-                        <span className="text-[10px] font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
-                            {data.kpis.cobertura_tc}% cobertura TC
-                        </span>
-                    )}
-
-                    <div className="w-px h-5 bg-gray-200" />
                     <span className="text-xs font-bold text-gray-400 tracking-widest">GRUPO</span>
                     <select value={grupo} onChange={e => setGrupo(e.target.value)}
                         className="bg-white text-gray-600 px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-medium focus:border-[#0b4d3c] outline-none">
                         <option value="TODOS">Todos os grupos</option>
-                        {(data?.grupos || []).map(g => <option key={g} value={g}>{g}</option>)}
+                        {(dataPonderada?.grupos || []).map(g => <option key={g} value={g}>{g}</option>)}
                     </select>
                 </div>
             </div>
 
-            {/* ── KPI Cards ── */}
+            {/* ── KPI Cards (sempre ponderada) ── */}
             <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-4 mb-6">
                 <KPICard icon={<Droplets size={20} className="text-blue-600" />} iconBg="bg-blue-50"
                     label="Total Abastecido" value={`${fmtNum(kpis?.total_litros ?? 0)} L`}
@@ -255,20 +316,22 @@ export default function CombustivelPage() {
                     sub={`R$ ${fmtNum(kpis?.custo_por_km ?? 0, 2)}/km`} trend={null} />
                 <KPICard icon={<Gauge size={20} className="text-amber-600" />} iconBg="bg-amber-50"
                     label="Média km/L" value={`${fmtNum(kpis?.media_km_l ?? 0, 2)} km/L`}
-                    sub="Média geral da frota" trend={kpis?.var_media_mom} />
+                    sub="Média ponderada da frota" trend={kpis?.var_media_mom} badge="Ponderada" />
                 <KPICard icon={<Fuel size={20} className="text-[#0b4d3c]" />} iconBg="bg-[#e6f4f0]"
                     label="R$/Litro Médio" value={`R$ ${fmtNum(kpis?.custo_por_litro ?? 0, 3)}`}
-                    sub={`R$ ${fmtNum(kpis?.custo_por_km ?? 0, 3)}/km`} trend={null} />
+                    sub={`R$ ${fmtNum(kpis?.custo_por_km ?? 0, 3)}/km`} trend={null} badge="Ponderada" />
             </div>
 
-            {/* ── Gráficos: Tendência + Grupos ── */}
+            {/* ── Gráficos: Tendência + Grupos (sempre ponderada) ── */}
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-5 mb-6">
 
                 {/* Tendência mensal */}
                 <div className="xl:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-5">
                     <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                         <div>
-                            <h3 className="font-bold text-gray-800 text-sm uppercase tracking-wider">Tendência Mensal</h3>
+                            <h3 className="font-bold text-gray-800 text-sm uppercase tracking-wider">Tendência Mensal
+                                <span className="ml-2 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 uppercase tracking-wide normal-case">Ponderada</span>
+                            </h3>
                             <p className="text-xs text-gray-400 mt-0.5">Evolução de consumo e custo por mês</p>
                         </div>
                         <div className="flex gap-1">
@@ -318,10 +381,12 @@ export default function CombustivelPage() {
                     </ResponsiveContainer>
                 </div>
 
-                {/* Por Grupo */}
+                {/* Por Grupo (sempre ponderada) */}
                 <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
                     <div className="mb-4">
-                        <h3 className="font-bold text-gray-800 text-sm uppercase tracking-wider">Consumo por Grupo</h3>
+                        <h3 className="font-bold text-gray-800 text-sm uppercase tracking-wider">Consumo por Grupo
+                            <span className="ml-2 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 uppercase tracking-wide normal-case">Ponderada</span>
+                        </h3>
                         <p className="text-xs text-gray-400 mt-0.5">km/L médio e custo total</p>
                     </div>
                     <ResponsiveContainer width="100%" height={130}>
@@ -355,79 +420,104 @@ export default function CombustivelPage() {
                 </div>
             </div>
 
-            {/* ── Ranking top/bottom ── */}
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 mb-6">
-                {/* Melhores */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-                    <div className="flex items-center gap-2 mb-4">
-                        <Award size={16} className="text-emerald-600" />
-                        <h3 className="font-bold text-sm text-gray-800 uppercase tracking-wider">Melhores Consumidores</h3>
-                        <span className="text-xs text-gray-400 ml-auto">maior km/L = mais eficiente</span>
-                    </div>
-                    <div className="space-y-2">
-                        {(ranking || []).slice(0, 8).map((r, i) => {
-                            const pct = ((r.media_anual - (ranking.at(-1)?.media_anual ?? 0)) / ((ranking[0]?.media_anual ?? 1) - (ranking.at(-1)?.media_anual ?? 0))) * 100;
-                            return (
-                                <div key={r.placa} className="flex items-center gap-3">
-                                    <span className="text-xs font-bold text-gray-400 w-5 text-right">{i + 1}</span>
-                                    <span className="font-mono text-xs font-bold text-gray-700 w-20">{r.placa}</span>
-                                    <div className="flex-1 bg-gray-100 rounded-full h-4 relative overflow-hidden">
-                                        <div className="h-full bg-emerald-400 rounded-full transition-all" style={{ width: `${Math.max(pct, 5)}%` }} />
-                                    </div>
-                                    <span className="text-xs font-bold text-emerald-700 w-16 text-right">{r.media_anual?.toFixed(2)} km/L</span>
-                                    <span className="text-[10px] text-gray-400 w-20 hidden xl:block">{r.grupo?.slice(0, 12)}</span>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-
-                {/* Piores */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-                    <div className="flex items-center gap-2 mb-4">
-                        <AlertTriangle size={16} className="text-amber-500" />
-                        <h3 className="font-bold text-sm text-gray-800 uppercase tracking-wider">Atenção — Menor Eficiência</h3>
-                        <span className="text-xs text-gray-400 ml-auto">menor km/L = pior consumo</span>
-                    </div>
-                    <div className="space-y-2">
-                        {(ranking || []).slice(-8).reverse().map((r, i) => {
-                            const pct = ((r.media_anual - (ranking.at(-1)?.media_anual ?? 0)) / ((ranking[0]?.media_anual ?? 1) - (ranking.at(-1)?.media_anual ?? 0))) * 100;
-                            return (
-                                <div key={r.placa} className="flex items-center gap-3">
-                                    <span className="text-xs font-bold text-gray-400 w-5 text-right">{(ranking || []).length - i}</span>
-                                    <span className="font-mono text-xs font-bold text-gray-700 w-20">{r.placa}</span>
-                                    <div className="flex-1 bg-gray-100 rounded-full h-4 relative overflow-hidden">
-                                        <div className="h-full bg-amber-400 rounded-full transition-all" style={{ width: `${Math.max(pct, 5)}%` }} />
-                                    </div>
-                                    <span className="text-xs font-bold text-amber-700 w-16 text-right">{r.media_anual?.toFixed(2)} km/L</span>
-                                    <span className="text-[10px] text-gray-400 w-20 hidden xl:block">{r.grupo?.slice(0, 12)}</span>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
+            {/* ── Toggle Método (afeta apenas ranking + tabela abaixo) ── */}
+            <div className="flex flex-wrap items-center gap-2 mb-4 px-1">
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-widest mr-1">Método de Cálculo</span>
+                <button
+                    onClick={() => setMetodo('ponderada')}
+                    className={`px-4 py-1.5 rounded-l-lg text-xs font-semibold border transition-colors ${metodo === 'ponderada' ? 'bg-[#0b4d3c] text-white border-[#0b4d3c]' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}>
+                    Ponderada
+                </button>
+                <button
+                    onClick={() => setMetodo('tanque_cheio')}
+                    className={`px-4 py-1.5 rounded-r-lg text-xs font-semibold border-t border-b border-r transition-colors ${metodo === 'tanque_cheio' ? 'bg-[#0b4d3c] text-white border-[#0b4d3c]' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}>
+                    Tanque Cheio
+                </button>
+                {metodo === 'tanque_cheio' && dataMetodo?.kpis?.cobertura_tc != null && (
+                    <span className="text-[10px] font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+                        {dataMetodo.kpis.cobertura_tc}% cobertura TC
+                    </span>
+                )}
+                <span className="text-[11px] text-gray-400 ml-1">
+                    Afeta: Melhores/Piores Consumidores e Comparativo por Veículo
+                </span>
             </div>
 
-            {/* ── Tabela Veículos x Mês ── */}
+            {/* ── Ranking Melhores/Piores ── */}
+            {loadingMetodo && !dataMetodo ? (
+                <div className="flex items-center justify-center h-24 mb-6">
+                    <div className="text-sm text-[#0b4d3c] animate-pulse font-semibold">Carregando ranking...</div>
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 mb-6">
+                    {/* Melhores */}
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+                        <div className="flex items-center gap-2 mb-4">
+                            <Award size={16} className="text-emerald-600" />
+                            <h3 className="font-bold text-sm text-gray-800 uppercase tracking-wider">Melhores Consumidores</h3>
+                            <span className="text-xs text-gray-400 ml-auto">maior km/L = mais eficiente</span>
+                        </div>
+                        <div className="space-y-2">
+                            {(ranking || []).slice(0, 8).map((r, i) => {
+                                const pct = ((r.media_anual - (ranking.at(-1)?.media_anual ?? 0)) / ((ranking[0]?.media_anual ?? 1) - (ranking.at(-1)?.media_anual ?? 0))) * 100;
+                                return (
+                                    <div key={r.placa} className="flex items-center gap-3">
+                                        <span className="text-xs font-bold text-gray-400 w-5 text-right">{i + 1}</span>
+                                        <span className="font-mono text-xs font-bold text-gray-700 w-20">{r.placa}</span>
+                                        <div className="flex-1 bg-gray-100 rounded-full h-4 relative overflow-hidden">
+                                            <div className="h-full bg-emerald-400 rounded-full transition-all" style={{ width: `${Math.max(pct, 5)}%` }} />
+                                        </div>
+                                        <span className="text-xs font-bold text-emerald-700 w-16 text-right">{r.media_anual?.toFixed(2)} km/L</span>
+                                        <span className="text-[10px] text-gray-400 w-20 hidden xl:block">{r.grupo?.slice(0, 12)}</span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {/* Piores */}
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+                        <div className="flex items-center gap-2 mb-4">
+                            <AlertTriangle size={16} className="text-amber-500" />
+                            <h3 className="font-bold text-sm text-gray-800 uppercase tracking-wider">Atenção — Menor Eficiência</h3>
+                            <span className="text-xs text-gray-400 ml-auto">menor km/L = pior consumo</span>
+                        </div>
+                        <div className="space-y-2">
+                            {(ranking || []).slice(-8).reverse().map((r, i) => {
+                                const pct = ((r.media_anual - (ranking.at(-1)?.media_anual ?? 0)) / ((ranking[0]?.media_anual ?? 1) - (ranking.at(-1)?.media_anual ?? 0))) * 100;
+                                return (
+                                    <div key={r.placa} className="flex items-center gap-3">
+                                        <span className="text-xs font-bold text-gray-400 w-5 text-right">{(ranking || []).length - i}</span>
+                                        <span className="font-mono text-xs font-bold text-gray-700 w-20">{r.placa}</span>
+                                        <div className="flex-1 bg-gray-100 rounded-full h-4 relative overflow-hidden">
+                                            <div className="h-full bg-amber-400 rounded-full transition-all" style={{ width: `${Math.max(pct, 5)}%` }} />
+                                        </div>
+                                        <span className="text-xs font-bold text-amber-700 w-16 text-right">{r.media_anual?.toFixed(2)} km/L</span>
+                                        <span className="text-[10px] text-gray-400 w-20 hidden xl:block">{r.grupo?.slice(0, 12)}</span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Tabela Comparativo Veículos x Mês ── */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 mb-8">
                 <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                     <div>
                         <h3 className="font-bold text-gray-800 uppercase tracking-wider text-sm">
                             Comparativo de Média de Combustível dos Veículos
                         </h3>
-                        <p className="text-xs text-gray-400 mt-0.5">km/L por veículo a cada mês — {ano}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                            km/L por veículo a cada mês — {ano} · cores relativas ao grupo do veículo
+                        </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                         <select value={filterGrupoTabela} onChange={e => setFilterGrupoTabela(e.target.value)}
                             className="bg-white text-gray-600 px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-medium focus:border-[#0b4d3c] outline-none">
                             <option value="TODOS">Todos os grupos</option>
-                            {(data?.grupos || []).map(g => <option key={g} value={g}>{g}</option>)}
-                        </select>
-                        <select value={tabelaOrdem} onChange={e => setTabelaOrdem(e.target.value)}
-                            className="bg-white text-gray-600 px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-medium focus:border-[#0b4d3c] outline-none">
-                            <option value="media_anual">Ordenar: Média</option>
-                            <option value="placa">Ordenar: Placa</option>
-                            <option value="grupo">Ordenar: Grupo</option>
+                            {(dataMetodo?.grupos || []).map(g => <option key={g} value={g}>{g}</option>)}
                         </select>
                         {/* Legenda de cores */}
                         <div className="flex items-center gap-1.5 text-[10px] text-gray-500">
@@ -438,78 +528,100 @@ export default function CombustivelPage() {
                     </div>
                 </div>
 
-                <div className="overflow-auto rounded-lg border border-gray-100">
-                    <table className="w-full text-xs text-left min-w-max">
-                        <thead>
-                            <tr className="bg-[#0b4d3c] text-white">
-                                <th className="px-3 py-2.5 font-bold sticky left-0 bg-[#0b4d3c] min-w-[120px]">Veículo</th>
-                                <th className="px-2 py-2.5 font-semibold text-[10px] text-emerald-200 min-w-[64px]">Grupo</th>
-                                {mesesDoAno.map(m => (
-                                    <th key={m} className="px-2 py-2.5 font-semibold text-center min-w-[54px]">{fmtMes(m)}</th>
-                                ))}
-                                <th className="px-3 py-2.5 font-bold text-center bg-[#083d2e] min-w-[64px]">Média A.</th>
-                                <th className="px-3 py-2.5 font-semibold text-center text-[10px] text-emerald-200 min-w-[80px]">Total KM</th>
-                            </tr>
-                            {/* Linha de média geral */}
-                            <tr className="bg-[#e6f4f0] border-b border-gray-200">
-                                <td className="px-3 py-1.5 font-bold text-[#0b4d3c] sticky left-0 bg-[#e6f4f0]">Média Frota</td>
-                                <td className="px-2 py-1.5" />
-                                {mesesDoAno.map(m => (
-                                    <td key={m} className="px-2 py-1.5 text-center font-bold text-[#0b4d3c]">
-                                        {mediaPorMes[m] ? mediaPorMes[m].toFixed(2) : '—'}
+                {loadingMetodo && !dataMetodo ? (
+                    <div className="flex items-center justify-center h-24">
+                        <div className="text-sm text-[#0b4d3c] animate-pulse font-semibold">Carregando tabela...</div>
+                    </div>
+                ) : (
+                    <div className="overflow-auto rounded-lg border border-gray-100">
+                        <table className="w-full text-xs text-left min-w-max">
+                            <thead>
+                                <tr className="bg-[#0b4d3c] text-white">
+                                    <th
+                                        onClick={() => handleSort('placa')}
+                                        className="px-3 py-2.5 font-bold sticky left-0 bg-[#0b4d3c] min-w-[120px] cursor-pointer select-none hover:bg-[#0d5a48] transition-colors">
+                                        Veículo <SortIcon col="placa" sortCol={sortCol} sortDir={sortDir} />
+                                    </th>
+                                    <th
+                                        onClick={() => handleSort('grupo')}
+                                        className="px-2 py-2.5 font-semibold text-[10px] text-emerald-200 min-w-[64px] cursor-pointer select-none hover:bg-[#0d5a48] transition-colors">
+                                        Grupo <SortIcon col="grupo" sortCol={sortCol} sortDir={sortDir} />
+                                    </th>
+                                    {mesesDoAno.map(m => (
+                                        <th key={m}
+                                            onClick={() => handleSort(m)}
+                                            className="px-2 py-2.5 font-semibold text-center min-w-[54px] cursor-pointer select-none hover:bg-[#0d5a48] transition-colors">
+                                            {fmtMes(m)} <SortIcon col={m} sortCol={sortCol} sortDir={sortDir} />
+                                        </th>
+                                    ))}
+                                    <th
+                                        onClick={() => handleSort('media_anual')}
+                                        className="px-3 py-2.5 font-bold text-center bg-[#083d2e] min-w-[64px] cursor-pointer select-none hover:bg-[#0a4a37] transition-colors">
+                                        Média A. <SortIcon col="media_anual" sortCol={sortCol} sortDir={sortDir} />
+                                    </th>
+                                    <th
+                                        onClick={() => handleSort('total_km')}
+                                        className="px-3 py-2.5 font-semibold text-center text-[10px] text-emerald-200 min-w-[80px] cursor-pointer select-none hover:bg-[#0d5a48] transition-colors">
+                                        Total KM <SortIcon col="total_km" sortCol={sortCol} sortDir={sortDir} />
+                                    </th>
+                                </tr>
+                                {/* Linha de média da frota */}
+                                <tr className="bg-[#e6f4f0] border-b border-gray-200">
+                                    <td className="px-3 py-1.5 font-bold text-[#0b4d3c] sticky left-0 bg-[#e6f4f0]">Média Frota</td>
+                                    <td className="px-2 py-1.5" />
+                                    {mesesDoAno.map(m => (
+                                        <td key={m} className="px-2 py-1.5 text-center font-bold text-[#0b4d3c]">
+                                            {mediaPorMes[m] ? mediaPorMes[m].toFixed(2) : '—'}
+                                        </td>
+                                    ))}
+                                    <td className="px-3 py-1.5 text-center font-extrabold text-[#0b4d3c] bg-[#d0ece6]">
+                                        {dataMetodo?.kpis?.media_km_l?.toFixed(2)}
                                     </td>
-                                ))}
-                                <td className="px-3 py-1.5 text-center font-extrabold text-[#0b4d3c] bg-[#d0ece6]">
-                                    {kpis?.media_km_l?.toFixed(2)}
-                                </td>
-                                <td className="px-3 py-1.5 text-center text-[#0b4d3c]">
-                                    {fmtNum(kpis?.total_km ?? 0)}
-                                </td>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {tabelaFiltrada.map((veh, idx) => {
-                                const isEven = idx % 2 === 0;
-                                return (
-                                    <tr key={veh.placa} className={isEven ? 'bg-white hover:bg-gray-50' : 'bg-gray-50/60 hover:bg-gray-100/60'}>
-                                        <td className={`px-3 py-2 font-mono font-bold text-gray-800 sticky left-0 ${isEven ? 'bg-white' : 'bg-gray-50/60'}`}>
-                                            {veh.placa}
-                                        </td>
-                                        <td className="px-2 py-2">
-                                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold" style={{ background: GRUPO_CORES[veh.grupo] + '22', color: GRUPO_CORES[veh.grupo] || '#666' }}>
-                                                {veh.grupo?.replace('CONTAINER - ', 'CT.')}
-                                            </span>
-                                        </td>
-                                        {mesesDoAno.map(m => {
-                                            const val = veh.meses[m];
-                                            const { bg, text } = mediaColor(val, p25, p75);
-                                            return (
-                                                <td key={m} className={`px-2 py-2 text-center text-xs ${bg} ${text}`}>
-                                                    {val !== null && val !== undefined ? val.toFixed(2) : <span className="text-gray-300">—</span>}
-                                                </td>
-                                            );
-                                        })}
-                                        <td className={`px-3 py-2 text-center font-extrabold text-sm ${mediaColor(veh.media_anual, p25, p75).bg} ${mediaColor(veh.media_anual, p25, p75).text}`}>
-                                            {veh.media_anual !== null ? veh.media_anual.toFixed(2) : '—'}
-                                        </td>
-                                        <td className="px-3 py-2 text-center text-gray-500">
-                                            {fmtNum(veh.total_km)}
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                </div>
+                                    <td className="px-3 py-1.5 text-center text-[#0b4d3c]">
+                                        {fmtNum(dataMetodo?.kpis?.total_km ?? 0)}
+                                    </td>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {tabelaFiltrada.map((veh, idx) => {
+                                    const isEven = idx % 2 === 0;
+                                    const gPct = grupoPct[veh.grupo || 'SEM GRUPO'] || {};
+                                    return (
+                                        <tr key={veh.placa} className={isEven ? 'bg-white hover:bg-gray-50' : 'bg-gray-50/60 hover:bg-gray-100/60'}>
+                                            <td className={`px-3 py-2 font-mono font-bold text-gray-800 sticky left-0 ${isEven ? 'bg-white' : 'bg-gray-50/60'}`}>
+                                                {veh.placa}
+                                            </td>
+                                            <td className="px-2 py-2">
+                                                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold" style={{ background: GRUPO_CORES[veh.grupo] + '22', color: GRUPO_CORES[veh.grupo] || '#666' }}>
+                                                    {veh.grupo?.replace('CONTAINER - ', 'CT.')}
+                                                </span>
+                                            </td>
+                                            {mesesDoAno.map(m => {
+                                                const val = veh.meses[m];
+                                                const { bg, text } = mediaColor(val, gPct.p25, gPct.p75);
+                                                return (
+                                                    <td key={m} className={`px-2 py-2 text-center text-xs ${bg} ${text}`}>
+                                                        {val !== null && val !== undefined ? val.toFixed(2) : <span className="text-gray-300">—</span>}
+                                                    </td>
+                                                );
+                                            })}
+                                            <td className={`px-3 py-2 text-center font-extrabold text-sm ${mediaColor(veh.media_anual, gPct.p25, gPct.p75).bg} ${mediaColor(veh.media_anual, gPct.p25, gPct.p75).text}`}>
+                                                {veh.media_anual !== null ? veh.media_anual.toFixed(2) : '—'}
+                                            </td>
+                                            <td className="px-3 py-2 text-center text-gray-500">
+                                                {fmtNum(veh.total_km)}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
                 <div className="mt-2 text-[10px] text-gray-400 text-right">
-                    {tabelaFiltrada.length} veículos · km/L calculado como km rodados ÷ litros abastecidos no período
+                    {tabelaFiltrada.length} veículos · cores relativas ao grupo do veículo · km/L = km rodados ÷ litros abastecidos
                 </div>
             </div>
         </div>
     );
 }
-
-
-<system-reminder>
-Whenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.
-</system-reminder>
