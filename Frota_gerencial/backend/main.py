@@ -45,6 +45,12 @@ FILES: Dict[str, Dict[str, Any]] = {
         "header": None,
         "custom_parser": "dre_frota"
     },
+    "ctrc": {
+        "path": r"C:\Users\Jimmy\OneDrive\12 - DOCUMENTOS\relatorios analiticos\1163_rel_ctrc_detalhado_20260301_153919.xlsx",
+        "sheet": None,
+        "header": None,
+        "custom_parser": "ctrc"
+    },
 }
 
 data_cache = {
@@ -128,7 +134,28 @@ def check_and_reload():
                         data_cache[key]["last_mtime"] = max_mtime
                         print(f"[{key.upper()}] Carregado com sucesso!")
                         continue
-                        
+
+                    if info.get("custom_parser") == "ctrc":
+                        try:
+                            df = pd.read_excel(valid_paths[0], header=1)
+                            df['dt_emissao'] = pd.to_datetime(df['dt_emissao'], errors='coerce')
+                            df = df[df['id_situacao_cte'].astype(str).str.strip() == 'Autorizado'].copy()
+                            df = df[df['dt_emissao'].notna()].copy()
+                            # Remove datas futuras claramente incorretas (> data atual)
+                            df = df[df['dt_emissao'] <= pd.Timestamp.now()].copy()
+                            str_cols = ['nm_cidade_origem', 'nm_cidade_destino', 'nm_pessoa_remetente',
+                                        'nm_pessoa_tomador', 'nm_pessoa_motorista', 'ds_placa',
+                                        'nm_produto', 'id_proprietario_veiculo', 'nm_pessoa_filial']
+                            for col in str_cols:
+                                if col in df.columns:
+                                    df[col] = df[col].astype(str).str.strip()
+                            data_cache[key]["df"] = df
+                            data_cache[key]["last_mtime"] = max_mtime
+                            print(f"[CTRC] Carregado com sucesso! {len(df)} registros.")
+                        except Exception as e:
+                            print(f"Erro no parser ctrc: {e}")
+                        continue
+
                     path = valid_paths[0] # standard files only use the first valid path
                     if info["sheet"]:
                         if isinstance(info["sheet"], list):
@@ -1322,6 +1349,225 @@ def get_combustivel(year: int = None, group: str = "TODOS", metodo: str = "ponde
             "grupos":          grupos_disponiveis,
             "anos":            available_years,
             "metodo":          metodo,
+        }
+    }
+
+
+@app.get("/api/analitico")
+def get_analitico(
+    year: int = 2025,
+    month: int = 0,           # 0 = todos os meses do ano
+    cliente: str = "TODOS",
+    origem: str = "TODOS",
+    destino: str = "TODOS",
+    frota_tipo: str = "TODOS" # Proprio | Agregado | Terceiro | TODOS
+):
+    check_and_reload()
+    MES_ABREV = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
+
+    def safe_float(v):
+        try:
+            f = float(v)
+            return None if (math.isnan(f) or math.isinf(f)) else round(f, 2)
+        except Exception:
+            return None
+
+    def safe_pct(new_v, old_v):
+        try:
+            if not old_v or old_v == 0:
+                return None
+            return round((new_v - old_v) / abs(old_v) * 100, 1)
+        except Exception:
+            return None
+
+    # ── DRE (sempre usado sem filtro de cliente/rota) ──────────────────────────
+    data_dre = data_cache.get("dre_frota", {})
+    df_dre = data_dre.get("df", pd.DataFrame()).copy() if isinstance(data_dre, dict) else pd.DataFrame()
+    if not df_dre.empty and "DATA" in df_dre.columns:
+        df_dre["DATA"] = pd.to_datetime(df_dre["DATA"], errors="coerce")
+
+    def dre_receita(yr, mo=0):
+        if df_dre.empty or "DATA" not in df_dre.columns:
+            return 0.0
+        d = df_dre[df_dre["DATA"].dt.year == yr]
+        if mo > 0:
+            d = d[d["DATA"].dt.month == mo]
+        return float(d["RECEITA"].sum())
+
+    # ── CTRC ──────────────────────────────────────────────────────────────────
+    data_ctrc = data_cache.get("ctrc", {})
+    df_ctrc_full = data_ctrc.get("df", pd.DataFrame()).copy() if isinstance(data_ctrc, dict) else pd.DataFrame()
+
+    def apply_ctrc_filters(df, yr, mo=0, apply_extra=True):
+        if df.empty:
+            return df
+        d = df[df["dt_emissao"].dt.year == yr].copy()
+        if mo > 0:
+            d = d[d["dt_emissao"].dt.month == mo]
+        if apply_extra:
+            if cliente != "TODOS":
+                d = d[d["nm_pessoa_tomador"] == cliente]
+            if origem != "TODOS":
+                d = d[d["nm_cidade_origem"] == origem]
+            if destino != "TODOS":
+                d = d[d["nm_cidade_destino"] == destino]
+            if frota_tipo != "TODOS":
+                d = d[d["id_proprietario_veiculo"] == frota_tipo]
+        return d
+
+    # Períodos correntes e anteriores
+    prev_year = year - 1
+    if month > 0:
+        prev_month_mo = month - 1 if month > 1 else 12
+        prev_month_yr = year if month > 1 else year - 1
+    else:
+        prev_month_mo, prev_month_yr = 0, prev_year
+
+    df_cur  = apply_ctrc_filters(df_ctrc_full, year, month)
+    df_prev = apply_ctrc_filters(df_ctrc_full, prev_month_yr, prev_month_mo)
+    df_yoy  = apply_ctrc_filters(df_ctrc_full, prev_year, month)
+
+    rec_cur  = dre_receita(year, month)
+    rec_prev = dre_receita(prev_month_yr, prev_month_mo)
+    rec_yoy  = dre_receita(prev_year, month)
+
+    v_cur  = len(df_cur)
+    v_prev = len(df_prev)
+    v_yoy  = len(df_yoy)
+
+    peso_cur  = float(df_cur["vl_peso_kg"].sum()) / 1000  if not df_cur.empty  else 0.0
+    peso_prev = float(df_prev["vl_peso_kg"].sum()) / 1000 if not df_prev.empty else 0.0
+    peso_yoy  = float(df_yoy["vl_peso_kg"].sum()) / 1000  if not df_yoy.empty  else 0.0
+
+    ticket_cur  = rec_cur  / v_cur  if v_cur  > 0 else 0.0
+    ticket_prev = rec_prev / v_prev if v_prev > 0 else 0.0
+    ticket_yoy  = rec_yoy  / v_yoy  if v_yoy  > 0 else 0.0
+
+    kpis = {
+        "receita":      safe_float(rec_cur),
+        "receita_mom":  safe_pct(rec_cur, rec_prev),
+        "receita_yoy":  safe_pct(rec_cur, rec_yoy),
+        "viagens":      v_cur,
+        "viagens_mom":  safe_pct(v_cur, v_prev),
+        "viagens_yoy":  safe_pct(v_cur, v_yoy),
+        "ticket_medio": safe_float(ticket_cur),
+        "ticket_mom":   safe_pct(ticket_cur, ticket_prev),
+        "ticket_yoy":   safe_pct(ticket_cur, ticket_yoy),
+        "peso_total":   safe_float(peso_cur),
+        "peso_mom":     safe_pct(peso_cur, peso_prev),
+        "peso_yoy":     safe_pct(peso_cur, peso_yoy),
+    }
+
+    # ── Tendência mensal (12 meses do ano e do ano anterior) ─────────────────
+    df_year_cur  = apply_ctrc_filters(df_ctrc_full, year,      0)
+    df_year_prev = apply_ctrc_filters(df_ctrc_full, prev_year, 0)
+
+    monthly_trend = []
+    for mo in range(1, 13):
+        dc = df_year_cur[df_year_cur["dt_emissao"].dt.month == mo]  if not df_year_cur.empty  else pd.DataFrame()
+        dp = df_year_prev[df_year_prev["dt_emissao"].dt.month == mo] if not df_year_prev.empty else pd.DataFrame()
+        monthly_trend.append({
+            "mes":               f"{year}-{mo:02d}",
+            "mes_label":         MES_ABREV[mo - 1],
+            "receita":           safe_float(dre_receita(year, mo)),
+            "receita_anterior":  safe_float(dre_receita(prev_year, mo)),
+            "viagens":           len(dc),
+            "viagens_anterior":  len(dp),
+            "peso":              safe_float(float(dc["vl_peso_kg"].sum()) / 1000) if not dc.empty else 0,
+            "peso_anterior":     safe_float(float(dp["vl_peso_kg"].sum()) / 1000) if not dp.empty else 0,
+        })
+
+    # ── Top Clientes ──────────────────────────────────────────────────────────
+    top_clientes = []
+    if not df_cur.empty and "nm_pessoa_tomador" in df_cur.columns:
+        tc_cur = df_cur.groupby("nm_pessoa_tomador").agg(
+            viagens=("nr_ctrc", "count"),
+            peso=("vl_peso_kg", "sum")
+        ).reset_index()
+        tc_yoy_grp = df_yoy.groupby("nm_pessoa_tomador")["nr_ctrc"].count().reset_index(name="viagens_ant") if not df_yoy.empty else pd.DataFrame(columns=["nm_pessoa_tomador","viagens_ant"])
+        tc = tc_cur.merge(tc_yoy_grp, on="nm_pessoa_tomador", how="left")
+        tc["viagens_ant"] = tc["viagens_ant"].fillna(0)
+        tc["var_yoy"] = tc.apply(lambda r: safe_pct(r["viagens"], r["viagens_ant"]), axis=1)
+        tc["peso_ton"] = (tc["peso"] / 1000).round(1)
+        tc = tc.sort_values("viagens", ascending=False).head(15)
+        top_clientes = [
+            {"cliente": r["nm_pessoa_tomador"], "viagens": int(r["viagens"]),
+             "viagens_ant": int(r["viagens_ant"]), "var_yoy": r["var_yoy"], "peso": r["peso_ton"]}
+            for _, r in tc.iterrows()
+        ]
+
+    # ── Top Rotas ─────────────────────────────────────────────────────────────
+    top_rotas = []
+    if not df_cur.empty and "nm_cidade_origem" in df_cur.columns:
+        df_cur["_rota"]  = df_cur["nm_cidade_origem"]  + " → " + df_cur["nm_cidade_destino"]
+        df_yoy2 = df_yoy.copy()
+        if not df_yoy2.empty:
+            df_yoy2["_rota"] = df_yoy2["nm_cidade_origem"] + " → " + df_yoy2["nm_cidade_destino"]
+        rota_cur = df_cur.groupby("_rota").agg(
+            viagens=("nr_ctrc", "count"),
+            peso=("vl_peso_kg", "sum")
+        ).reset_index()
+        rota_yoy = df_yoy2.groupby("_rota")["nr_ctrc"].count().reset_index(name="viagens_ant") if not df_yoy2.empty else pd.DataFrame(columns=["_rota","viagens_ant"])
+        rr = rota_cur.merge(rota_yoy, on="_rota", how="left")
+        rr["viagens_ant"] = rr["viagens_ant"].fillna(0)
+        rr["var_yoy"] = rr.apply(lambda r: safe_pct(r["viagens"], r["viagens_ant"]), axis=1)
+        rr["peso_ton"] = (rr["peso"] / 1000).round(1)
+        rr = rr.sort_values("viagens", ascending=False).head(15)
+        top_rotas = [
+            {"rota": r["_rota"], "viagens": int(r["viagens"]),
+             "viagens_ant": int(r["viagens_ant"]), "var_yoy": r["var_yoy"], "peso": r["peso_ton"]}
+            for _, r in rr.iterrows()
+        ]
+
+    # ── Top Produtos ──────────────────────────────────────────────────────────
+    top_produtos = []
+    if not df_cur.empty and "nm_produto" in df_cur.columns:
+        prod = df_cur.groupby("nm_produto").agg(
+            viagens=("nr_ctrc", "count"),
+            peso=("vl_peso_kg", "sum")
+        ).reset_index()
+        total_v = prod["viagens"].sum()
+        prod["pct"] = (prod["viagens"] / total_v * 100).round(1) if total_v > 0 else 0
+        prod["peso_ton"] = (prod["peso"] / 1000).round(1)
+        prod = prod.sort_values("viagens", ascending=False).head(10)
+        top_produtos = [
+            {"produto": r["nm_produto"], "viagens": int(r["viagens"]),
+             "pct": r["pct"], "peso": r["peso_ton"]}
+            for _, r in prod.iterrows()
+        ]
+
+    # ── Distribuição Frota ────────────────────────────────────────────────────
+    dist_frota = []
+    if not df_cur.empty and "id_proprietario_veiculo" in df_cur.columns:
+        ft = df_cur.groupby("id_proprietario_veiculo").size().reset_index(name="viagens")
+        total = ft["viagens"].sum()
+        ft["pct"] = (ft["viagens"] / total * 100).round(1) if total > 0 else 0
+        dist_frota = [{"tipo": r["id_proprietario_veiculo"], "viagens": int(r["viagens"]), "pct": float(r["pct"])} for _, r in ft.iterrows()]
+
+    # ── Filtros disponíveis ───────────────────────────────────────────────────
+    df_ano = apply_ctrc_filters(df_ctrc_full, year, 0, apply_extra=False)
+    clientes_list = sorted(df_ano["nm_pessoa_tomador"].dropna().unique().tolist())[:300] if not df_ano.empty else []
+    origens_list  = sorted(df_ano["nm_cidade_origem"].dropna().unique().tolist())[:300]  if not df_ano.empty else []
+    destinos_list = sorted(df_ano["nm_cidade_destino"].dropna().unique().tolist())[:300] if not df_ano.empty else []
+
+    anos_ctrc = sorted(df_ctrc_full["dt_emissao"].dt.year.dropna().unique().astype(int).tolist()) if not df_ctrc_full.empty else [2024, 2025]
+    anos_dre  = sorted(df_dre["DATA"].dt.year.dropna().unique().astype(int).tolist()) if not df_dre.empty and "DATA" in df_dre.columns else []
+    anos = sorted(set(anos_ctrc + anos_dre))
+
+    return {
+        "data": {
+            "kpis":          kpis,
+            "monthly_trend": monthly_trend,
+            "top_clientes":  top_clientes,
+            "top_rotas":     top_rotas,
+            "top_produtos":  top_produtos,
+            "dist_frota":    dist_frota,
+            "filtros": {
+                "anos":      anos,
+                "clientes":  clientes_list,
+                "origens":   origens_list,
+                "destinos":  destinos_list,
+            }
         }
     }
 

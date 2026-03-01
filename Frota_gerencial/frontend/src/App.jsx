@@ -9,6 +9,7 @@ import InsightMeta from './components/InsightMeta';
 import UltimosCarregamentos from './components/UltimosCarregamentos';
 import UltimosCarregamentosCimento from './components/UltimosCarregamentosCimento';
 import CombustivelPage from './components/CombustivelPage';
+import AnaliticoPage from './components/AnaliticoPage';
 function App() {
   const [activePage, setActivePage] = useState('Acompanhamento');
   const [mes, setMes] = useState(2);
@@ -148,8 +149,11 @@ function App() {
         {/* Página de Combustível */}
         {activePage === 'Combustível' && <CombustivelPage />}
 
-        {/* Dashboard Principal (Acompanhamento / Analítico / Custos) */}
-        {activePage !== 'Combustível' && (<>
+        {/* Página Analítico */}
+        {activePage === 'Analítico' && <AnaliticoPage />}
+
+        {/* Dashboard Principal (Acompanhamento / Custos) */}
+        {activePage !== 'Combustível' && activePage !== 'Analítico' && (<>
           <div className="sticky top-0 z-50 pt-6 pb-6 bg-[#f3f4f6]">
             <header className="flex flex-col xl:flex-row xl:items-center justify-between bg-white p-4 rounded-xl shadow-sm border border-gray-100 gap-4">
 
