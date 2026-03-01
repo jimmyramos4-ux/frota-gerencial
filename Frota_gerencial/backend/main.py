@@ -38,7 +38,7 @@ FILES: Dict[str, Dict[str, Any]] = {
     "placas": {"path": r"C:\Users\Jimmy\OneDrive\02 - CIMENTO MS\CIMENTO MS.xlsx", "sheet": "PLACAS", "header": 0},
     "sucata": {"path": r"C:\Users\Jimmy\OneDrive\04 - FROTA\CARREGAMENTOS TRANSBOTTAN.xlsx", "sheet": "ACOMPANHAMENTO", "header": 0},
     "metas": {"path": r"C:\BOTTAN\Dashboards\Transbottan geral\metas.xlsx", "sheet": "Planilha1", "header": 0},
-    "veiculos": {"path": r"C:\Users\Jimmy\OneDrive\12 - DOCUMENTOS\relatorios abastecimento\consumo combustivel.xlsx", "sheet": "Sheet1", "header": 1},
+    "veiculos": {"path": r"C:\Users\Jimmy\OneDrive\12 - DOCUMENTOS\relatorios abastecimento\consumo combustivel.xlsx", "sheet": "Planilha 1", "header": 1},
     "dre_frota": {
         "path": r"C:\Users\Jimmy\OneDrive\12 - DOCUMENTOS\relatorios dre frota",
         "sheet": None,
