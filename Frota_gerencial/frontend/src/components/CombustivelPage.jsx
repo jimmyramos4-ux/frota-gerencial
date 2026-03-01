@@ -75,20 +75,31 @@ function CustomTooltipTrend({ active, payload, label }) {
 }
 
 // ── Componente principal ──────────────────────────────────────────────────────
+const MES_NOMES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
 export default function CombustivelPage() {
     const [ano, setAno] = useState(2025);
     const [grupo, setGrupo] = useState('TODOS');
+    const [selectedMonths, setSelectedMonths] = useState([]); // [] = todos
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [trendMetric, setTrendMetric] = useState('media'); // 'media' | 'custo' | 'litros'
     const [tabelaOrdem, setTabelaOrdem] = useState('media_anual'); // 'media_anual' | 'placa' | 'grupo'
     const [filterGrupoTabela, setFilterGrupoTabela] = useState('TODOS');
 
+    const toggleMes = (m) => {
+        setSelectedMonths(prev =>
+            prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]
+        );
+    };
+
     useEffect(() => {
         const fetch_ = async () => {
             setLoading(true);
             try {
-                const r = await fetch(`${API}/api/combustivel?year=${ano}&group=${encodeURIComponent(grupo)}&metodo=${metodo}`);
+                let url = `${API}/api/combustivel?year=${ano}&group=${encodeURIComponent(grupo)}`;
+                if (selectedMonths.length > 0) url += `&months=${selectedMonths.join(',')}`;
+                const r = await fetch(url);
                 const j = await r.json();
                 setData(j.data);
             } catch (e) {
@@ -98,7 +109,7 @@ export default function CombustivelPage() {
             }
         };
         fetch_();
-    }, [ano, grupo]);
+    }, [ano, grupo, selectedMonths]);
 
     // Calcular percentis p25/p75 para coloração da tabela
     const { p25, p75 } = useMemo(() => {
@@ -171,18 +182,36 @@ export default function CombustivelPage() {
 
             {/* ── Header de filtros ── */}
             <div className="sticky top-0 z-40 pt-6 pb-4 bg-[#f3f4f6]">
-                <div className="bg-white px-5 py-3 rounded-xl shadow-sm border border-gray-100 flex flex-wrap items-center gap-3">
+                <div className="bg-white px-5 py-3 rounded-xl shadow-sm border border-gray-100 flex flex-wrap items-center gap-x-3 gap-y-2">
                     <Fuel size={18} className="text-[#0b4d3c]" />
-                    <span className="font-bold text-sm text-gray-700 mr-2 uppercase tracking-wider">Combustível</span>
+                    <span className="font-bold text-sm text-gray-700 mr-1 uppercase tracking-wider">Combustível</span>
                     <div className="w-px h-5 bg-gray-200" />
 
                     <span className="text-xs font-bold text-gray-400 tracking-widest">ANO</span>
-                    {(anos || [2025, 2026]).map(y => (
-                        <button key={y} onClick={() => setAno(y)}
+                    {[...(anos || [2025, 2026])].sort((a, b) => a - b).map(y => (
+                        <button key={y} onClick={() => { setAno(y); setSelectedMonths([]); }}
                             className={`px-3 py-1.5 rounded-full text-sm font-semibold border transition-colors ${ano === y ? 'bg-[#0b4d3c] text-white border-[#0b4d3c]' : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'}`}>
                             {y}
                         </button>
                     ))}
+
+                    <div className="w-px h-5 bg-gray-200" />
+                    <span className="text-xs font-bold text-gray-400 tracking-widest">MÊS</span>
+                    <button
+                        onClick={() => setSelectedMonths([])}
+                        className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${selectedMonths.length === 0 ? 'bg-[#0b4d3c] text-white border-[#0b4d3c]' : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'}`}>
+                        Todos
+                    </button>
+                    {MES_NOMES.map((nome, idx) => {
+                        const m = idx + 1;
+                        const ativo = selectedMonths.includes(m);
+                        return (
+                            <button key={m} onClick={() => toggleMes(m)}
+                                className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${ativo ? 'bg-[#147a61] text-white border-[#147a61]' : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'}`}>
+                                {nome}
+                            </button>
+                        );
+                    })}
 
                     <div className="w-px h-5 bg-gray-200" />
                     <span className="text-xs font-bold text-gray-400 tracking-widest">GRUPO</span>

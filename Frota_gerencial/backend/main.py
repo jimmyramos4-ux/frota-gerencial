@@ -1064,9 +1064,10 @@ def get_ultimos_carregamentos(month: int = None, year: int = None, limit: int = 
 
 
 @app.get("/api/combustivel")
-def get_combustivel(year: int = None, group: str = "TODOS", metodo: str = "ponderada"):
+def get_combustivel(year: int = None, group: str = "TODOS", metodo: str = "ponderada", months: str = None):
     """Retorna dados de consumo de combustível.
     metodo: 'ponderada' (km_rodado/qt_produto) | 'tanque_cheio' (usa vl_media_tc/qt_produto_tc do ERP)
+    months: '1,2,3' para filtrar meses específicos (opcional)
     """
     check_and_reload()
 
@@ -1090,6 +1091,10 @@ def get_combustivel(year: int = None, group: str = "TODOS", metodo: str = "ponde
         df = df[df['dt_documento'].dt.year == year]
     if group and group.upper() != "TODOS":
         df = df[df['nm_grupo'].astype(str).str.strip().str.upper() == group.upper()]
+    if months:
+        month_list = [int(m.strip()) for m in months.split(',') if m.strip().isdigit()]
+        if month_list:
+            df = df[df['dt_documento'].dt.month.isin(month_list)]
 
     grupos_disponiveis = sorted(df_raw['nm_grupo'].dropna().astype(str).str.strip().unique().tolist())
 
