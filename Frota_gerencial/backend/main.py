@@ -1372,6 +1372,17 @@ def get_analitico(
         except Exception:
             return None
 
+    def n(v):
+        """Converte NaN/inf para None para serialização JSON segura."""
+        if v is None:
+            return None
+        try:
+            if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
+                return None
+        except Exception:
+            pass
+        return v
+
     def safe_pct(new_v, old_v):
         try:
             if not old_v or old_v == 0:
@@ -1492,7 +1503,7 @@ def get_analitico(
         tc = tc.sort_values("viagens", ascending=False).head(15)
         top_clientes = [
             {"cliente": r["nm_pessoa_tomador"], "viagens": int(r["viagens"]),
-             "viagens_ant": int(r["viagens_ant"]), "var_yoy": r["var_yoy"], "peso": r["peso_ton"]}
+             "viagens_ant": int(r["viagens_ant"]), "var_yoy": n(r["var_yoy"]), "peso": n(r["peso_ton"])}
             for _, r in tc.iterrows()
         ]
 
@@ -1515,7 +1526,7 @@ def get_analitico(
         rr = rr.sort_values("viagens", ascending=False).head(15)
         top_rotas = [
             {"rota": r["_rota"], "viagens": int(r["viagens"]),
-             "viagens_ant": int(r["viagens_ant"]), "var_yoy": r["var_yoy"], "peso": r["peso_ton"]}
+             "viagens_ant": int(r["viagens_ant"]), "var_yoy": n(r["var_yoy"]), "peso": n(r["peso_ton"])}
             for _, r in rr.iterrows()
         ]
 
@@ -1532,7 +1543,7 @@ def get_analitico(
         prod = prod.sort_values("viagens", ascending=False).head(10)
         top_produtos = [
             {"produto": r["nm_produto"], "viagens": int(r["viagens"]),
-             "pct": r["pct"], "peso": r["peso_ton"]}
+             "pct": n(r["pct"]), "peso": n(r["peso_ton"])}
             for _, r in prod.iterrows()
         ]
 
@@ -1542,7 +1553,7 @@ def get_analitico(
         ft = df_cur.groupby("id_proprietario_veiculo").size().reset_index(name="viagens")
         total = ft["viagens"].sum()
         ft["pct"] = (ft["viagens"] / total * 100).round(1) if total > 0 else 0
-        dist_frota = [{"tipo": r["id_proprietario_veiculo"], "viagens": int(r["viagens"]), "pct": float(r["pct"])} for _, r in ft.iterrows()]
+        dist_frota = [{"tipo": r["id_proprietario_veiculo"], "viagens": int(r["viagens"]), "pct": n(float(r["pct"]))} for _, r in ft.iterrows()]
 
     # ── Filtros disponíveis ───────────────────────────────────────────────────
     df_ano = apply_ctrc_filters(df_ctrc_full, year, 0, apply_extra=False)
