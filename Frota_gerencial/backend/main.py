@@ -1117,6 +1117,13 @@ def get_combustivel(year: int = None, group: str = "TODOS", metodo: str = "ponde
         cobertura_tc = None
         placas_tc    = None
 
+    # Deduplica para cálculo de km: dois abastecimentos no mesmo veículo+data+km
+    # (ex: duas bombas no mesmo posto) contam o km apenas uma vez, mas somam os litros
+    # Usa apenas a data (sem hora) para a deduplicação
+    df_km = df_calc.copy()
+    df_km['_date'] = df_km['dt_documento'].dt.date
+    df_km = df_km.drop_duplicates(subset=['ds_placa', '_date', 'vl_km_rodado'])
+
     # ── KPIs globais ─────────────────────────────────────────────────────────
     total_litros = float(df['qt_produto'].sum())
     total_custo  = float(df['vl_total'].sum())
@@ -1124,9 +1131,9 @@ def get_combustivel(year: int = None, group: str = "TODOS", metodo: str = "ponde
 
     if use_tc:
         media_km_l = float(df_calc['vl_media_tc'].iloc[-1]) if len(df_calc) > 0 else 0
-        total_km   = float(df_calc['vl_km_rodado'].dropna().sum())
+        total_km   = float(df_km['vl_km_rodado'].dropna().sum())
     else:
-        total_km   = float(df_calc['vl_km_rodado'].dropna().sum())
+        total_km   = float(df_km['vl_km_rodado'].dropna().sum())
         media_km_l = total_km / total_litros if total_litros > 0 else 0
 
     custo_por_km    = round(total_custo / total_km, 4)    if total_km    > 0 else 0
@@ -1142,8 +1149,10 @@ def get_combustivel(year: int = None, group: str = "TODOS", metodo: str = "ponde
             med_c = float(m_cur['vl_media_tc'].iloc[-1]) if len(m_cur) > 0 else 0
             med_p = float(m_prev['vl_media_tc'].iloc[-1]) if len(m_prev) > 0 else 0
         else:
-            km_c = m_cur['vl_km_rodado'].sum();  lt_c = m_cur['qt_produto'].sum()
-            km_p = m_prev['vl_km_rodado'].sum(); lt_p = m_prev['qt_produto'].sum()
+            km_c_df = df_km[df_km['_mes'] == meses_ord[-1]]
+            km_p_df = df_km[df_km['_mes'] == meses_ord[-2]]
+            km_c = km_c_df['vl_km_rodado'].sum(); lt_c = m_cur['qt_produto'].sum()
+            km_p = km_p_df['vl_km_rodado'].sum(); lt_p = m_prev['qt_produto'].sum()
             med_c = km_c / lt_c if lt_c > 0 else 0
             med_p = km_p / lt_p if lt_p > 0 else 0
         if med_p > 0:
@@ -1163,23 +1172,27 @@ def get_combustivel(year: int = None, group: str = "TODOS", metodo: str = "ponde
     }
 
     # ── Tendência Mensal ──────────────────────────────────────────────────────
+    monthly_km_mes = df_km.groupby('_mes')['vl_km_rodado'].sum().reset_index(name='km')
+
     if use_tc:
         monthly_tc = df_calc.groupby('_mes').agg(
             litros=('qt_produto', 'sum'),
-            km=('vl_km_rodado', 'sum'),
             abast=('ds_placa', 'count'),
             media_km_l=('vl_media_tc', 'last'),
         ).reset_index()
         custo_mes = df.groupby('_mes')['vl_total'].sum().reset_index(name='custo')
         monthly_raw = monthly_tc.merge(custo_mes, on='_mes', how='left')
+        monthly_raw = monthly_raw.merge(monthly_km_mes, on='_mes', how='left')
+        monthly_raw['km'] = monthly_raw['km'].fillna(0)
         monthly_raw['media_km_l'] = monthly_raw['media_km_l'].round(3)
     else:
         monthly_raw = df_calc.groupby('_mes').agg(
             litros=('qt_produto', 'sum'),
             custo=('vl_total', 'sum'),
-            km=('vl_km_rodado', 'sum'),
             abast=('ds_placa', 'count'),
         ).reset_index()
+        monthly_raw = monthly_raw.merge(monthly_km_mes, on='_mes', how='left')
+        monthly_raw['km'] = monthly_raw['km'].fillna(0)
         monthly_raw['media_km_l'] = (monthly_raw['km'] / monthly_raw['litros']).round(3)
 
     monthly_raw['custo_litro']     = (monthly_raw['custo'] / monthly_raw['litros']).round(3)
@@ -1202,23 +1215,27 @@ def get_combustivel(year: int = None, group: str = "TODOS", metodo: str = "ponde
         })
 
     # ── Por Grupo ─────────────────────────────────────────────────────────────
+    grp_km = df_km.groupby('nm_grupo')['vl_km_rodado'].sum().reset_index(name='km')
+
     if use_tc:
         grp_raw = df_calc.groupby('nm_grupo').agg(
             litros=('qt_produto', 'sum'),
             custo=('vl_total', 'sum'),
-            km=('vl_km_rodado', 'sum'),
             abast=('ds_placa', 'count'),
             media_km_l=('vl_media_tc', 'last'),
         ).reset_index()
+        grp_raw = grp_raw.merge(grp_km, on='nm_grupo', how='left')
+        grp_raw['km'] = grp_raw['km'].fillna(0)
         grp_raw['media_km_l']  = grp_raw['media_km_l'].round(3)
         grp_raw['custo_litro'] = (grp_raw['custo'] / grp_raw['litros']).round(3)
     else:
         grp_raw = df_calc.groupby('nm_grupo').agg(
             litros=('qt_produto', 'sum'),
             custo=('vl_total', 'sum'),
-            km=('vl_km_rodado', 'sum'),
             abast=('ds_placa', 'count'),
         ).reset_index()
+        grp_raw = grp_raw.merge(grp_km, on='nm_grupo', how='left')
+        grp_raw['km'] = grp_raw['km'].fillna(0)
         grp_raw['media_km_l']  = (grp_raw['km'] / grp_raw['litros']).round(3)
         grp_raw['custo_litro'] = (grp_raw['custo'] / grp_raw['litros']).round(3)
 
@@ -1237,6 +1254,9 @@ def get_combustivel(year: int = None, group: str = "TODOS", metodo: str = "ponde
     # ── Tabela Veículos x Mês ─────────────────────────────────────────────────
     all_months = sorted(df_calc['_mes_str'].unique().tolist())
 
+    veh_km_mes  = df_km.groupby(['ds_placa', '_mes_str'])['vl_km_rodado'].sum().reset_index(name='km')
+    veh_km_anual = df_km.groupby('ds_placa')['vl_km_rodado'].sum().reset_index(name='km_tot')
+
     if use_tc:
         veh_month = df_calc.groupby(['ds_placa', '_mes_str', 'nm_grupo']).agg(
             media=('vl_media_tc', 'last'),
@@ -1245,23 +1265,26 @@ def get_combustivel(year: int = None, group: str = "TODOS", metodo: str = "ponde
 
         veh_anual = df_calc.groupby('ds_placa').agg(
             media_anual=('vl_media_tc', 'last'),
-            km_tot=('vl_km_rodado', 'sum'),
             lt_tot=('qt_produto', 'sum'),
             grupo=('nm_grupo', 'first'),
         ).reset_index()
+        veh_anual = veh_anual.merge(veh_km_anual, on='ds_placa', how='left')
+        veh_anual['km_tot'] = veh_anual['km_tot'].fillna(0)
         veh_anual['media_anual'] = veh_anual['media_anual'].round(2)
     else:
-        veh_month = df_calc.groupby(['ds_placa', '_mes_str', 'nm_grupo']).agg(
-            km=('vl_km_rodado', 'sum'),
+        veh_month_litros = df_calc.groupby(['ds_placa', '_mes_str', 'nm_grupo']).agg(
             litros=('qt_produto', 'sum'),
         ).reset_index()
+        veh_month = veh_month_litros.merge(veh_km_mes, on=['ds_placa', '_mes_str'], how='left')
+        veh_month['km'] = veh_month['km'].fillna(0)
         veh_month['media'] = (veh_month['km'] / veh_month['litros']).round(2)
 
         veh_anual = df_calc.groupby('ds_placa').agg(
-            km_tot=('vl_km_rodado', 'sum'),
             lt_tot=('qt_produto', 'sum'),
             grupo=('nm_grupo', 'first'),
         ).reset_index()
+        veh_anual = veh_anual.merge(veh_km_anual, on='ds_placa', how='left')
+        veh_anual['km_tot'] = veh_anual['km_tot'].fillna(0)
         veh_anual['media_anual'] = (veh_anual['km_tot'] / veh_anual['lt_tot']).round(2)
 
     tabela_veiculos = []
