@@ -1,6 +1,7 @@
 import os
 import re
 import threading
+from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
@@ -56,20 +57,30 @@ app.add_middleware(
 # File Configurations
 from typing import Any, Dict
 
+_OD = Path.home() / "OneDrive"
+
+# metas.xlsx pode estar em locais diferentes dependendo do PC
+_METAS_CANDIDATOS = [
+    _OD / "12 - DOCUMENTOS" / "Pasta Jimmy" / "BOTTAN" / "TRANSBOTTAN GERAL" / "metas.xlsx",
+    Path.home() / "BOTTAN" / "Dashboards" / "Transbottan geral" / "metas.xlsx",
+    Path(r"C:\BOTTAN\Dashboards\Transbottan geral\metas.xlsx"),
+]
+_METAS = next((str(p) for p in _METAS_CANDIDATOS if p.exists()), str(_METAS_CANDIDATOS[0]))
+
 FILES: Dict[str, Dict[str, Any]] = {
-    "cimento": {"path": r"C:\Users\Jimmy\OneDrive\02 - CIMENTO MS\CIMENTO MS.xlsx", "sheet": ["DSO", "INTERCEMENT", "FOB", "INTERCEMENT MT", "ALVORADA", "CIMENSHOP", "ENTREGAS"], "header": 0},
-    "placas": {"path": r"C:\Users\Jimmy\OneDrive\02 - CIMENTO MS\CIMENTO MS.xlsx", "sheet": "PLACAS", "header": 0},
-    "sucata": {"path": r"C:\Users\Jimmy\OneDrive\04 - FROTA\CARREGAMENTOS TRANSBOTTAN.xlsx", "sheet": "ACOMPANHAMENTO", "header": 0},
-    "metas": {"path": r"C:\BOTTAN\Dashboards\Transbottan geral\metas.xlsx", "sheet": "Planilha1", "header": 0},
-    "veiculos": {"path": r"C:\Users\Jimmy\OneDrive\12 - DOCUMENTOS\relatorios abastecimento\consumo combustivel.xlsx", "sheet": "Planilha 1", "header": 1},
+    "cimento": {"path": str(_OD / "02 - CIMENTO MS" / "CIMENTO MS.xlsx"), "sheet": ["DSO", "INTERCEMENT", "FOB", "INTERCEMENT MT", "ALVORADA", "CIMENSHOP", "ENTREGAS"], "header": 0},
+    "placas": {"path": str(_OD / "02 - CIMENTO MS" / "CIMENTO MS.xlsx"), "sheet": "PLACAS", "header": 0},
+    "sucata": {"path": str(_OD / "04 - FROTA" / "CARREGAMENTOS TRANSBOTTAN.xlsx"), "sheet": "ACOMPANHAMENTO", "header": 0},
+    "metas": {"path": _METAS, "sheet": "Planilha1", "header": 0},
+    "veiculos": {"path": str(_OD / "12 - DOCUMENTOS" / "relatorios abastecimento" / "consumo combustivel.xlsx"), "sheet": "Planilha 1", "header": 1},
     "dre_frota": {
-        "path": r"C:\Users\Jimmy\OneDrive\12 - DOCUMENTOS\relatorios dre frota",
+        "path": str(_OD / "12 - DOCUMENTOS" / "relatorios dre frota"),
         "sheet": None,
         "header": None,
         "custom_parser": "dre_frota"
     },
     "ctrc": {
-        "path": r"C:\Users\Jimmy\OneDrive\12 - DOCUMENTOS\relatorios analiticos\1163_rel_ctrc_detalhado_20260301_153919.xlsx",
+        "path": str(_OD / "12 - DOCUMENTOS" / "relatorios analiticos"),
         "sheet": None,
         "header": None,
         "custom_parser": "ctrc"
@@ -1888,7 +1899,7 @@ def get_analitico(
 @app.get("/api/last-update")
 def get_last_update():
     """Retorna a data de modificação do arquivo mais recente na pasta de relatórios DRE frota."""
-    dre_folder = r"C:\Users\Jimmy\OneDrive\12 - DOCUMENTOS\relatorios dre frota"
+    dre_folder = str(Path.home() / "OneDrive" / "12 - DOCUMENTOS" / "relatorios dre frota")
     last_mtime = None
     last_file = None
 

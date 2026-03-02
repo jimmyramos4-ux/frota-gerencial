@@ -35,12 +35,12 @@ start "Backend FastAPI" cmd /k "cd /d "%BACKEND_DIR%" && python -m uvicorn main:
 timeout /t 3 /nobreak >nul
 
 echo [2/3] Iniciando Caddy (porta 80)...
-start "Caddy Web Server" cmd /k ""%CADDY%" run --config "%CADDYFILE%""
+start "Caddy Web Server" cmd /k ""%CADDY%" run --config "%CADDYFILE%" --adapter caddyfile"
 
 timeout /t 2 /nobreak >nul
 
 echo [3/3] Iniciando Cloudflare Tunnel...
-start "Cloudflare Tunnel" cmd /k ""%CLOUDFLARED%" tunnel run"
+start "Cloudflare Tunnel" cmd /k ""%CLOUDFLARED%" tunnel --config "%USERPROFILE%\.cloudflared\config.yml" run 65b3fd1e-da52-4689-b8ee-9966b2f21dda"
 
 echo.
 echo ==========================================
