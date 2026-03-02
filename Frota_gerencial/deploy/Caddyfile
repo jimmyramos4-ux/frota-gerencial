@@ -1,0 +1,13 @@
+:80 {
+    # Proxy das chamadas de API para o backend FastAPI
+    handle /api/* {
+        reverse_proxy localhost:8000
+    }
+
+    # Serve o frontend React (SPA)
+    handle {
+        root * C:\Antigravity\Frota_gerencial\frontend\dist
+        try_files {path} /index.html
+        file_server
+    }
+}
