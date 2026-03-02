@@ -1360,18 +1360,135 @@ def get_combustivel(year: int = None, group: str = "TODOS", metodo: str = "ponde
         key=lambda x: x["media_anual"] or 0, reverse=True
     )
 
+    # ── Ranking de Postos por Preço R$/L ──────────────────────────────────────
+    postos_ranking = []
+    col_posto  = find_col(df, ["nm_pessoa_favorecido"])
+    col_cidade = find_col(df, ["nm_cidade_favorecido"])
+    col_preco  = find_col(df, ["vl_produto_com_desconto", "vl_produto"])
+    col_qtd    = find_col(df, ["qt_produto"])
+
+    if col_posto and col_preco and col_qtd:
+        df_p = df[[col_posto, col_cidade, col_preco, col_qtd]].copy() if col_cidade else df[[col_posto, col_preco, col_qtd]].copy()
+        df_p[col_preco] = pd.to_numeric(df_p[col_preco], errors="coerce")
+        df_p[col_qtd]   = pd.to_numeric(df_p[col_qtd],   errors="coerce")
+        df_p = df_p[df_p[col_preco] > 0].dropna(subset=[col_posto, col_preco])
+
+        # Média ponderada do preço por litro por posto
+        grp = df_p.groupby(col_posto).apply(
+            lambda g: pd.Series({
+                "preco_medio": (g[col_preco] * g[col_qtd]).sum() / g[col_qtd].sum() if g[col_qtd].sum() > 0 else None,
+                "total_litros": g[col_qtd].sum(),
+                "abastecimentos": len(g),
+                "cidade": g[col_cidade].mode().iloc[0] if col_cidade and col_cidade in g.columns and not g[col_cidade].isna().all() else None,
+            })
+        ).reset_index()
+
+        grp = grp[grp["preco_medio"].notna()]
+        grp = grp.sort_values("preco_medio")
+
+        for _, r in grp.iterrows():
+            cidade_raw = str(r.get("cidade", "") or "")
+            partes = cidade_raw.split("/")
+            estado = partes[0].strip() if len(partes) >= 2 else ""
+            cidade = partes[1].strip() if len(partes) >= 2 else cidade_raw
+            postos_ranking.append({
+                "posto":          str(r[col_posto]),
+                "cidade":         cidade,
+                "estado":         estado,
+                "preco_medio":    round(float(r["preco_medio"]), 4),
+                "total_litros":   round(float(r["total_litros"]), 1),
+                "abastecimentos": int(r["abastecimentos"]),
+            })
+
+    # ── Últimos Abastecimentos ────────────────────────────────────────────────
+    ultimos_abastecimentos = []
+    col_placa      = find_col(df, ["ds_placa", "placa"])
+    col_data       = "dt_documento"
+    col_total      = find_col(df, ["vl_total"])
+    col_preco_base = find_col(df, ["vl_produto"])  # fallback quando vl_produto_com_desconto = 0
+
+    if col_posto and col_placa and col_preco and col_total:
+        # Monta lista de colunas para selecionar
+        _ab_cols = [col_data, col_placa, col_posto, col_preco, col_total, col_qtd]
+        if col_cidade:
+            _ab_cols.insert(3, col_cidade)
+        if col_preco_base and col_preco_base != col_preco:
+            _ab_cols.append(col_preco_base)
+
+        df_ab = df[_ab_cols].copy()
+        df_ab = df_ab.rename(columns={
+            col_data:  "data",
+            col_placa: "placa",
+            col_posto: "posto",
+            col_preco: "preco_litro",
+            col_total: "valor_total",
+            col_qtd:   "litros",
+        })
+        if col_cidade:
+            df_ab = df_ab.rename(columns={col_cidade: "cidade_raw"})
+        else:
+            df_ab["cidade_raw"] = ""
+
+        df_ab["preco_litro"] = pd.to_numeric(df_ab["preco_litro"], errors="coerce")
+        df_ab["valor_total"] = pd.to_numeric(df_ab["valor_total"], errors="coerce")
+        df_ab["litros"]      = pd.to_numeric(df_ab["litros"],      errors="coerce")
+
+        # Fallback: quando vl_produto_com_desconto é 0 ou nulo, usar vl_produto
+        if col_preco_base and col_preco_base != col_preco and col_preco_base in df_ab.columns:
+            df_ab[col_preco_base] = pd.to_numeric(df_ab[col_preco_base], errors="coerce")
+            mask_fallback = df_ab["preco_litro"].isna() | (df_ab["preco_litro"] <= 0)
+            df_ab.loc[mask_fallback, "preco_litro"] = df_ab.loc[mask_fallback, col_preco_base]
+
+        df_ab = df_ab[df_ab["preco_litro"] > 0].dropna(subset=["preco_litro", "valor_total"])
+        df_ab = df_ab.sort_values("data", ascending=False)
+
+        # Calcular delta de preço vs abastecimento anterior no mesmo posto
+        df_chrono = df_ab.sort_values("data")
+        df_chrono["preco_anterior_posto"] = df_chrono.groupby("posto")["preco_litro"].shift(1)
+        df_chrono["delta_preco"] = df_chrono.apply(
+            lambda r: round((r["preco_litro"] - r["preco_anterior_posto"]) / r["preco_anterior_posto"] * 100, 2)
+            if pd.notna(r["preco_anterior_posto"]) and r["preco_anterior_posto"] > 0 else None,
+            axis=1
+        )
+
+        df_final = df_chrono.sort_values("data", ascending=False)
+        for _, r in df_final.iterrows():
+            cidade_raw = str(r.get("cidade_raw", "") or "")
+            partes = cidade_raw.split("/")
+            estado = partes[0].strip() if len(partes) >= 2 else ""
+            cidade = partes[1].strip() if len(partes) >= 2 else cidade_raw
+            ultimos_abastecimentos.append({
+                "data":           r["data"].strftime("%d/%m/%Y") if pd.notna(r["data"]) else "",
+                "placa":          str(r["placa"]).strip(),
+                "posto":          str(r["posto"]).strip(),
+                "cidade":         cidade,
+                "estado":         estado,
+                "preco_litro":    round(float(r["preco_litro"]), 4) if pd.notna(r["preco_litro"]) else None,
+                "valor_total":    round(float(r["valor_total"]), 2) if pd.notna(r["valor_total"]) else None,
+                "litros":         round(float(r["litros"]), 2)      if pd.notna(r["litros"])      else None,
+                "delta_preco":    float(r["delta_preco"])           if pd.notna(r.get("delta_preco")) else None,
+            })
+
+    # Filtros disponíveis para o frontend
+    postos_disponiveis  = sorted({a["posto"] for a in ultimos_abastecimentos})
+    placas_disponiveis  = sorted({a["placa"]  for a in ultimos_abastecimentos})
+
     return {
         "status": "ok",
         "data": {
-            "kpis":            kpis,
-            "monthly_trend":   monthly_trend,
-            "por_grupo":       por_grupo,
-            "tabela_veiculos": tabela_veiculos,
-            "all_months":      all_months,
-            "ranking":         ranking,
-            "grupos":          grupos_disponiveis,
-            "anos":            available_years,
-            "metodo":          metodo,
+            "kpis":                   kpis,
+            "monthly_trend":          monthly_trend,
+            "por_grupo":              por_grupo,
+            "tabela_veiculos":        tabela_veiculos,
+            "all_months":             all_months,
+            "ranking":                ranking,
+            "grupos":                 grupos_disponiveis,
+            "anos":                   available_years,
+            "metodo":                 metodo,
+            "postos_ranking":         postos_ranking,
+            "ultimos_abastecimentos": ultimos_abastecimentos,
+            "postos_disponiveis":     postos_disponiveis,
+            "placas_disponiveis":     placas_disponiveis,
         }
     }
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, FileText, Settings, Fuel, RefreshCw, Clock } from 'lucide-react';
+import { LayoutDashboard, FileText, Fuel, RefreshCw, Clock, Gauge, Package, CircleDot, DollarSign } from 'lucide-react';
 import logoTransbottan from '../assets/logo-transbottan.png';
 const API = import.meta.env.VITE_API_BASE || '';
 
@@ -14,7 +14,10 @@ export default function Sidebar({ activePage, setActivePage }) {
         { name: 'Acompanhamento', icon: <LayoutDashboard size={17} /> },
         { name: 'Analítico', icon: <FileText size={17} /> },
         { name: 'Combustível', icon: <Fuel size={17} /> },
-        { name: 'Custos', icon: <Settings size={17} /> },
+        { name: 'Custos', icon: <DollarSign size={17} /> },
+        { name: 'Gobrax', icon: <Gauge size={17} /> },
+        { name: 'Pneus', icon: <CircleDot size={17} /> },
+        { name: 'Almoxarifado', icon: <Package size={17} /> },
     ];
 
     const fetchLastUpdate = async () => {
@@ -72,7 +75,7 @@ export default function Sidebar({ activePage, setActivePage }) {
             </div>
 
             {/* Navigation */}
-            <nav className="flex-1 px-3 py-2">
+            <nav className="flex-1 px-3 py-2 overflow-y-auto">
                 <p className="text-emerald-400/40 text-[9px] font-bold uppercase tracking-widest px-3 mb-2">Menu</p>
                 <ul className="space-y-0.5">
                     {menuItems.map((item) => {
@@ -86,17 +89,13 @@ export default function Sidebar({ activePage, setActivePage }) {
                                         : 'text-white/50 hover:text-white/90 hover:bg-white/5'
                                         }`}
                                 >
-                                    {/* Active indicator */}
                                     {isActive && (
                                         <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-emerald-400 rounded-full" />
                                     )}
-                                    {/* Icon */}
                                     <span className={`shrink-0 transition-colors ${isActive ? 'text-emerald-400' : 'text-white/40 group-hover:text-white/70'}`}>
                                         {item.icon}
                                     </span>
-                                    {/* Label */}
                                     <span className="truncate">{item.name}</span>
-                                    {/* Active dot */}
                                     {isActive && (
                                         <span className="ml-auto w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
                                     )}

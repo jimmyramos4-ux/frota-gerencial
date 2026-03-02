@@ -152,8 +152,18 @@ function App() {
         {/* Página Analítico */}
         {activePage === 'Analítico' && <AnaliticoPage />}
 
-        {/* Dashboard Principal (Acompanhamento / Custos) */}
-        {activePage !== 'Combustível' && activePage !== 'Analítico' && (<>
+        {/* Páginas em construção */}
+        {['Custos', 'Gobrax', 'Pneus', 'Almoxarifado'].includes(activePage) && (
+          <div className="flex items-center justify-center h-full text-gray-400">
+            <div className="text-center">
+              <p className="text-2xl font-semibold text-gray-300">{activePage}</p>
+              <p className="text-sm mt-2">Página em construção</p>
+            </div>
+          </div>
+        )}
+
+        {/* Dashboard Principal */}
+        {activePage === 'Acompanhamento' && (<>
           <div className="sticky top-0 z-50 pt-6 pb-6 bg-[#f3f4f6]">
             <header className="flex flex-col xl:flex-row xl:items-center justify-between bg-white p-4 rounded-xl shadow-sm border border-gray-100 gap-4">
 

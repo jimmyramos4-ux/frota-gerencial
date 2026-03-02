@@ -96,6 +96,8 @@ export default function CombustivelPage() {
     const [grupo, setGrupo] = useState('TODOS');
     const [selectedMonths, setSelectedMonths] = useState([]);
     const [metodo, setMetodo] = useState('ponderada'); // afeta apenas ranking + tabela
+    const [filtroPostoAb, setFiltroPostoAb] = useState('');
+    const [filtroPlacaAb, setFiltroPlacaAb] = useState('');
 
     // dataPonderada: sempre ponderada → KPIs, Tendência, Consumo por Grupo
     // dataMetodo: método selecionado → Ranking + Tabela Comparativo
@@ -234,7 +236,7 @@ export default function CombustivelPage() {
     );
 
     const { kpis, monthly_trend, por_grupo, anos } = dataPonderada || {};
-    const { ranking } = dataMetodo || {};
+    const { ranking, postos_ranking, ultimos_abastecimentos, postos_disponiveis, placas_disponiveis } = dataMetodo || {};
 
     // Dados do gráfico de tendência (sempre ponderada)
     const trendData = (monthly_trend || []).map(m => ({
@@ -622,6 +624,166 @@ export default function CombustivelPage() {
                     {tabelaFiltrada.length} veículos · cores relativas ao grupo do veículo · km/L = km rodados ÷ litros abastecidos
                 </div>
             </div>
+
+            {/* ── Postos mais baratos / mais caros ── */}
+            {postos_ranking && postos_ranking.length > 0 && (
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 mt-6">
+                    {/* Mais baratos */}
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+                        <div className="flex items-center gap-2 mb-4">
+                            <Award size={16} className="text-emerald-600" />
+                            <h3 className="font-bold text-sm text-gray-800 uppercase tracking-wider">Postos Mais Baratos</h3>
+                            <span className="text-xs text-gray-400 ml-auto">menor R$/L = mais barato</span>
+                        </div>
+                        <div className="overflow-y-auto max-h-[520px] space-y-2.5 pr-1">
+                            {postos_ranking.slice(0, 30).map((p, i) => {
+                                const min = postos_ranking[0]?.preco_medio ?? 0;
+                                const max = postos_ranking.at(-1)?.preco_medio ?? 1;
+                                const pct = max > min ? ((max - p.preco_medio) / (max - min)) * 100 : 100;
+                                return (
+                                    <div key={i} className="flex items-center gap-3">
+                                        <span className="text-xs font-bold text-gray-400 w-4 text-right shrink-0">{i + 1}</span>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="text-xs font-bold text-gray-700 truncate">{p.posto}</div>
+                                            <div className="text-[10px] text-gray-400">{p.cidade}{p.estado ? ` · ${p.estado}` : ''}</div>
+                                        </div>
+                                        <div className="w-20 bg-gray-100 rounded-full h-3 overflow-hidden shrink-0">
+                                            <div className="h-full bg-emerald-400 rounded-full" style={{ width: `${Math.max(pct, 5)}%` }} />
+                                        </div>
+                                        <span className="text-xs font-bold text-emerald-700 w-14 text-right shrink-0">R$ {p.preco_medio.toFixed(4)}</span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {/* Mais caros */}
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+                        <div className="flex items-center gap-2 mb-4">
+                            <AlertTriangle size={16} className="text-amber-500" />
+                            <h3 className="font-bold text-sm text-gray-800 uppercase tracking-wider">Postos Mais Caros</h3>
+                            <span className="text-xs text-gray-400 ml-auto">maior R$/L = mais caro</span>
+                        </div>
+                        <div className="overflow-y-auto max-h-[520px] space-y-2.5 pr-1">
+                            {postos_ranking.slice(-30).reverse().map((p, i) => {
+                                const min = postos_ranking[0]?.preco_medio ?? 0;
+                                const max = postos_ranking.at(-1)?.preco_medio ?? 1;
+                                const pct = max > min ? ((p.preco_medio - min) / (max - min)) * 100 : 100;
+                                return (
+                                    <div key={i} className="flex items-center gap-3">
+                                        <span className="text-xs font-bold text-gray-400 w-4 text-right shrink-0">{postos_ranking.length - i}</span>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="text-xs font-bold text-gray-700 truncate">{p.posto}</div>
+                                            <div className="text-[10px] text-gray-400">{p.cidade}{p.estado ? ` · ${p.estado}` : ''}</div>
+                                        </div>
+                                        <div className="w-20 bg-gray-100 rounded-full h-3 overflow-hidden shrink-0">
+                                            <div className="h-full bg-amber-400 rounded-full" style={{ width: `${Math.max(pct, 5)}%` }} />
+                                        </div>
+                                        <span className="text-xs font-bold text-amber-700 w-14 text-right shrink-0">R$ {p.preco_medio.toFixed(4)}</span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Últimos Abastecimentos ── */}
+            {ultimos_abastecimentos && ultimos_abastecimentos.length > 0 && (() => {
+                const termPosto = filtroPostoAb.trim().toUpperCase();
+                const termPlaca = filtroPlacaAb.trim().toUpperCase();
+                const abFiltrado = ultimos_abastecimentos.filter(a =>
+                    (!termPosto || a.posto.toUpperCase().includes(termPosto)) &&
+                    (!termPlaca || a.placa.toUpperCase().includes(termPlaca))
+                );
+                return (
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 mt-6 mb-8">
+                        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                            <div>
+                                <h3 className="font-bold text-gray-800 uppercase tracking-wider text-sm">Abastecimentos</h3>
+                                <p className="text-xs text-gray-400 mt-0.5">Δ preço = variação em relação ao abastecimento anterior no mesmo posto</p>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <div className="relative">
+                                    <input
+                                        type="text"
+                                        list="lista-postos"
+                                        value={filtroPostoAb}
+                                        onChange={e => setFiltroPostoAb(e.target.value)}
+                                        placeholder="Filtrar por posto..."
+                                        className="bg-white text-gray-600 px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-medium focus:border-[#0b4d3c] outline-none w-[220px]"
+                                    />
+                                    <datalist id="lista-postos">
+                                        {(postos_disponiveis || []).map(p => <option key={p} value={p} />)}
+                                    </datalist>
+                                </div>
+                                <div className="relative">
+                                    <input
+                                        type="text"
+                                        list="lista-placas"
+                                        value={filtroPlacaAb}
+                                        onChange={e => setFiltroPlacaAb(e.target.value)}
+                                        placeholder="Filtrar por placa..."
+                                        className="bg-white text-gray-600 px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-medium focus:border-[#0b4d3c] outline-none w-[140px]"
+                                    />
+                                    <datalist id="lista-placas">
+                                        {(placas_disponiveis || []).map(p => <option key={p} value={p} />)}
+                                    </datalist>
+                                </div>
+                                <span className="text-xs text-gray-400">{abFiltrado.length} registros</span>
+                            </div>
+                        </div>
+                        <div className="overflow-y-auto max-h-[480px]">
+                            <table className="w-full text-xs text-left">
+                                <thead className="sticky top-0 z-10">
+                                    <tr className="bg-gray-50 border-b border-gray-100 text-gray-500 font-bold uppercase tracking-wide">
+                                        <th className="px-3 py-3">Data</th>
+                                        <th className="px-3 py-3">Placa</th>
+                                        <th className="px-3 py-3">Posto</th>
+                                        <th className="px-3 py-3">Cidade</th>
+                                        <th className="px-3 py-3">UF</th>
+                                        <th className="px-3 py-3 text-right">Litros</th>
+                                        <th className="px-3 py-3 text-right">R$/L</th>
+                                        <th className="px-3 py-3 text-right">Total</th>
+                                        <th className="px-3 py-3 text-center">Δ Preço</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-50">
+                                    {abFiltrado.map((a, i) => {
+                                        const deltaPos = a.delta_preco != null && a.delta_preco > 0;
+                                        const deltaNeg = a.delta_preco != null && a.delta_preco < 0;
+                                        return (
+                                            <tr key={i} className="hover:bg-gray-50/60 transition-colors">
+                                                <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{a.data}</td>
+                                                <td className="px-3 py-2 font-mono font-bold text-gray-700">{a.placa}</td>
+                                                <td className="px-3 py-2 text-gray-700 max-w-[200px] truncate" title={a.posto}>{a.posto}</td>
+                                                <td className="px-3 py-2 text-gray-500">{a.cidade}</td>
+                                                <td className="px-3 py-2 text-gray-500 font-bold">{a.estado}</td>
+                                                <td className="px-3 py-2 text-right text-gray-600">{a.litros != null ? fmtNum(a.litros, 2) : '—'}</td>
+                                                <td className="px-3 py-2 text-right font-bold text-gray-800">
+                                                    {a.preco_litro != null ? `R$ ${a.preco_litro.toFixed(4)}` : '—'}
+                                                </td>
+                                                <td className="px-3 py-2 text-right font-bold text-gray-800">
+                                                    {a.valor_total != null ? fmtBRL(a.valor_total) : '—'}
+                                                </td>
+                                                <td className="px-3 py-2 text-center">
+                                                    {a.delta_preco != null ? (
+                                                        <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded font-bold text-[10px]
+                                                            ${deltaPos ? 'bg-red-100 text-red-600' : deltaNeg ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
+                                                            {deltaPos ? <TrendingUp size={9} /> : deltaNeg ? <TrendingDown size={9} /> : null}
+                                                            {deltaPos ? '+' : ''}{a.delta_preco.toFixed(2)}%
+                                                        </span>
+                                                    ) : <span className="text-gray-300">—</span>}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                );
+            })()}
         </div>
     );
 }
