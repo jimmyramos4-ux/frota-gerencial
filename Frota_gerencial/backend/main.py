@@ -1,4 +1,5 @@
 import os
+import re
 import threading
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -6,6 +7,28 @@ import pandas as pd
 import uvicorn
 import math
 from datetime import datetime
+
+_SUFIXOS_JURIDICOS = re.compile(
+    r'\b(S\.?\s*A\.?|LTDA\.?|ME\.?|EIRELI\.?|EPP\.?|SS\.?|S\.?\s*S\.?|'
+    r'INDUSTRIA|INDUSTRIAS|COMERCIO|COMERCIAL|DISTRIBUIDORA|TRANSPORTES?|'
+    r'LOGISTICA|TRANSPORTADORA)\b',
+    re.IGNORECASE
+)
+
+def normalize_pagador(nome: str) -> str:
+    """Retorna chave de agrupamento baseada na primeira palavra significativa do nome."""
+    s = str(nome).upper().strip()
+    s = re.sub(r'[./\-,;]', ' ', s)      # pontuação → espaço
+    s = _SUFIXOS_JURIDICOS.sub(' ', s)   # remove sufixos jurídicos
+    s = re.sub(r'\s+', ' ', s).strip()   # normaliza espaços
+    words = s.split()
+    if not words:
+        return s
+    # Se primeira palavra tem apenas 1 char (sigla partida), concatena com a próxima
+    first = words[0]
+    if len(first) == 1 and len(words) >= 2:
+        return first + words[1]
+    return first
 
 def normalize_plate_variants(plate: str):
     p = str(plate).strip().upper().replace('-', '').replace(' ', '')
@@ -144,7 +167,7 @@ def check_and_reload():
                             # Remove datas futuras claramente incorretas (> data atual)
                             df = df[df['dt_emissao'] <= pd.Timestamp.now()].copy()
                             str_cols = ['nm_cidade_origem', 'nm_cidade_destino', 'nm_pessoa_remetente',
-                                        'nm_pessoa_tomador', 'nm_pessoa_motorista', 'ds_placa',
+                                        'nm_pessoa_tomador', 'nm_pessoa_pagador', 'nm_pessoa_motorista', 'ds_placa',
                                         'nm_produto', 'id_proprietario_veiculo', 'nm_pessoa_filial']
                             for col in str_cols:
                                 if col in df.columns:
@@ -1393,9 +1416,34 @@ def get_analitico(
 
     # ── DRE (sempre usado sem filtro de cliente/rota) ──────────────────────────
     data_dre = data_cache.get("dre_frota", {})
-    df_dre = data_dre.get("df", pd.DataFrame()).copy() if isinstance(data_dre, dict) else pd.DataFrame()
+    _df_dre_raw = data_dre.get("df") if isinstance(data_dre, dict) else None
+    df_dre = _df_dre_raw.copy() if isinstance(_df_dre_raw, pd.DataFrame) else pd.DataFrame()
+    
     if not df_dre.empty and "DATA" in df_dre.columns:
         df_dre["DATA"] = pd.to_datetime(df_dre["DATA"], errors="coerce")
+
+    # ── Veículos/Abastecimento (placa → grupo) ────────────────────────────────
+    _veic_cache = data_cache.get("veiculos", {})
+    _df_veic_raw = _veic_cache.get("df") if isinstance(_veic_cache, dict) else None
+    df_veiculos_an = _df_veic_raw if isinstance(_df_veic_raw, pd.DataFrame) else pd.DataFrame()
+    placa_to_grupo = {}
+    grupos_disponiveis = []
+    if not df_veiculos_an.empty:
+        # Detecta colunas com find_col (tolerante a espaços/capitalização)
+        col_g_an = find_col(df_veiculos_an, ["nm_grupo", "grupo"])
+        col_p_an = find_col(df_veiculos_an, ["ds_placa", "placa"])
+        if col_g_an:
+            grupos_disponiveis = sorted(
+                df_veiculos_an[col_g_an].dropna().astype(str).str.strip().unique().tolist()
+            )
+        if col_p_an and col_g_an:
+            df_gv = df_veiculos_an[[col_p_an, col_g_an]].dropna().drop_duplicates(subset=[col_p_an], keep='last')
+            for _, rv in df_gv.iterrows():
+                pv = str(rv[col_p_an]).strip().upper().replace('-', '').replace(' ', '')
+                gv = str(rv[col_g_an]).strip()
+                if pv and pv != 'NAN' and gv and gv.upper() != 'NAN':
+                    for variant in normalize_plate_variants(pv):
+                        placa_to_grupo[variant] = gv
 
     def dre_receita(yr, mo=0):
         if df_dre.empty or "DATA" not in df_dre.columns:
@@ -1407,7 +1455,8 @@ def get_analitico(
 
     # ── CTRC ──────────────────────────────────────────────────────────────────
     data_ctrc = data_cache.get("ctrc", {})
-    df_ctrc_full = data_ctrc.get("df", pd.DataFrame()).copy() if isinstance(data_ctrc, dict) else pd.DataFrame()
+    _df_ctrc_raw = data_ctrc.get("df") if isinstance(data_ctrc, dict) else None
+    df_ctrc_full = _df_ctrc_raw.copy() if isinstance(_df_ctrc_raw, pd.DataFrame) else pd.DataFrame()
 
     def apply_ctrc_filters(df, yr, mo=0, apply_extra=True):
         if df.empty:
@@ -1488,23 +1537,46 @@ def get_analitico(
             "peso_anterior":     safe_float(float(dp["vl_peso_kg"].sum()) / 1000) if not dp.empty else 0,
         })
 
-    # ── Top Clientes ──────────────────────────────────────────────────────────
-    top_clientes = []
-    if not df_cur.empty and "nm_pessoa_tomador" in df_cur.columns:
-        tc_cur = df_cur.groupby("nm_pessoa_tomador").agg(
+    # ── Top Pagadores (faturamento, com normalização de nomes) ────────────────
+    top_pagadores = []
+    if not df_cur.empty and "nm_pessoa_pagador" in df_cur.columns and "vl_frete_empresa" in df_cur.columns:
+        df_cur["_frete_num"]   = pd.to_numeric(df_cur["vl_frete_empresa"], errors="coerce").fillna(0)
+        df_cur["_pag_norm"]    = df_cur["nm_pessoa_pagador"].apply(normalize_pagador)
+
+        # Agrupar por nome normalizado, exibir o nome original mais frequente
+        df_pg = df_cur[df_cur["_frete_num"] > 0].copy()
+        nome_display = df_pg.groupby("_pag_norm")["nm_pessoa_pagador"].agg(
+            lambda x: x.value_counts().index[0]
+        ).reset_index(name="pagador_display")
+
+        pg_cur = df_pg.groupby("_pag_norm").agg(
+            receita=("_frete_num", "sum"),
             viagens=("nr_ctrc", "count"),
-            peso=("vl_peso_kg", "sum")
-        ).reset_index()
-        tc_yoy_grp = df_yoy.groupby("nm_pessoa_tomador")["nr_ctrc"].count().reset_index(name="viagens_ant") if not df_yoy.empty else pd.DataFrame(columns=["nm_pessoa_tomador","viagens_ant"])
-        tc = tc_cur.merge(tc_yoy_grp, on="nm_pessoa_tomador", how="left")
-        tc["viagens_ant"] = tc["viagens_ant"].fillna(0)
-        tc["var_yoy"] = tc.apply(lambda r: safe_pct(r["viagens"], r["viagens_ant"]), axis=1)
-        tc["peso_ton"] = (tc["peso"] / 1000).round(1)
-        tc = tc.sort_values("viagens", ascending=False).head(15)
-        top_clientes = [
-            {"cliente": r["nm_pessoa_tomador"], "viagens": int(r["viagens"]),
-             "viagens_ant": int(r["viagens_ant"]), "var_yoy": n(r["var_yoy"]), "peso": n(r["peso_ton"])}
-            for _, r in tc.iterrows()
+        ).reset_index().merge(nome_display, on="_pag_norm")
+        total_receita = pg_cur["receita"].sum()
+
+        if not df_yoy.empty and "nm_pessoa_pagador" in df_yoy.columns and "vl_frete_empresa" in df_yoy.columns:
+            df_yoy["_frete_num"] = pd.to_numeric(df_yoy["vl_frete_empresa"], errors="coerce").fillna(0)
+            df_yoy["_pag_norm"]  = df_yoy["nm_pessoa_pagador"].apply(normalize_pagador)
+            pg_yoy = df_yoy[df_yoy["_frete_num"] > 0].groupby("_pag_norm")["_frete_num"].sum().reset_index(name="receita_ant")
+        else:
+            pg_yoy = pd.DataFrame(columns=["_pag_norm", "receita_ant"])
+
+        pg = pg_cur.merge(pg_yoy, on="_pag_norm", how="left")
+        pg["receita_ant"] = pg["receita_ant"].fillna(0)
+        pg["var_yoy"]     = pg.apply(lambda r: safe_pct(r["receita"], r["receita_ant"]), axis=1)
+        pg["pct_total"]   = (pg["receita"] / total_receita * 100).round(1) if total_receita > 0 else 0
+        pg = pg.sort_values("receita", ascending=False).head(20)
+        top_pagadores = [
+            {
+                "pagador":      r["pagador_display"],
+                "receita":      n(r["receita"]),
+                "receita_ant":  n(r["receita_ant"]),
+                "var_yoy":      n(r["var_yoy"]),
+                "pct_total":    n(r["pct_total"]),
+                "viagens":      int(r["viagens"]),
+            }
+            for _, r in pg.iterrows()
         ]
 
     # ── Top Rotas ─────────────────────────────────────────────────────────────
@@ -1565,19 +1637,132 @@ def get_analitico(
     anos_dre  = sorted(df_dre["DATA"].dt.year.dropna().unique().astype(int).tolist()) if not df_dre.empty and "DATA" in df_dre.columns else []
     anos = sorted(set(anos_ctrc + anos_dre))
 
+    # ── Receita histórica (todos os anos do DRE, por mês) ─────────────────────
+    receita_historica = []
+    if not df_dre.empty and "DATA" in df_dre.columns:
+        for mo in range(1, 13):
+            row = {"mes_label": MES_ABREV[mo - 1], "mes_num": mo}
+            for yr in anos_dre:
+                d = df_dre[(df_dre["DATA"].dt.year == yr) & (df_dre["DATA"].dt.month == mo)]
+                total = float(d["RECEITA"].sum()) if not d.empty else 0.0
+                row[str(yr)] = safe_float(total) if total > 0 else None
+            # Variação YoY do ano selecionado vs anterior (para anotação no gráfico)
+            cur = row.get(str(year))
+            prv = row.get(str(year - 1))
+            row["var_yoy"] = safe_pct(cur, prv) if (cur and prv) else None
+            receita_historica.append(row)
+
+    # ── Viagens históricas (CTRC, anos disponíveis, por mês) ─────────────────
+    viagens_historica = []
+    if not df_ctrc_full.empty:
+        anos_ctrc_hist = [y for y in anos_ctrc if y >= 2024]  # CTRC disponível de 2024
+        for mo in range(1, 13):
+            row = {"mes_label": MES_ABREV[mo - 1], "mes_num": mo}
+            for yr in anos_ctrc_hist:
+                d = apply_ctrc_filters(df_ctrc_full, yr, mo)
+                row[str(yr)] = len(d)
+            viagens_historica.append(row)
+
+    # ── Faturamento por Placa (DRE) ───────────────────────────────────────────
+    placas_ranking = []
+    placas_mensal = []
+    
+    if not df_dre.empty and "DATA" in df_dre.columns and "PLACA" in df_dre.columns:
+        # Filter for the selected year and month
+        df_dre_period = df_dre[df_dre["DATA"].dt.year == year].copy()
+        if month > 0:
+            df_dre_period = df_dre_period[df_dre_period["DATA"].dt.month == month]
+            
+        # Todas as placas no período selecionado
+        if not df_dre_period.empty:
+            df_dre_period["_receita_num"] = pd.to_numeric(df_dre_period["RECEITA"], errors="coerce").fillna(0)
+            pl_grp = df_dre_period.groupby("PLACA")["_receita_num"].sum().reset_index()
+            pl_grp = pl_grp[pl_grp["PLACA"].astype(str).str.strip().str.upper() != "NAN"]
+            pl_grp = pl_grp.sort_values(by="_receita_num", ascending=False)
+
+            placas_ranking = [
+                {
+                    "placa": str(r["PLACA"]).strip(),
+                    "receita": safe_float(r["_receita_num"]),
+                    "grupo": placa_to_grupo.get(str(r["PLACA"]).strip().upper().replace('-', '').replace(' ', ''), "—")
+                }
+                for _, r in pl_grp.iterrows() if r["_receita_num"] > 0
+            ]
+
+            # Histórico mensal para todas as placas do ranking
+            todas_placas = [p["placa"] for p in placas_ranking]
+
+            df_dre_year = df_dre[df_dre["DATA"].dt.year == year].copy()
+            df_dre_year["PLACA"] = df_dre_year["PLACA"].astype(str).str.strip()
+            df_dre_year["_receita_num"] = pd.to_numeric(df_dre_year["RECEITA"], errors="coerce").fillna(0)
+
+            for mo in range(1, 13):
+                row = {"mes_label": MES_ABREV[mo - 1], "mes_num": mo}
+                d_mo = df_dre_year[df_dre_year["DATA"].dt.month == mo]
+                for placa in todas_placas:
+                    val = float(d_mo[d_mo["PLACA"] == placa]["_receita_num"].sum()) if not d_mo.empty else 0.0
+                    row[placa] = safe_float(val) if val > 0 else None
+                placas_mensal.append(row)
+
+    # ── Metas e Insights ──────────────────────────────────────────────────────
+    insights = {}
+    df_metas = data_cache.get("metas", {}).get("df", pd.DataFrame()) if isinstance(data_cache.get("metas"), dict) else pd.DataFrame()
+    metas_ano = {}
+    
+    if isinstance(df_metas, pd.DataFrame) and not df_metas.empty:
+        col_mes = find_col(df_metas, ["mês", "mes", "ms"])
+        col_meta = find_col(df_metas, ["meta"])
+        
+        if col_mes and col_meta:
+            for _, row in df_metas.iterrows():
+                dt = pd.to_datetime(row[col_mes], errors='coerce')
+                if not pd.isna(dt) and dt.year == year:
+                    val = row[col_meta]
+                    metas_ano[dt.month] = float(val) if not pd.isna(val) else 0.0
+
+    if not df_dre.empty and "DATA" in df_dre.columns:
+        df_dre_year = df_dre[df_dre["DATA"].dt.year == year].copy()
+        if not df_dre_year.empty:
+            df_dre_year["_receita_num"] = pd.to_numeric(df_dre_year["RECEITA"], errors="coerce").fillna(0)
+            faturamento_mensal = df_dre_year.groupby(df_dre_year["DATA"].dt.month)["_receita_num"].sum().to_dict()
+            
+            # Remover meses sem faturamento ou futuros
+            meses_com_faturamento = {m: v for m, v in faturamento_mensal.items() if v > 0}
+            
+            if meses_com_faturamento:
+                melhor_mes_num = max(meses_com_faturamento, key=meses_com_faturamento.get)
+                pior_mes_num = min(meses_com_faturamento, key=meses_com_faturamento.get)
+                
+                meses_bateu_meta = []
+                for m, fat in meses_com_faturamento.items():
+                    meta_m = metas_ano.get(m, 0)
+                    if meta_m > 0 and fat >= meta_m:
+                        meses_bateu_meta.append(MES_ABREV[m-1])
+                
+                insights = {
+                    "melhor_mes": {"mes": MES_ABREV[melhor_mes_num - 1], "valor": safe_float(meses_com_faturamento[melhor_mes_num])},
+                    "pior_mes": {"mes": MES_ABREV[pior_mes_num - 1], "valor": safe_float(meses_com_faturamento[pior_mes_num])},
+                    "meses_bateu_meta": meses_bateu_meta,
+                    "metas": metas_ano
+                }
+
     return {
         "data": {
-            "kpis":          kpis,
-            "monthly_trend": monthly_trend,
-            "top_clientes":  top_clientes,
-            "top_rotas":     top_rotas,
-            "top_produtos":  top_produtos,
-            "dist_frota":    dist_frota,
+            "kpis":               kpis,
+            "monthly_trend":      monthly_trend,
+            "receita_historica":  receita_historica,
+            "viagens_historica":  viagens_historica,
+            "placas_ranking":     placas_ranking,
+            "placas_mensal":      placas_mensal,
+            "top_pagadores":      top_pagadores,
+            "top_rotas":          top_rotas,
+            "top_produtos":       top_produtos,
+            "dist_frota":         dist_frota,
+            "insights":           insights,
             "filtros": {
-                "anos":      anos,
-                "clientes":  clientes_list,
-                "origens":   origens_list,
-                "destinos":  destinos_list,
+                "anos":     anos,
+                "anos_dre": anos_dre,
+                "grupos":   grupos_disponiveis,
             }
         }
     }
