@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { UserButton } from '@clerk/react';
 import { LayoutDashboard, FileText, Fuel, RefreshCw, Clock, Gauge, Package, CircleDot, DollarSign } from 'lucide-react';
 import logoTransbottan from '../assets/logo-transbottan.png';
 const API = import.meta.env.VITE_API_BASE || '';
@@ -117,6 +118,12 @@ export default function Sidebar({ activePage, setActivePage, mobileOpen, setMobi
 
                 {/* Bottom divider */}
                 <div className="mx-4 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent mb-3" />
+
+                {/* User */}
+                <div className="mx-3 mb-3 flex items-center gap-2.5 px-2 py-2 rounded-xl" style={{ background: 'rgba(255,255,255,0.05)' }}>
+                    <UserButton afterSignOutUrl="/" appearance={{ elements: { avatarBox: 'w-7 h-7' } }} />
+                    <span className="text-white/50 text-[11px] font-medium truncate">Minha conta</span>
+                </div>
 
                 {/* Data Update Card */}
                 <div className="mx-3 mb-4 rounded-xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>

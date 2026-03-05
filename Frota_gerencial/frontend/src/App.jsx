@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useAuth, SignIn } from '@clerk/react';
 import { Menu, SlidersHorizontal, ChevronDown } from 'lucide-react';
 const API = import.meta.env.VITE_API_BASE || '';
 import Sidebar from './components/Sidebar';
@@ -13,6 +14,7 @@ import UltimosCarregamentosCimento from './components/UltimosCarregamentosCiment
 import CombustivelPage from './components/CombustivelPage';
 import AnaliticoPage from './components/AnaliticoPage';
 function App() {
+  const { isLoaded, isSignedIn } = useAuth();
   const [activePage, setActivePage] = useState('Acompanhamento');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [mes, setMes] = useState(2);
@@ -156,6 +158,13 @@ function App() {
   };
 
 
+
+  if (!isLoaded) return null;
+  if (!isSignedIn) return (
+    <div className="flex h-screen w-full items-center justify-center bg-gray-50">
+      <SignIn />
+    </div>
+  );
 
   return (
     <div className="flex h-screen w-full bg-[#f3f4f6] font-sans text-gray-800">

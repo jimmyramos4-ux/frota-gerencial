@@ -13,6 +13,7 @@ __pycache__/
 *.egg-info/
 venv/
 .env
+.env.*
 
 # Logs
 *.log
