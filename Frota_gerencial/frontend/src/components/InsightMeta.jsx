@@ -133,7 +133,7 @@ export default function InsightMeta({ metaManual = 0, dailyData = [], receitaGlo
                 </div>
 
                 {/* Cards de métricas */}
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {/* Acumulado */}
                     <div className="bg-gray-50 rounded-lg p-2.5 text-center">
                         <p className="text-[10px] text-gray-400 font-semibold uppercase mb-1">Acumulado</p>

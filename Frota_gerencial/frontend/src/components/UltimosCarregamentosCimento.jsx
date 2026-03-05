@@ -60,7 +60,7 @@ export default function UltimosCarregamentosCimento({ data = [], selectedDay = n
                         placeholder="Filtrar motorista..."
                         value={filterMotorista}
                         onChange={e => setFilterMotorista(e.target.value)}
-                        className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0b4d3c]/30 w-52"
+                        className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0b4d3c]/30 w-full sm:w-52"
                     />
                     <span className="text-[10px] font-bold bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full whitespace-nowrap">
                         {filteredData.length} registros

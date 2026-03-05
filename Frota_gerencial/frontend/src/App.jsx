@@ -1,6 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { Menu, SlidersHorizontal, ChevronDown } from 'lucide-react';
 const API = import.meta.env.VITE_API_BASE || '';
 import Sidebar from './components/Sidebar';
+import logoTransbottan from './assets/logo-transbottan.png';
 import KPICards from './components/KPICards';
 import FaturamentoPlaca from './components/FaturamentoPlaca';
 import Calendario from './components/Calendario';
@@ -12,6 +14,7 @@ import CombustivelPage from './components/CombustivelPage';
 import AnaliticoPage from './components/AnaliticoPage';
 function App() {
   const [activePage, setActivePage] = useState('Acompanhamento');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [mes, setMes] = useState(2);
   const [ano, setAno] = useState(2026);
   const [fleetType, setFleetType] = useState('FROTA PROPRIA');
@@ -28,6 +31,23 @@ function App() {
 
   // Nova Variável de Estado para a Meta Customizada pelo Usuário
   const [metaManual, setMetaManual] = useState(3600000);
+  const [filterOpen, setFilterOpen] = useState(false);
+
+  // Filtros da página Combustível (lifted state)
+  const [anoComb, setAnoComb] = useState(2025);
+  const [grupoComb, setGrupoComb] = useState('TODOS');
+  const [selectedMonthsComb, setSelectedMonthsComb] = useState([]);
+  const [filterOpenComb, setFilterOpenComb] = useState(false);
+
+  // Filtros da página Analítico (lifted state)
+  const [anoAn, setAnoAn] = useState(2026);
+  const [mesAn, setMesAn] = useState(0);
+  const [filterOpenAn, setFilterOpenAn] = useState(false);
+  const mainRef = useRef(null);
+
+  useEffect(() => {
+    if (mainRef.current) mainRef.current.scrollTop = 0;
+  }, [activePage]);
 
   useEffect(() => {
     const fetchFilters = async () => {
@@ -140,17 +160,206 @@ function App() {
   return (
     <div className="flex h-screen w-full bg-[#f3f4f6] font-sans text-gray-800">
 
-      {/* Sidebar - fixed width */}
-      <Sidebar activePage={activePage} setActivePage={setActivePage} />
+      {/* Sidebar */}
+      <Sidebar
+        activePage={activePage}
+        setActivePage={setActivePage}
+        mobileOpen={sidebarOpen}
+        setMobileOpen={setSidebarOpen}
+      />
+
+      {/* Topbar mobile (visível apenas em telas < md) */}
+      <div className="md:hidden fixed top-0 left-0 right-0 z-[25] flex flex-col"
+        style={{ background: 'linear-gradient(90deg, #0a3d2e, #0b4d3c)' }}>
+        {/* Linha verde com logo e hamburguer */}
+        <div className="h-14 flex items-center px-4 gap-3">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="text-white/70 hover:text-white transition-colors p-1"
+          >
+            <Menu size={22} />
+          </button>
+          <img src={logoTransbottan} alt="Transbottan" className="h-7 object-contain brightness-0 invert" />
+        </div>
+
+        {/* Barra de filtros compacta — Combustível */}
+        {activePage === 'Combustível' && (
+          <div className="bg-white">
+            <div className="flex items-center justify-between px-4 h-11 border-b border-gray-100">
+              <div className="flex items-center gap-2 text-sm">
+                <span className="font-semibold text-[#0b4d3c]">{anoComb}</span>
+                <span className="text-gray-300">·</span>
+                <span className="text-gray-500 text-xs">
+                  {selectedMonthsComb.length === 0 ? 'Anual' : `${selectedMonthsComb.length} mês(es)`}
+                </span>
+                {grupoComb !== 'TODOS' && <><span className="text-gray-300">·</span><span className="text-gray-500 text-xs truncate max-w-[80px]">{grupoComb}</span></>}
+              </div>
+              <button
+                onClick={() => setFilterOpenComb(v => !v)}
+                className="flex items-center gap-1.5 text-xs font-semibold text-[#0b4d3c] border border-emerald-200 rounded-lg px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 transition-colors"
+              >
+                <SlidersHorizontal size={13} />
+                Filtros
+                <ChevronDown size={13} className={`transition-transform ${filterOpenComb ? 'rotate-180' : ''}`} />
+              </button>
+            </div>
+            {filterOpenComb && (
+              <div className="px-4 py-3 bg-white shadow-lg border-b border-gray-100 flex flex-col gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-bold text-gray-400 tracking-widest">ANO</span>
+                  {[2024, 2025, 2026].map(y => (
+                    <button key={y} onClick={() => { setAnoComb(y); setSelectedMonthsComb([]); }}
+                      className={`px-3 py-1 rounded-full text-sm font-semibold border transition-colors ${anoComb === y ? 'bg-[#0b4d3c] text-white border-[#0b4d3c]' : 'bg-white text-gray-500 border-gray-200'}`}>
+                      {y}
+                    </button>
+                  ))}
+                  <span className="text-xs font-bold text-gray-400 tracking-widest ml-2">MÊS</span>
+                  <button onClick={() => setSelectedMonthsComb([])}
+                    className={`px-2.5 py-1 rounded-full text-sm font-semibold border transition-colors ${selectedMonthsComb.length === 0 ? 'bg-[#0b4d3c] text-white border-[#0b4d3c]' : 'bg-white text-gray-500 border-gray-200'}`}>
+                    Todos
+                  </button>
+                  {['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'].map((m, idx) => (
+                    <button key={m} onClick={() => setSelectedMonthsComb(prev => prev.includes(idx+1) ? prev.filter(x=>x!==idx+1) : [...prev, idx+1])}
+                      className={`px-2.5 py-1 rounded-full text-sm font-semibold border transition-colors ${selectedMonthsComb.includes(idx+1) ? 'bg-[#147a61] text-white border-[#147a61]' : 'bg-white text-gray-500 border-gray-200'}`}>
+                      {m}
+                    </button>
+                  ))}
+                </div>
+                <select className="bg-white text-gray-600 p-2 rounded-lg border border-gray-200 text-sm"
+                  value={grupoComb} onChange={(e) => { setGrupoComb(e.target.value); setFilterOpenComb(false); }}>
+                  <option value="TODOS">Todos os grupos</option>
+                  {grupos.map((g, idx) => <option key={idx} value={g}>{g}</option>)}
+                </select>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Barra de filtros compacta — Analítico */}
+        {activePage === 'Analítico' && (
+          <div className="bg-white">
+            <div className="flex items-center justify-between px-4 h-11 border-b border-gray-100">
+              <div className="flex items-center gap-2 text-sm">
+                <span className="font-semibold text-blue-700">{anoAn}</span>
+                <span className="text-gray-300">·</span>
+                <span className="text-gray-500 text-xs">
+                  {mesAn === 0 ? 'Anual' : ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][mesAn-1]}
+                </span>
+              </div>
+              <button
+                onClick={() => setFilterOpenAn(v => !v)}
+                className="flex items-center gap-1.5 text-xs font-semibold text-blue-700 border border-blue-200 rounded-lg px-3 py-1.5 bg-blue-50 hover:bg-blue-100 transition-colors"
+              >
+                <SlidersHorizontal size={13} />
+                Filtros
+                <ChevronDown size={13} className={`transition-transform ${filterOpenAn ? 'rotate-180' : ''}`} />
+              </button>
+            </div>
+            {filterOpenAn && (
+              <div className="px-4 py-3 bg-white shadow-lg border-b border-gray-100 flex flex-col gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-bold text-gray-400 tracking-widest">ANO</span>
+                  {[2024, 2025, 2026].map(y => (
+                    <button key={y} onClick={() => { setAnoAn(y); setMesAn(0); }}
+                      className={`px-3 py-1 rounded-full text-sm font-semibold border transition-colors ${anoAn === y ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-500 border-gray-200'}`}>
+                      {y}
+                    </button>
+                  ))}
+                  <span className="text-xs font-bold text-gray-400 tracking-widest ml-2">MÊS</span>
+                  <button onClick={() => { setMesAn(0); setFilterOpenAn(false); }}
+                    className={`px-2.5 py-1 rounded-full text-sm font-semibold border transition-colors ${mesAn === 0 ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-500 border-gray-200'}`}>
+                    Anual
+                  </button>
+                  {['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'].map((m, idx) => (
+                    <button key={m} onClick={() => { setMesAn(idx+1); setFilterOpenAn(false); }}
+                      className={`px-2.5 py-1 rounded-full text-sm font-semibold border transition-colors ${mesAn === idx+1 ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-500 border-gray-200'}`}>
+                      {m}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Barra de filtros compacta — colada ao topbar (Acompanhamento) */}
+        {activePage === 'Acompanhamento' && (
+          <div className="bg-white">
+            <div className="flex items-center justify-between px-4 h-11 border-b border-gray-100">
+              <div className="flex items-center gap-2 text-sm">
+                <span className="font-semibold text-blue-600">{['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][mes-1]} {ano}</span>
+                <span className="text-gray-300">·</span>
+                <span className="text-gray-500 text-xs truncate max-w-[130px]">
+                  {fleetType === 'TODOS' ? 'Todas as frotas' : fleetType === 'FROTA PROPRIA' ? 'Frota Própria' : 'Terceiros'}
+                  {grupo !== 'TODOS' ? ` · ${grupo}` : ''}
+                </span>
+              </div>
+              <button
+                onClick={() => setFilterOpen(v => !v)}
+                className="flex items-center gap-1.5 text-xs font-semibold text-blue-600 border border-blue-200 rounded-lg px-3 py-1.5 bg-blue-50 hover:bg-blue-100 transition-colors"
+              >
+                <SlidersHorizontal size={13} />
+                Filtros
+                <ChevronDown size={13} className={`transition-transform ${filterOpen ? 'rotate-180' : ''}`} />
+              </button>
+            </div>
+            {/* Painel expandido */}
+            {filterOpen && (
+              <div className="px-4 py-3 bg-white shadow-lg border-b border-gray-100 flex flex-col gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-bold text-gray-400 tracking-widest">ANO</span>
+                  {[2024, 2025, 2026].map(y => (
+                    <button key={y} onClick={() => setAno(y)}
+                      className={`px-3 py-1 rounded-full text-sm font-semibold border transition-colors ${ano === y ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-500 border-gray-200'}`}>
+                      {y}
+                    </button>
+                  ))}
+                  <span className="text-xs font-bold text-gray-400 tracking-widest ml-2">MÊS</span>
+                  {['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'].map((m, idx) => (
+                    <button key={m} onClick={() => { setMes(idx + 1); setFilterOpen(false); }}
+                      className={`px-2.5 py-1 rounded-full text-sm font-semibold border transition-colors ${mes === idx+1 ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-500 border-gray-200'}`}>
+                      {m}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex gap-3 flex-wrap">
+                  <select className="bg-white text-gray-600 p-2 rounded-lg border border-gray-200 text-sm flex-1"
+                    value={fleetType} onChange={(e) => { setFleetType(e.target.value); setFilterOpen(false); }}>
+                    <option value="TODOS">Todas as frotas</option>
+                    <option value="FROTA PROPRIA">Frota Própria</option>
+                    <option value="TERCEIRO">Terceiros</option>
+                  </select>
+                  <select className="bg-white text-gray-600 p-2 rounded-lg border border-gray-200 text-sm flex-1"
+                    value={grupo} onChange={(e) => { setGrupo(e.target.value); setFilterOpen(false); }}>
+                    <option value="TODOS">Grupo: Todos</option>
+                    {grupos.map((g, idx) => <option key={idx} value={g}>{g}</option>)}
+                  </select>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Main Content Area */}
-      <main className="flex-1 ml-56 px-6 pb-6 overflow-y-auto w-full transition-all">
+      <main ref={mainRef} className={`flex-1 ml-0 md:ml-56 px-3 sm:px-6 pb-6 overflow-y-auto w-full transition-all md:pt-0 ${['Acompanhamento','Combustível','Analítico'].includes(activePage) ? 'pt-[100px]' : 'pt-14'}`}>
 
         {/* Página de Combustível */}
-        {activePage === 'Combustível' && <CombustivelPage />}
+        {activePage === 'Combustível' && (
+          <CombustivelPage
+            ano={anoComb} setAno={setAnoComb}
+            grupo={grupoComb} setGrupo={setGrupoComb}
+            selectedMonths={selectedMonthsComb} setSelectedMonths={setSelectedMonthsComb}
+          />
+        )}
 
         {/* Página Analítico */}
-        {activePage === 'Analítico' && <AnaliticoPage />}
+        {activePage === 'Analítico' && (
+          <AnaliticoPage
+            ano={anoAn} setAno={setAnoAn}
+            mes={mesAn} setMes={setMesAn}
+          />
+        )}
 
         {/* Páginas em construção */}
         {['Custos', 'Gobrax', 'Pneus', 'Almoxarifado'].includes(activePage) && (
@@ -164,7 +373,9 @@ function App() {
 
         {/* Dashboard Principal */}
         {activePage === 'Acompanhamento' && (<>
-          <div className="sticky top-0 z-50 pt-6 pb-6 bg-[#f3f4f6]">
+          <div className="hidden md:block sticky top-0 z-50 pt-6 pb-6 bg-[#f3f4f6]">
+
+            {/* Painel completo — só aparece no desktop */}
             <header className="flex flex-col xl:flex-row xl:items-center justify-between bg-white p-4 rounded-xl shadow-sm border border-gray-100 gap-4">
 
               {/* Pills Row (Years and Months) */}
@@ -189,7 +400,7 @@ function App() {
                 {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'].map((m, idx) => (
                   <button
                     key={m}
-                    onClick={() => setMes(idx + 1)}
+                    onClick={() => { setMes(idx + 1); setFilterOpen(false); }}
                     className={`px-3 py-1.5 rounded-full text-sm font-semibold transition-colors border ${mes === (idx + 1)
                       ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
                       : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:bg-gray-50'
@@ -200,12 +411,12 @@ function App() {
                 ))}
               </div>
 
-              {/* Dropdowns Row (Fleet, Group e Meta) */}
+              {/* Dropdowns Row (Fleet, Group) */}
               <div className="flex items-center gap-3 flex-wrap">
                 <select
                   className="bg-white text-gray-600 p-2 rounded-lg outline-none cursor-pointer border border-gray-200 text-sm font-medium focus:border-blue-500 transition-colors shadow-sm"
                   value={fleetType}
-                  onChange={(e) => setFleetType(e.target.value)}
+                  onChange={(e) => { setFleetType(e.target.value); setFilterOpen(false); }}
                 >
                   <option value="TODOS">Tipo de Frota: Todas</option>
                   <option value="FROTA PROPRIA">Frota Própria</option>
@@ -215,15 +426,13 @@ function App() {
                 <select
                   className="bg-white text-gray-600 p-2 rounded-lg outline-none cursor-pointer border border-gray-200 text-sm font-medium focus:border-blue-500 transition-colors shadow-sm"
                   value={grupo}
-                  onChange={(e) => setGrupo(e.target.value)}
+                  onChange={(e) => { setGrupo(e.target.value); setFilterOpen(false); }}
                 >
                   <option value="TODOS">Grupo: Todos</option>
                   {grupos.map((g, idx) => (
                     <option key={idx} value={g}>{g}</option>
                   ))}
                 </select>
-
-
               </div>
             </header>
           </div>

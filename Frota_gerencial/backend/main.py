@@ -72,7 +72,13 @@ FILES: Dict[str, Dict[str, Any]] = {
     "placas": {"path": str(_OD / "02 - CIMENTO MS" / "CIMENTO MS.xlsx"), "sheet": "PLACAS", "header": 0},
     "sucata": {"path": str(_OD / "04 - FROTA" / "CARREGAMENTOS TRANSBOTTAN.xlsx"), "sheet": "ACOMPANHAMENTO", "header": 0},
     "metas": {"path": _METAS, "sheet": "Planilha1", "header": 0},
-    "veiculos": {"path": str(_OD / "12 - DOCUMENTOS" / "relatorios abastecimento" / "consumo combustivel.xlsx"), "sheet": "Planilha 1", "header": 1},
+    "veiculos": {"path": str(next(
+        (p for p in [
+            _OD / "12 - DOCUMENTOS" / "relatorios abastecimento" / "consumo combustivel.xlsx",
+            _OD / "12 - DOCUMENTOS" / "relatorios abastecimento" / "consumo combustivel.xls",
+        ] if p.exists()),
+        _OD / "12 - DOCUMENTOS" / "relatorios abastecimento" / "consumo combustivel.xlsx"
+    )), "sheet": "Sheet1", "header": 1},
     "dre_frota": {
         "path": str(_OD / "12 - DOCUMENTOS" / "relatorios dre frota"),
         "sheet": None,

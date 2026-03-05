@@ -91,9 +91,7 @@ function VarBadge({ value, label }) {
 }
 
 
-export default function AnaliticoPage() {
-    const [ano, setAno] = useState(2026);
-    const [mes, setMes] = useState(0);
+export default function AnaliticoPage({ ano, setAno, mes, setMes }) {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
 
@@ -179,15 +177,15 @@ export default function AnaliticoPage() {
         <div className="min-h-screen bg-slate-50/50 pb-16">
 
             {/* ── Filtros (Pills Flutuantes) ── */}
-            <div className="sticky top-0 z-50 pt-6 pb-6 px-6 bg-slate-50/80 backdrop-blur-xl border-b border-slate-200/50">
-                <div className="max-w-[1600px] mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                        <div className="bg-white p-2 rounded-xl shadow-sm border border-slate-200/60 flex items-center">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-3">Ano</span>
-                            <div className="flex gap-1">
+            <div className="hidden md:block sticky top-0 z-50 pt-6 pb-6 px-6 bg-slate-50/80 backdrop-blur-xl border-b border-slate-200/50">
+                <div className="max-w-[1600px] mx-auto flex flex-col md:flex-row md:items-center justify-between gap-2 sm:gap-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                        <div className="bg-white p-1.5 sm:p-2 rounded-xl shadow-sm border border-slate-200/60 flex items-center overflow-x-auto max-w-full">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-2 shrink-0">Ano</span>
+                            <div className="flex gap-0.5 sm:gap-1">
                                 {anos.map(y => (
                                     <button key={y} onClick={() => { setAno(y); setMes(0); }}
-                                        className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all duration-200 ${ano === y
+                                        className={`px-2.5 py-1 sm:px-4 sm:py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all duration-200 whitespace-nowrap ${ano === y
                                             ? 'bg-slate-800 text-white shadow-md shadow-slate-800/20'
                                             : 'text-slate-500 hover:bg-slate-100'}`}>
                                         {y}
@@ -196,18 +194,18 @@ export default function AnaliticoPage() {
                             </div>
                         </div>
 
-                        <div className="bg-white p-2 rounded-xl shadow-sm border border-slate-200/60 flex flex-wrap items-center">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-3 hidden sm:block">Mês</span>
-                            <div className="flex gap-1 flex-wrap">
+                        <div className="bg-white p-1.5 sm:p-2 rounded-xl shadow-sm border border-slate-200/60 flex flex-wrap items-center overflow-x-auto max-w-full">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-2 shrink-0 hidden sm:block">Mês</span>
+                            <div className="flex gap-0.5 sm:gap-1 flex-wrap">
                                 <button onClick={() => setMes(0)}
-                                    className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all duration-200 ${mes === 0
+                                    className={`px-2.5 py-1 sm:px-4 sm:py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all duration-200 ${mes === 0
                                         ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
                                         : 'text-slate-500 hover:bg-slate-100'}`}>
                                     Anual
                                 </button>
                                 {MES_NOMES.map((nome, idx) => (
                                     <button key={idx} onClick={() => setMes(idx + 1)}
-                                        className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-all duration-200 ${mes === idx + 1
+                                        className={`px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all duration-200 ${mes === idx + 1
                                             ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
                                             : 'text-slate-500 hover:bg-slate-100'}`}>
                                         {nome}
@@ -225,7 +223,7 @@ export default function AnaliticoPage() {
                     <p className="text-emerald-700 font-bold tracking-wide animate-pulse">Sintetizando Dados Financeiros...</p>
                 </div>
             ) : (
-                <div className="max-w-[1600px] mx-auto px-6 mt-8 space-y-12">
+                <div className="max-w-[1600px] mx-auto px-3 sm:px-6 mt-8 space-y-12">
 
                     {/* =========================================================
                         SEÇÃO 1: FATURAMENTO E DRE
@@ -335,7 +333,7 @@ export default function AnaliticoPage() {
                         </div>
 
                         {/* GRÁFICOS: EVOLUÇÃO E BARRA */}
-                        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mb-6">
                             {/* AreaChart Evolução Anual */}
                             <div className="xl:col-span-2 bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex flex-col">
                                 <div className="flex items-center justify-between mb-6">
@@ -436,10 +434,10 @@ export default function AnaliticoPage() {
                         </div>
 
                         {/* FATURAMENTO POR PLACA — DOIS CARDS */}
-                        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
 
                             {/* Card esquerdo: Lista de Placas */}
-                            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 h-[520px] flex flex-col">
+                            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 h-[400px] md:h-[520px] flex flex-col">
                                 {/* Header */}
                                 <div className="px-5 pt-4 pb-3 border-b border-slate-100">
                                     <div className="flex items-center justify-between mb-3">
@@ -533,7 +531,7 @@ export default function AnaliticoPage() {
                             </div>
 
                             {/* Card direito: Desempenho Mensal */}
-                            <div className="xl:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-100 h-[520px] flex flex-col">
+                            <div className="xl:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-100 h-[400px] md:h-[520px] flex flex-col">
                                 {/* Header */}
                                 <div className="flex items-start justify-between px-5 py-4 border-b border-slate-100">
                                     <div>
@@ -543,7 +541,7 @@ export default function AnaliticoPage() {
                                             {' · clique na lista para selecionar'}
                                         </p>
                                     </div>
-                                    <div className="flex items-center gap-2 flex-wrap justify-end max-w-[60%]">
+                                    <div className="flex items-center gap-2 flex-wrap justify-end max-w-full sm:max-w-[60%]">
                                         {placasParaChart.map((placa, i) => (
                                             <button
                                                 key={placa}

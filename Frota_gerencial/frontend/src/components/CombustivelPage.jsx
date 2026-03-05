@@ -91,10 +91,7 @@ function SortIcon({ col, sortCol, sortDir }) {
 // ── Componente principal ──────────────────────────────────────────────────────
 const MES_NOMES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
-export default function CombustivelPage() {
-    const [ano, setAno] = useState(2025);
-    const [grupo, setGrupo] = useState('TODOS');
-    const [selectedMonths, setSelectedMonths] = useState([]);
+export default function CombustivelPage({ ano, setAno, grupo, setGrupo, selectedMonths, setSelectedMonths }) {
     const [metodo, setMetodo] = useState('ponderada'); // afeta apenas ranking + tabela
     const [filtroPostoAb, setFiltroPostoAb] = useState('');
     const [filtroPlacaAb, setFiltroPlacaAb] = useState('');
@@ -260,10 +257,10 @@ export default function CombustivelPage() {
     const mediaGeral = kpis?.media_km_l;
 
     return (
-        <div className="max-w-[1700px] mx-auto">
+        <div className="max-w-[1700px] mx-auto px-1 sm:px-0">
 
             {/* ── Header de filtros (sem toggle de método) ── */}
-            <div className="sticky top-0 z-40 pt-6 pb-4 bg-[#f3f4f6]">
+            <div className="hidden md:block sticky top-0 z-40 pt-6 pb-4 bg-[#f3f4f6]">
                 <div className="bg-white px-5 py-3 rounded-xl shadow-sm border border-gray-100 flex flex-wrap items-center gap-x-3 gap-y-2">
                     <Fuel size={18} className="text-[#0b4d3c]" />
                     <span className="font-bold text-sm text-gray-700 mr-1 uppercase tracking-wider">Combustível</span>
@@ -306,7 +303,7 @@ export default function CombustivelPage() {
             </div>
 
             {/* ── KPI Cards (sempre ponderada) ── */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-4 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4 mb-6">
                 <KPICard icon={<Droplets size={20} className="text-blue-600" />} iconBg="bg-blue-50"
                     label="Total Abastecido" value={`${fmtNum(kpis?.total_litros ?? 0)} L`}
                     sub={`${fmtNum(kpis?.total_abast ?? 0)} abastecimentos`} trend={null} />
@@ -325,7 +322,7 @@ export default function CombustivelPage() {
             </div>
 
             {/* ── Gráficos: Tendência + Grupos (sempre ponderada) ── */}
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-5 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 mb-6">
 
                 {/* Tendência mensal */}
                 <div className="xl:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-5">
@@ -451,7 +448,7 @@ export default function CombustivelPage() {
                     <div className="text-sm text-[#0b4d3c] animate-pulse font-semibold">Carregando ranking...</div>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 mb-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
                     {/* Melhores */}
                     <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
                         <div className="flex items-center gap-2 mb-4">
@@ -627,7 +624,7 @@ export default function CombustivelPage() {
 
             {/* ── Postos mais baratos / mais caros ── */}
             {postos_ranking && postos_ranking.length > 0 && (
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 mt-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
                     {/* Mais baratos */}
                     <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
                         <div className="flex items-center gap-2 mb-4">
