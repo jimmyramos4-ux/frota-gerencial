@@ -1,0 +1,16 @@
+# Python ignores
+__pycache__/
+*.pyc
+
+# Arquivos de dados ignorados (não subir pro github)
+*.xlsx
+*.xls
+*.csv
+
+# Telas de debug e HTML de teste
+*.png
+*.jpg
+*.webp
+*.html
+*.txt
+dump_frames.txt
