@@ -1,0 +1,112 @@
+import React, { useState } from 'react'
+import { X, Mail, Send } from 'lucide-react'
+
+export function EmailModal({ manutencaoId, onClose }) {
+  const [email, setEmail] = useState('')
+  const [sending, setSending] = useState(false)
+  const [sent, setSent] = useState(false)
+
+  const handleSend = async (e) => {
+    e.preventDefault()
+    if (!email) return
+    setSending(true)
+    // Simulate sending
+    await new Promise((r) => setTimeout(r, 1000))
+    setSending(false)
+    setSent(true)
+    setTimeout(onClose, 1500)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="bg-white rounded shadow-xl w-full max-w-md mx-4">
+        {/* Header */}
+        <div className="flex items-center justify-between bg-blue-700 text-white px-4 py-2 rounded-t">
+          <div className="flex items-center gap-2">
+            <Mail className="w-4 h-4" />
+            <span className="font-semibold text-sm">
+              Enviar PDF da Manutenção Veículo por E-mail
+            </span>
+          </div>
+          <button onClick={onClose} className="hover:text-blue-200">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <form onSubmit={handleSend} className="p-5">
+          {sent ? (
+            <p className="text-green-600 font-medium text-center py-4">
+              E-mail enviado com sucesso!
+            </p>
+          ) : (
+            <>
+              <label className="form-label">E-mail Destino</label>
+              <input
+                type="email"
+                className="form-input mb-4"
+                placeholder="destinatario@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                autoFocus
+              />
+              <div className="flex gap-2 justify-end">
+                <button
+                  type="button"
+                  className="btn-secondary btn-sm px-4 py-1.5"
+                  onClick={onClose}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="btn-primary btn-sm px-4 py-1.5 flex items-center gap-1.5"
+                  disabled={sending}
+                >
+                  {sending ? (
+                    <>
+                      <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Enviando...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-3 h-3" />
+                      Enviar
+                    </>
+                  )}
+                </button>
+              </div>
+            </>
+          )}
+        </form>
+      </div>
+    </div>
+  )
+}
+
+export function ConfirmModal({ title, message, onConfirm, onClose }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="bg-white rounded shadow-xl w-full max-w-sm mx-4">
+        <div className="flex items-center justify-between bg-red-600 text-white px-4 py-2 rounded-t">
+          <span className="font-semibold text-sm">{title || 'Confirmar'}</span>
+          <button onClick={onClose} className="hover:text-red-200">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="p-5">
+          <p className="text-gray-700 mb-4">{message || 'Tem certeza?'}</p>
+          <div className="flex gap-2 justify-end">
+            <button className="btn-secondary btn-sm px-4 py-1.5" onClick={onClose}>
+              Cancelar
+            </button>
+            <button className="btn-danger btn-sm px-4 py-1.5" onClick={onConfirm}>
+              Confirmar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

@@ -1,3 +1,9 @@
 Frota_gerencial/deploy/tunnel_credentials.json
 Frota_gerencial/deploy/_caddyfile_runtime.txt
 Frota_gerencial/frontend/dist/
+Frota_gerencial/frontend/node-bin/
+Frota_Bella/frontend/node_modules/
+Frota_Bella/backend/__pycache__/
+Frota_Bella/backend/*.db
+Frota_Bella/backend/uvicorn.log
+.claude/

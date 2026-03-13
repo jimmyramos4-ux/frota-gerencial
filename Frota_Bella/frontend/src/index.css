@@ -1,0 +1,42 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-gray-100 text-gray-800 text-sm;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-blue-600 hover:bg-blue-700 text-white font-medium py-1.5 px-4 rounded text-sm transition-colors;
+  }
+  .btn-secondary {
+    @apply bg-gray-500 hover:bg-gray-600 text-white font-medium py-1.5 px-4 rounded text-sm transition-colors;
+  }
+  .btn-danger {
+    @apply bg-red-600 hover:bg-red-700 text-white font-medium py-1.5 px-4 rounded text-sm transition-colors;
+  }
+  .btn-sm {
+    @apply py-0.5 px-2.5 text-xs;
+  }
+  .form-input {
+    @apply border border-gray-300 rounded px-2 py-1 text-sm w-full focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400;
+  }
+  .form-select {
+    @apply border border-gray-300 rounded px-2 py-1 text-sm w-full focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 bg-white;
+  }
+  .form-label {
+    @apply block text-xs font-medium text-gray-600 mb-0.5;
+  }
+  .table-header {
+    @apply bg-blue-50 text-blue-800 font-semibold text-xs uppercase tracking-wide;
+  }
+  .section-header {
+    @apply bg-blue-700 text-white font-semibold px-3 py-1.5 rounded-t text-sm;
+  }
+  .status-badge {
+    @apply inline-block px-2 py-0.5 rounded text-xs font-medium;
+  }
+}

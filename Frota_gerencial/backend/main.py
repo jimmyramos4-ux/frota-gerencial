@@ -8,6 +8,17 @@ import pandas as pd
 import uvicorn
 import math
 from datetime import datetime
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+def resolve_path(path: str) -> str:
+    """Expands ~ to user home and normalizes path separators."""
+    if not path:
+        return ""
+    expanded = os.path.expanduser(path)
+    return os.path.abspath(expanded)
 
 _SUFIXOS_JURIDICOS = re.compile(
     r'\b(S\.?\s*A\.?|LTDA\.?|ME\.?|EIRELI\.?|EPP\.?|SS\.?|S\.?\s*S\.?|'
@@ -101,8 +112,10 @@ data_lock = threading.Lock()
 def check_and_reload():
     """Checks if any Excel file has been modified and reloads it if necessary."""
     with data_lock:
+        print(f"Checking files: {list(FILES.keys())}")
         for key, info in FILES.items():
             raw_path = info["path"]
+            print(f"  Key: {key}, path: {raw_path}, exists: {os.path.exists(raw_path) if isinstance(raw_path, str) else 'N/A'}")
 
             # Se for uma pasta, escaneia todos os .xlsx/.xls dentro dela
             if isinstance(raw_path, str) and os.path.isdir(raw_path):
@@ -138,41 +151,64 @@ def check_and_reload():
                         all_data = []
                         for f in valid_paths:
                             try:
-                                df = pd.read_excel(f, header=None)
+                                # Prioritize newer Excel engine
+                                engine = 'openpyxl' if f.endswith('.xlsx') else 'xlrd'
+                                df = pd.read_excel(f, header=None, engine=engine)
+                                
                                 header_row_idx = -1
-                                for idx in range(min(10, len(df))):
-                                    if str(df.iloc[idx, 0]).strip().upper() == "CENTRO CUSTO":
+                                for idx in range(min(15, len(df))):
+                                    val0 = str(df.iloc[idx, 0]).strip().upper()
+                                    if "CENTRO CUSTO" in val0 or "CUSTO" in val0:
                                         header_row_idx = idx
                                         break
+                                
                                 if header_row_idx == -1: continue
+                                
                                 headers = df.iloc[header_row_idx].tolist()
                                 date_cols = {}
                                 for col_idx, h in enumerate(headers):
                                     h_str = str(h).strip()
                                     if '/' in h_str and len(h_str) == 7:
                                         date_cols[col_idx] = h_str
+                                
                                 current_centro_custo = None
                                 for idx in range(header_row_idx + 1, len(df)):
                                     c0 = str(df.iloc[idx, 0]).strip()
-                                    c1 = str(df.iloc[idx, 1]).strip()
-                                    if c0 != 'nan' and c0: current_centro_custo = c0
-                                    if current_centro_custo and c1 == "(+) Receita":
+                                    c1 = str(df.iloc[idx, 1]).strip().upper()
+                                    
+                                    if c0 != 'nan' and c0: 
+                                        current_centro_custo = c0
+                                    
+                                    if current_centro_custo:
                                         placa = current_centro_custo.split('/')[0].strip()
-                                        if not placa or placa.startswith('ADMINISTRATIVO'): continue
-                                        for col_idx, date_str in date_cols.items():
-                                            val = df.iloc[idx, col_idx]
-                                            if pd.notna(val):
-                                                try:
-                                                    val = float(val)
-                                                    m, y = date_str.split('/')
-                                                    all_data.append({"PLACA": placa, "DATA": f"{y}-{m}-01", "RECEITA": val})
-                                                except ValueError:
-                                                    pass
+                                        if not placa or placa.startswith('ADMINISTRATIVO') or placa.upper() == 'CENTRO CUSTO': 
+                                            continue
+                                            
+                                        # Map both revenue and expenses
+                                        is_rec = "RECEITA" in c1 and "(+)" in c1
+                                        is_des = "DESPESA" in c1 and "(-)" in c1
+                                        
+                                        if is_rec or is_des:
+                                            for col_idx, date_str in date_cols.items():
+                                                val = df.iloc[idx, col_idx]
+                                                if pd.notna(val):
+                                                    try:
+                                                        val = float(val)
+                                                        m_str, y_str = date_str.split('/')
+                                                        all_data.append({
+                                                            "PLACA": placa, 
+                                                            "DATA": f"{y_str}-{m_str}-01", 
+                                                            "RECEITA": val if is_rec else 0.0,
+                                                            "DESPESA": val if is_des else 0.0
+                                                        })
+                                                    except Exception:
+                                                        pass
                             except Exception as e:
                                 print(f"Erro no parser dre_frota {f}: {e}")
+                                
                         data_cache[key]["df"] = pd.DataFrame(all_data)
                         data_cache[key]["last_mtime"] = max_mtime
-                        print(f"[{key.upper()}] Carregado com sucesso!")
+                        print(f"[{key.upper()}] Carregado {len(all_data)} registros com sucesso!")
                         continue
 
                     if info.get("custom_parser") == "ctrc":
@@ -230,6 +266,19 @@ def check_and_reload():
 
 # Initial load on startup
 check_and_reload()
+
+# Background thread: recarrega planilhas a cada 60 segundos
+def _background_reload(interval: int = 60):
+    import time
+    while True:
+        time.sleep(interval)
+        try:
+            check_and_reload()
+        except Exception as e:
+            print(f"[BG RELOAD] Erro: {e}")
+
+_reload_thread = threading.Thread(target=_background_reload, daemon=True)
+_reload_thread.start()
 
 def find_col(df, keywords):
     """Find a column in df that contains any of the keywords (case-insensitive)."""
@@ -294,6 +343,9 @@ def process_financial_data(month, year, fleet_type=None, grupo=None):
             return pd.DataFrame()
 
         temp_df = df.copy()
+        
+        # Debug row counts
+        initial_count = len(temp_df)
 
         # Filtragem por tipo de frota e/ou grupo
         if (fleet_type and fleet_type != "TODOS") or (grupo and grupo != "TODOS"):
@@ -303,23 +355,29 @@ def process_financial_data(month, year, fleet_type=None, grupo=None):
                 if fleet_type and fleet_type != "TODOS":
                     temp_df['_tipo_frota'] = p_serie.map(placa_to_tipo)
                     temp_df = temp_df[temp_df['_tipo_frota'] == fleet_type.upper()]
-                    if temp_df.empty: return pd.DataFrame()
                 
                 if grupo and grupo != "TODOS":
                     temp_df['_grupo_frota'] = p_serie.map(placa_to_grupo)
                     temp_df = temp_df[temp_df['_grupo_frota'] == grupo.upper()]
-                    if temp_df.empty: return pd.DataFrame()
             else:
-                # Fallbacks se nao tiver coluna placa
                 if fleet_type and fleet_type.upper() == "TERCEIRO":
                     return pd.DataFrame()
                 if grupo and grupo != "TODOS":
                     return pd.DataFrame()
+
+        if len(temp_df) != initial_count:
+            print(f"   [DEBUG] Filter rows: {initial_count} -> {len(temp_df)} (fleet_type={fleet_type}, grupo={grupo})")
+            
         temp_df['_dt'] = pd.to_datetime(temp_df[col_data], errors='coerce')
         temp_df = temp_df.dropna(subset=['_dt'])
+        
+        # More filtering debug
+        if not temp_df.empty:
+            date_filter_count = len(temp_df[(temp_df['_dt'].dt.month == month) & (temp_df['_dt'].dt.year == year)]) if month and year else len(temp_df)
+            print(f"   [DEBUG] Filter dates for {month}/{year}: {len(temp_df)} -> {date_filter_count}")
+
         if temp_df.empty: return pd.DataFrame()
 
-        # Cria chaves de agrupamento (mês e dia)
         temp_df['_m_key'] = temp_df['_dt'].dt.strftime('%Y-%m')
         temp_df['_d_key'] = temp_df['_dt'].dt.strftime('%Y-%m-%d')
         
@@ -360,6 +418,8 @@ def process_financial_data(month, year, fleet_type=None, grupo=None):
 
     if dfs_to_concat:
         all_data = pd.concat(dfs_to_concat, ignore_index=True)
+        # Pre-calculate which months have DRE data to avoid O(N^2)
+        dre_months = set(all_data[all_data['_origem'] == 'dre_frota']['_m_key'].unique())
         
         for _, row in all_data.iterrows():
             m_key = str(row.get('_m_key', ''))
@@ -375,12 +435,20 @@ def process_financial_data(month, year, fleet_type=None, grupo=None):
                     
                 if o == 'dre_frota':
                     monthly_data[m_key]["_receita"] += r_val
-                    # Todo DRE entra num balde "agregado" pra dps tirar cimento e virar sucata global
+                    monthly_data[m_key]["_despesa"] += d_val
                     monthly_data[m_key]["sucata_dre"] += r_val
                 elif o == 'cimento':
                     monthly_data[m_key]["cimento"] += r_val
-                    
-                monthly_data[m_key]["_despesa"] += d_val
+                    # Use cimento as revenue only if DRE is missing for THIS month
+                    if m_key not in dre_months:
+                        monthly_data[m_key]["_receita"] += r_val
+                    monthly_data[m_key]["_despesa"] += d_val
+                elif o == 'sucata':
+                    if m_key not in dre_months:
+                        monthly_data[m_key]["_receita"] += r_val
+                    monthly_data[m_key]["_despesa"] += d_val
+                else:
+                    monthly_data[m_key]["_despesa"] += d_val
                 
             if d_key and d_key != 'nan':
                 if d_key not in daily_data:
@@ -458,6 +526,9 @@ def process_financial_data(month, year, fleet_type=None, grupo=None):
                     if (not year or dt.year == year) and (not month or dt.month == month):
                         val = row[col_meta]
                         meta_atual += float(val) if not pd.isna(val) else 0.0
+    
+    # Meta is now primarily handled in the Frontend, resetting meta_atual to 0 as spreadsheet is removed
+    meta_atual = 0.0
 
     # Origens and Previous Month
     receita_anterior = 0.0
@@ -729,9 +800,7 @@ def process_financial_data(month, year, fleet_type=None, grupo=None):
 
 @app.get("/api/dashboard")
 def get_dashboard_data(month: int = None, year: int = None, fleet_type: str = "TODOS", grupo: str = "TODOS"):
-    # Ensure data is up to date before serving
-    check_and_reload()
-    
+
     data = process_financial_data(month, year, fleet_type, grupo)
     
     return {
@@ -742,8 +811,7 @@ def get_dashboard_data(month: int = None, year: int = None, fleet_type: str = "T
 @app.get("/api/filters")
 def get_filters():
     """Returns dynamic filter options."""
-    check_and_reload()
-    
+
     data_veic = data_cache.get("veiculos", {})
     df_veiculos = data_veic.get("df", pd.DataFrame()) if isinstance(data_veic, dict) else pd.DataFrame()
     grupos = []
@@ -763,8 +831,6 @@ def get_filters():
 @app.get("/api/day-detail")
 def get_day_detail(month: int = None, year: int = None, day: int = None, fleet_type: str = "TODOS", grupo: str = "TODOS"):
     """Returns plate faturamento and cement loadings for a specific day."""
-    check_and_reload()
-
     if not month or not year or not day:
         return {"status": "error", "message": "month, year, day are required"}
 
@@ -957,8 +1023,6 @@ def get_day_detail(month: int = None, year: int = None, day: int = None, fleet_t
 @app.get("/api/grupos-variacao")
 def get_grupos_variacao(month: int = None, year: int = None, fleet_type: str = "TODOS"):
     """Returns faturamento by vehicle group for current and previous month."""
-    check_and_reload()
-
     df_dre      = data_cache.get("dre_frota", {}).get("df", pd.DataFrame())
     df_placas   = data_cache.get("placas",    {}).get("df", pd.DataFrame())
     df_veiculos = data_cache.get("veiculos",  {}).get("df", pd.DataFrame())
@@ -1043,8 +1107,6 @@ def get_grupos_variacao(month: int = None, year: int = None, fleet_type: str = "
 @app.get("/api/ultimos-carregamentos")
 def get_ultimos_carregamentos(month: int = None, year: int = None, limit: int = 10):
     """Returns the last N carregamentos (sucata and cimento) within the selected month/year."""
-    check_and_reload()
-
     # ── Sucata ────────────────────────────────────────────────────────────────
     sucata_result = []
     data_suc = data_cache.get("sucata", {})
@@ -1136,8 +1198,6 @@ def get_combustivel(year: int = None, group: str = "TODOS", metodo: str = "ponde
     metodo: 'ponderada' (km_rodado/qt_produto) | 'tanque_cheio' (usa vl_media_tc/qt_produto_tc do ERP)
     months: '1,2,3' para filtrar meses específicos (opcional)
     """
-    check_and_reload()
-
     df_raw = data_cache.get("veiculos", {}).get("df", pd.DataFrame())
     if not isinstance(df_raw, pd.DataFrame) or df_raw.empty:
         return {"status": "ok", "data": {}}
@@ -1519,7 +1579,6 @@ def get_analitico(
     destino: str = "TODOS",
     frota_tipo: str = "TODOS" # Proprio | Agregado | Terceiro | TODOS
 ):
-    check_and_reload()
     MES_ABREV = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
 
     def safe_float(v):
