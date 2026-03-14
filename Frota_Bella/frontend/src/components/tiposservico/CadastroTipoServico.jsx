@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import axios from 'axios'
-import { Pencil, RefreshCw, AlertCircle, CheckCircle, Settings } from 'lucide-react'
+import { Pencil, RefreshCw, AlertCircle, CheckCircle, Info } from 'lucide-react'
 
 const API = 'http://localhost:8000/api'
 
@@ -9,18 +10,43 @@ const EMPTY = {
   nr_dias_validade: '', nr_dias_notificacao: '',
   hodometro_km_validade: '', hodometro_km_notificacao: '',
   categoria_servico: '', valor_sugerido: '',
-  bloqueia_no_periodo: false, bloqueia_depois_vencimento: false,
   alerta_servico_realizado: '', tempo_execucao: '',
   nr_dias_alerta_servico: '', ativo: true,
 }
 
-function LupaIcon() {
+function InfoTooltip({ text }) {
+  const [visible, setVisible] = useState(false)
+  const [pos, setPos] = useState({ top: 0, left: 0 })
+  const ref = useRef(null)
+
+  const show = () => {
+    if (ref.current) {
+      const r = ref.current.getBoundingClientRect()
+      setPos({ top: r.bottom + window.scrollY + 6, left: r.left + window.scrollX })
+    }
+    setVisible(true)
+  }
+
   return (
-    <span className="ml-1 inline-flex items-center justify-center w-5 h-5 bg-yellow-400 rounded-sm cursor-pointer" title="Ajuda">
-      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
-        <circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-      </svg>
-    </span>
+    <>
+      <span
+        ref={ref}
+        onMouseEnter={show}
+        onMouseLeave={() => setVisible(false)}
+        className="ml-1 inline-flex items-center justify-center w-5 h-5 bg-blue-500 rounded-sm cursor-pointer shrink-0"
+      >
+        <Info className="w-3 h-3 text-white" />
+      </span>
+      {visible && createPortal(
+        <div
+          style={{ position: 'absolute', top: pos.top, left: pos.left, zIndex: 9999, maxWidth: 280 }}
+          className="bg-gray-800 text-white text-xs rounded shadow-lg px-3 py-2 leading-relaxed pointer-events-none"
+        >
+          {text}
+        </div>,
+        document.body
+      )}
+    </>
   )
 }
 
@@ -51,10 +77,12 @@ function Cell({ label, children }) {
 // ─── FORMULÁRIO ──────────────────────────────────────────────────────────────
 function FormView({ editItem, partes, onSaved, onCancelEdit }) {
   const [form, setForm] = useState(EMPTY)
+  const [acao, setAcao] = useState('alterar')
   const [status, setStatus] = useState({ msg: '', type: '' })
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
+    setAcao('alterar')
     if (editItem) {
       setForm({
         nome: editItem.nome || '',
@@ -67,8 +95,6 @@ function FormView({ editItem, partes, onSaved, onCancelEdit }) {
         hodometro_km_notificacao: editItem.hodometro_km_notificacao ?? '',
         categoria_servico: editItem.categoria_servico || '',
         valor_sugerido: editItem.valor_sugerido ?? '',
-        bloqueia_no_periodo: editItem.bloqueia_no_periodo || false,
-        bloqueia_depois_vencimento: editItem.bloqueia_depois_vencimento || false,
         alerta_servico_realizado: editItem.alerta_servico_realizado || '',
         tempo_execucao: editItem.tempo_execucao || '',
         nr_dias_alerta_servico: editItem.nr_dias_alerta_servico ?? '',
@@ -106,18 +132,24 @@ function FormView({ editItem, partes, onSaved, onCancelEdit }) {
   })
 
   const handleSubmit = async () => {
-    if (!form.nome.trim()) { showStatus('Informe o Tipo de Serviço.', 'error'); return }
     setLoading(true)
     try {
-      if (editItem) {
-        await axios.put(`${API}/tipos-servico/${editItem.id}`, payload())
-        showStatus('Atualizado com sucesso!')
+      if (editItem && acao === 'excluir') {
+        await axios.delete(`${API}/tipos-servico/${editItem.id}`)
+        showStatus('Excluído com sucesso!')
+        onSaved()
       } else {
-        await axios.post(`${API}/tipos-servico`, payload())
-        showStatus('Cadastrado com sucesso!')
-        setForm(EMPTY)
+        if (!form.nome.trim()) { showStatus('Informe o Tipo de Serviço.', 'error'); setLoading(false); return }
+        if (editItem) {
+          await axios.put(`${API}/tipos-servico/${editItem.id}`, payload())
+          showStatus('Atualizado com sucesso!')
+        } else {
+          await axios.post(`${API}/tipos-servico`, payload())
+          showStatus('Cadastrado com sucesso!')
+          setForm(EMPTY)
+        }
+        onSaved()
       }
-      onSaved()
     } catch (err) {
       showStatus(err.response?.data?.detail || 'Erro ao salvar.', 'error')
     } finally { setLoading(false) }
@@ -187,21 +219,10 @@ function FormView({ editItem, partes, onSaved, onCancelEdit }) {
               <Cell label="Valor Sugerido">
                 <span className="flex items-center gap-1">
                   <input type="number" step="0.01" className={`${inp} w-28`} value={form.valor_sugerido} onChange={set('valor_sugerido')} min={0} />
-                  <LupaIcon />
+                  <InfoTooltip text="Na manutenção de veículo, será sugerido esse valor quando utilizado esse serviço" />
                 </span>
               </Cell>
             </tr>
-
-            <Row label="Bloqueia Uso" colSpan>
-              <span className="flex items-center gap-4 text-xs">
-                <label className="flex items-center gap-1 cursor-pointer">
-                  <input type="checkbox" checked={form.bloqueia_no_periodo} onChange={set('bloqueia_no_periodo')} /> No Período
-                </label>
-                <label className="flex items-center gap-1 cursor-pointer">
-                  <input type="checkbox" checked={form.bloqueia_depois_vencimento} onChange={set('bloqueia_depois_vencimento')} /> Depois do Vencimento
-                </label>
-              </span>
-            </Row>
 
             <tr>
               <Cell label="Alerta Serviço Realizado">
@@ -211,21 +232,18 @@ function FormView({ editItem, partes, onSaved, onCancelEdit }) {
                     <option>Nenhum</option><option>1 Dia</option><option>3 Dias</option>
                     <option>7 Dias</option><option>15 Dias</option><option>30 Dias</option>
                   </select>
-                  <LupaIcon />
+                  <InfoTooltip text="Caso marcado Sim, nas manutenções de veículos será gerado um alerta caso tal serviço esteja sendo realizado antes do que está definido no campo nr. dias alerta de serviço realizado" />
                 </span>
               </Cell>
               <Cell label="Tempo de Execução">
-                <span className="flex items-center gap-1">
-                  <input className={`${inp} w-28`} value={form.tempo_execucao} onChange={set('tempo_execucao')} placeholder="Ex: 2h30m" />
-                  <LupaIcon />
-                </span>
+                <input className={`${inp} w-28`} value={form.tempo_execucao} onChange={set('tempo_execucao')} placeholder="Ex: 2h30m" />
               </Cell>
             </tr>
 
             <Row label="Nr. Dias Alerta Serviço Realizado" colSpan>
               <span className="flex items-center gap-1">
                 <input type="number" className={`${inp} w-28`} value={form.nr_dias_alerta_servico} onChange={set('nr_dias_alerta_servico')} min={0} />
-                <LupaIcon />
+                <InfoTooltip text="Campo atua em conjunto com campo alerta serviço realizado" />
               </span>
             </Row>
 
@@ -236,9 +254,22 @@ function FormView({ editItem, partes, onSaved, onCancelEdit }) {
             </Row>
 
             <Row label="Ação:" colSpan>
-              <label className="flex items-center gap-1 text-xs cursor-pointer">
-                <input type="radio" checked readOnly /> {editItem ? 'Alterar' : 'Inserir'}
-              </label>
+              <span className="flex items-center gap-4 text-xs">
+                {editItem ? (
+                  <>
+                    <label className="flex items-center gap-1 cursor-pointer">
+                      <input type="radio" name="acao" checked={acao === 'alterar'} onChange={() => setAcao('alterar')} /> Alterar
+                    </label>
+                    <label className="flex items-center gap-1 cursor-pointer text-red-600">
+                      <input type="radio" name="acao" checked={acao === 'excluir'} onChange={() => setAcao('excluir')} /> Excluir
+                    </label>
+                  </>
+                ) : (
+                  <label className="flex items-center gap-1 cursor-pointer">
+                    <input type="radio" checked readOnly /> Inserir
+                  </label>
+                )}
+              </span>
             </Row>
           </tbody>
         </table>
@@ -406,9 +437,6 @@ export default function CadastroTipoServico() {
               value={perPage} onChange={e => { setPerPage(Number(e.target.value)); setPage(1) }}>
               {[10, 20, 50, 100].map(v => <option key={v} value={v}>{v}</option>)}
             </select>
-            <button onClick={() => loadList()} className="text-gray-500 hover:text-blue-600">
-              <Settings className="w-4 h-4" />
-            </button>
           </div>
         </div>
 
@@ -427,18 +455,17 @@ export default function CadastroTipoServico() {
                 <th className="px-2 py-1.5 text-center text-blue-800 font-semibold">Dias Not.</th>
                 <th className="px-2 py-1.5 text-center text-blue-800 font-semibold">Hodômetro Val. (Km)</th>
                 <th className="px-2 py-1.5 text-center text-blue-800 font-semibold">Hodômetro Not. (Km)</th>
-                <th className="px-2 py-1.5 text-center text-blue-800 font-semibold">Bloqueia Uso</th>
                 <th className="px-2 py-1.5 text-center text-blue-800 font-semibold">Ativo</th>
                 <th className="px-2 py-1.5 text-center text-blue-800 font-semibold"></th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={9} className="text-center py-8 text-gray-400">
+                <tr><td colSpan={8} className="text-center py-8 text-gray-400">
                   <RefreshCw className="w-4 h-4 animate-spin inline mr-2" />Carregando...
                 </td></tr>
               ) : items.length === 0 ? (
-                <tr><td colSpan={9} className="text-center py-8 text-gray-400">Nenhum registro encontrado.</td></tr>
+                <tr><td colSpan={8} className="text-center py-8 text-gray-400">Nenhum registro encontrado.</td></tr>
               ) : items.map((item, idx) => (
                 <tr key={item.id} className={`border-b border-gray-100 hover:bg-blue-50 ${idx % 2 === 0 ? '' : 'bg-gray-50'}`}>
                   <td className="px-2 py-1.5 font-medium">{item.nome}</td>
@@ -447,11 +474,6 @@ export default function CadastroTipoServico() {
                   <td className="px-2 py-1.5 text-center text-gray-600">{item.nr_dias_notificacao ?? ''}</td>
                   <td className="px-2 py-1.5 text-center text-gray-600">{item.hodometro_km_validade ? item.hodometro_km_validade.toLocaleString('pt-BR') : ''}</td>
                   <td className="px-2 py-1.5 text-center text-gray-600">{item.hodometro_km_notificacao ? item.hodometro_km_notificacao.toLocaleString('pt-BR') : ''}</td>
-                  <td className="px-2 py-1.5 text-center text-gray-500">
-                    {(item.bloqueia_no_periodo || item.bloqueia_depois_vencimento)
-                      ? (item.bloqueia_no_periodo && item.bloqueia_depois_vencimento ? 'Período/Venc.' : item.bloqueia_no_periodo ? 'No Período' : 'Depois Venc.')
-                      : ''}
-                  </td>
                   <td className="px-2 py-1.5 text-center">
                     <span className={`px-1.5 py-0.5 rounded text-xs ${item.ativo ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
                       {item.ativo ? 'Sim' : 'Não'}

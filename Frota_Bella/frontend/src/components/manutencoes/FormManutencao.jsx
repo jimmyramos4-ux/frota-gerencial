@@ -90,6 +90,8 @@ export default function FormManutencao() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [solicitacoesVeiculo, setSolicitacoesVeiculo] = useState([])
+  const [solicitacoesRemovidas, setSolicitacoesRemovidas] = useState([])
 
   useEffect(() => {
     axios.get(`${API}/veiculos`).then(r => setVeiculos(r.data))
@@ -118,7 +120,13 @@ export default function FormManutencao() {
           servicos_solicitados: m.servicos_solicitados || '',
           observacao: m.observacao || '',
         })
-        if (m.veiculo) { setVeiculoSearch(m.veiculo.placa); setVeiculoDesc(m.veiculo.descricao) }
+        if (m.veiculo) {
+          setVeiculoSearch(m.veiculo.placa)
+          setVeiculoDesc(m.veiculo.descricao)
+          axios.get(`${API}/solicitacoes`, { params: { manutencao_id: Number(id), per_page: 100 } })
+            .then(r => setSolicitacoesVeiculo(r.data.items))
+            .catch(() => {})
+        }
         if (m.motorista) { setMotoristaSearch(m.motorista.codigo); setMotoristaDesc(m.motorista.nome) }
         setServicos(m.servicos || [])
       })
@@ -135,7 +143,21 @@ export default function FormManutencao() {
     m.nome.toLowerCase().includes(motoristaSearch.toLowerCase())
   )
 
-  const selectVeiculo = (v) => { setForm(f => ({ ...f, veiculo_id: v.id })); setVeiculoSearch(v.placa); setVeiculoDesc(v.descricao); setShowVeiculoDrop(false) }
+  const selectVeiculo = (v) => {
+    setForm(f => ({ ...f, veiculo_id: v.id }))
+    setVeiculoSearch(v.placa)
+    setVeiculoDesc(v.descricao)
+    setShowVeiculoDrop(false)
+    setSolicitacoesRemovidas([])
+    axios.get(`${API}/solicitacoes`, { params: { veiculo_id: v.id, status: 'Aberta', per_page: 100 } })
+      .then(r => setSolicitacoesVeiculo(r.data.items))
+      .catch(() => setSolicitacoesVeiculo([]))
+  }
+
+  const removeSolicitacao = (sol) => {
+    setSolicitacoesVeiculo(s => s.filter(x => x.id !== sol.id))
+    setSolicitacoesRemovidas(s => [...s, sol])
+  }
   const selectMotorista = (m) => { setForm(f => ({ ...f, motorista_id: m.id })); setMotoristaSearch(m.codigo); setMotoristaDesc(m.nome); setShowMotoristaDrop(false) }
 
   const setF = key => e => setForm(f => ({ ...f, [key]: e.target.value }))
@@ -213,6 +235,15 @@ export default function FormManutencao() {
           await axios.post(`${API}/manutencoes/${res.data.id}/servicos`, { ...sRaw, tipo_uso: sRaw.tipo_uso || null, status: sRaw.status || 'Em Andamento', valor: sRaw.valor ? Number(sRaw.valor) : null, proximo_km_validade: sRaw.proximo_km_validade ? Number(sRaw.proximo_km_validade) : null, dt_servico: sRaw.dt_servico || null, proxima_dt_validade: sRaw.proxima_dt_validade || null })
         }
       }
+      // Sync linked solicitations status based on maintenance status
+      const manutId = res.data.id
+      const solStatus = payload.status === 'Finalizada' ? 'Finalizada'
+                      : payload.status === 'Cancelada'  ? 'Rejeitada'
+                      : 'Em Análise'
+      await Promise.allSettled([
+        ...solicitacoesVeiculo.map(sol => axios.put(`${API}/solicitacoes/${sol.id}`, { status: solStatus, manutencao_id: manutId })),
+        ...solicitacoesRemovidas.map(sol => axios.put(`${API}/solicitacoes/${sol.id}`, { status: 'Aberta', manutencao_id: null })),
+      ])
       setSuccess(isEdit ? 'Manutenção atualizada com sucesso!' : 'Manutenção criada com sucesso!')
       setTimeout(() => navigate('/manutencoes'), 1200)
     } catch (err) {
@@ -409,7 +440,22 @@ export default function FormManutencao() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
                 <Lbl>Serviços Solicitados</Lbl>
-                <textarea className={`${inp} resize-none`} rows={3} value={form.servicos_solicitados} onChange={setF('servicos_solicitados')} />
+                <div className="border border-gray-300 rounded bg-white focus-within:border-blue-400 min-h-[80px]">
+                  {solicitacoesVeiculo.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 p-2 border-b border-gray-100">
+                      {solicitacoesVeiculo.map(sol => (
+                        <span key={sol.id} className="inline-flex items-center gap-1 bg-blue-50 border border-blue-200 text-blue-800 text-xs rounded-full px-2.5 py-1 font-medium max-w-xs">
+                          <span className="truncate" title={sol.descricao}>#{sol.id} {sol.descricao}</span>
+                          <button type="button" onClick={() => removeSolicitacao(sol)}
+                            className="ml-0.5 text-blue-400 hover:text-red-500 flex-shrink-0 transition-colors" title="Remover desta manutenção">
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <textarea className="w-full px-2 py-1.5 text-xs outline-none bg-transparent resize-none" rows={3} value={form.servicos_solicitados} onChange={setF('servicos_solicitados')} placeholder="Descreva os serviços solicitados..." />
+                </div>
               </div>
               <div>
                 <Lbl>Observação</Lbl>

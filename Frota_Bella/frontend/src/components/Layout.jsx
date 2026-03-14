@@ -1,7 +1,6 @@
 import React, { useState } from 'react'
 import { Outlet, Link, useLocation } from 'react-router-dom'
 import {
-  Truck,
   LayoutDashboard,
   Wrench,
   Car,
@@ -11,10 +10,13 @@ import {
   ChevronRight,
   Cog,
   Layers,
+  ClipboardList,
 } from 'lucide-react'
+import novalogo from '../assets/novalogo.png'
 
 const navItems = [
   { label: 'Status da Frota', icon: LayoutDashboard, to: '/dashboard' },
+  { label: 'Solicitações', icon: ClipboardList, to: '/solicitacoes' },
   { label: 'Manutenções', icon: Wrench, to: '/manutencoes' },
   { type: 'divider', label: 'Cadastros' },
   { label: 'Veículos', icon: Car, to: '/veiculos' },
@@ -36,9 +38,8 @@ export default function Layout() {
         } bg-blue-900 text-white flex-shrink-0 transition-all duration-200 flex flex-col`}
       >
         {/* Brand */}
-        <div className="flex items-center gap-2 px-4 py-3 bg-blue-800 border-b border-blue-700">
-          <Truck className="w-6 h-6 text-blue-200" />
-          <span className="font-bold text-lg tracking-tight">Frota Bella</span>
+        <div className="flex items-center justify-center px-4 py-3 bg-blue-800 border-b border-blue-700">
+          <img src={novalogo} alt="Logo" className="h-10 object-contain" />
         </div>
 
         {/* Nav */}
@@ -72,7 +73,7 @@ export default function Layout() {
         </nav>
 
         <div className="px-4 py-3 text-xs text-blue-400 border-t border-blue-700">
-          v1.0.0 &copy; Frota Bella
+          v1.0.0
         </div>
       </aside>
 
@@ -88,8 +89,7 @@ export default function Layout() {
             {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
           <div className="flex items-center gap-2">
-            <Truck className="w-5 h-5 text-blue-700" />
-            <span className="font-bold text-blue-800 text-base">Frota Bella</span>
+            <img src={novalogo} alt="Logo" className="h-8 object-contain" />
             <span className="text-gray-400 text-xs ml-1">| Gestão de Frotas</span>
           </div>
           <div className="ml-auto flex items-center gap-3 text-xs text-gray-500">

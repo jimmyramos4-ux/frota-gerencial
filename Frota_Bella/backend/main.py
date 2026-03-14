@@ -356,7 +356,9 @@ def create_veiculo(data: schemas.VeiculoCreate, db: Session = Depends(get_db)):
     existing = db.query(models.Veiculo).filter(models.Veiculo.placa == data.placa).first()
     if existing:
         raise HTTPException(status_code=400, detail="Placa já cadastrada")
-    veiculo = models.Veiculo(**data.model_dump())
+    dump = data.model_dump()
+    dump['descricao'] = " ".join(filter(None, [dump.get('marca'), dump.get('modelo')])) or dump.get('descricao') or ''
+    veiculo = models.Veiculo(**dump)
     db.add(veiculo)
     db.commit()
     db.refresh(veiculo)
@@ -380,8 +382,10 @@ def update_veiculo(veiculo_id: int, data: schemas.VeiculoUpdate, db: Session = D
         existing = db.query(models.Veiculo).filter(models.Veiculo.placa == data.placa).first()
         if existing:
             raise HTTPException(status_code=400, detail="Placa já cadastrada")
-    for field, value in data.model_dump(exclude_unset=True).items():
+    updates = data.model_dump(exclude_unset=True)
+    for field, value in updates.items():
         setattr(veiculo, field, value)
+    veiculo.descricao = " ".join(filter(None, [veiculo.marca, veiculo.modelo])) or veiculo.descricao or ''
     db.commit()
     db.refresh(veiculo)
     return veiculo
@@ -790,3 +794,64 @@ def frota_status(db: Session = Depends(get_db)):
 @app.get("/api/health")
 def health():
     return {"status": "ok", "app": "Frota Bella"}
+
+
+# ── Solicitações ──────────────────────────────────────────────────────────────
+
+@app.get("/api/solicitacoes", response_model=schemas.PaginatedSolicitacoes)
+def list_solicitacoes(
+    page: int = 1, per_page: int = 50,
+    status: Optional[str] = None,
+    prioridade: Optional[str] = None,
+    search: Optional[str] = None,
+    veiculo_id: Optional[int] = None,
+    manutencao_id: Optional[int] = None,
+    db: Session = Depends(get_db)
+):
+    q = db.query(models.Solicitacao)
+    if veiculo_id:
+        q = q.filter(models.Solicitacao.veiculo_id == veiculo_id)
+    if manutencao_id:
+        q = q.filter(models.Solicitacao.manutencao_id == manutencao_id)
+    if status:
+        q = q.filter(models.Solicitacao.status == status)
+    if prioridade:
+        q = q.filter(models.Solicitacao.prioridade == prioridade)
+    if search:
+        q = q.filter(
+            models.Solicitacao.descricao.ilike(f"%{search}%") |
+            models.Solicitacao.solicitante.ilike(f"%{search}%")
+        )
+    total = q.count()
+    items = q.order_by(models.Solicitacao.dt_solicitacao.desc()).offset((page - 1) * per_page).limit(per_page).all()
+    return {"items": items, "total": total, "page": page, "per_page": per_page, "total_pages": max(1, -(-total // per_page))}
+
+
+@app.post("/api/solicitacoes", response_model=schemas.SolicitacaoOut, status_code=201)
+def create_solicitacao(data: schemas.SolicitacaoCreate, db: Session = Depends(get_db)):
+    sol = models.Solicitacao(**data.model_dump())
+    db.add(sol)
+    db.commit()
+    db.refresh(sol)
+    return sol
+
+
+@app.put("/api/solicitacoes/{sol_id}", response_model=schemas.SolicitacaoOut)
+def update_solicitacao(sol_id: int, data: schemas.SolicitacaoUpdate, db: Session = Depends(get_db)):
+    sol = db.query(models.Solicitacao).filter(models.Solicitacao.id == sol_id).first()
+    if not sol:
+        raise HTTPException(status_code=404, detail="Solicitação não encontrada")
+    for k, v in data.model_dump(exclude_unset=True).items():
+        setattr(sol, k, v)
+    db.commit()
+    db.refresh(sol)
+    return sol
+
+
+@app.delete("/api/solicitacoes/{sol_id}", status_code=204)
+def delete_solicitacao(sol_id: int, db: Session = Depends(get_db)):
+    sol = db.query(models.Solicitacao).filter(models.Solicitacao.id == sol_id).first()
+    if not sol:
+        raise HTTPException(status_code=404, detail="Solicitação não encontrada")
+    db.delete(sol)
+    db.commit()

@@ -38,7 +38,9 @@ class Veiculo(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     placa = Column(String(20), unique=True, nullable=False, index=True)
-    descricao = Column(String(200), nullable=False)
+    marca = Column(String(100), nullable=True)
+    modelo = Column(String(100), nullable=True)
+    descricao = Column(String(200), nullable=True)
     tipo = Column(String(100))
     grupo = Column(String(100))
     ano = Column(Integer)
@@ -155,6 +157,25 @@ class TipoServicoCad(Base):
     nr_dias_alerta_servico = Column(Integer, nullable=True)
     ativo = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Solicitacao(Base):
+    __tablename__ = "solicitacoes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    veiculo_id = Column(Integer, ForeignKey("veiculos.id"), nullable=True)
+    manutencao_id = Column(Integer, ForeignKey("manutencoes.id"), nullable=True)
+    solicitante = Column(String(200), nullable=False)
+    descricao = Column(Text, nullable=False)
+    prioridade = Column(String(20), nullable=False, default="Média")
+    status = Column(String(30), nullable=False, default="Aberta")
+    observacao = Column(Text, nullable=True)
+    imagens = Column(Text, nullable=True)  # JSON array of base64 data URLs
+    dt_solicitacao = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    veiculo = relationship("Veiculo")
+    manutencao = relationship("Manutencao", foreign_keys=[manutencao_id])
 
 
 class ArquivoManutencao(Base):

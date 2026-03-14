@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import axios from 'axios'
-import { Pencil, RefreshCw, AlertCircle, CheckCircle, Settings } from 'lucide-react'
+import { Pencil, RefreshCw, AlertCircle, CheckCircle } from 'lucide-react'
 
 const API = 'http://localhost:8000/api'
 const EMPTY = { nome: '', email_notificacao: '', ativo: true }
@@ -36,6 +37,7 @@ function FormView({ editItem, onSaved, onCancelEdit }) {
   const [status, setStatus] = useState({ msg: '', type: '' })
   const [loading, setLoading] = useState(false)
   const [showTooltip, setShowTooltip] = useState(false)
+  const tooltipAnchorRef = useRef(null)
 
   useEffect(() => {
     if (editItem) {
@@ -121,18 +123,23 @@ function FormView({ editItem, onSaved, onCancelEdit }) {
                 <span className="flex items-center justify-end gap-1">
                   E-mail Vcto. de Notificação de Serviço
                   <span
+                    ref={tooltipAnchorRef}
                     className="relative cursor-pointer"
                     onMouseEnter={() => setShowTooltip(true)}
                     onMouseLeave={() => setShowTooltip(false)}
                   >
                     <WarnIcon />
-                    {showTooltip && (
-                      <div className="absolute right-0 top-6 z-50 w-64 bg-blue-50 border border-blue-300 rounded shadow-lg p-2 text-xs text-left">
-                        <p className="font-bold text-blue-800 mb-1">Informativo</p>
-                        <p>E-mail para o qual será enviado uma notificação, quando os <strong>Serviços preventivos</strong> estiverem nos prazos de vencimento de Data e/ou Quilometragem.</p>
-                      </div>
-                    )}
                   </span>
+                  {showTooltip && tooltipAnchorRef.current && createPortal(
+                    <div className="fixed z-50 w-80 bg-blue-50 border border-blue-300 rounded shadow-lg p-3 text-xs text-left pointer-events-none" style={(() => {
+                      const r = tooltipAnchorRef.current.getBoundingClientRect()
+                      return { top: r.bottom + 6, left: Math.max(8, r.left - 280 + r.width) }
+                    })()}>
+                      <p className="font-bold text-blue-800 mb-1">Informativo</p>
+                      <p>E-mail para o qual será enviado uma notificação, quando os <strong>Serviços preventivos</strong> estiverem nos prazos de vencimento de Data e/ou Quilometragem.</p>
+                    </div>,
+                    document.body
+                  )}
                 </span>
               </td>
               <td className="px-2 py-1.5 border border-gray-200 bg-white">
@@ -337,9 +344,6 @@ export default function CadastroParteVeiculo() {
               value={perPage} onChange={e => { setPerPage(Number(e.target.value)); setPage(1) }}>
               {[10, 20, 50, 100].map(v => <option key={v} value={v}>{v}</option>)}
             </select>
-            <button onClick={() => loadList()} className="text-gray-500 hover:text-blue-600">
-              <Settings className="w-4 h-4" />
-            </button>
           </div>
         </div>
 

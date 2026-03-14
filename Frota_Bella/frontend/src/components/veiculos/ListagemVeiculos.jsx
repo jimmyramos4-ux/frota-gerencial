@@ -18,7 +18,8 @@ const API = 'http://localhost:8000/api'
 
 const emptyForm = {
   placa: '',
-  descricao: '',
+  marca: '',
+  modelo: '',
   tipo: '',
   grupo: '',
   ano: '',
@@ -34,7 +35,7 @@ function VeiculoModal({ veiculo, onClose, onSaved }) {
   const isEdit = Boolean(veiculo?.id)
   const [form, setForm] = useState(
     veiculo
-      ? { placa: veiculo.placa, descricao: veiculo.descricao, tipo: veiculo.tipo || '', grupo: veiculo.grupo || '', ano: veiculo.ano || '', chassi: veiculo.chassi || '' }
+      ? { placa: veiculo.placa, marca: veiculo.marca || '', modelo: veiculo.modelo || '', tipo: veiculo.tipo || '', grupo: veiculo.grupo || '', ano: veiculo.ano || '', chassi: veiculo.chassi || '' }
       : emptyForm
   )
   const [saving, setSaving] = useState(false)
@@ -44,8 +45,8 @@ function VeiculoModal({ veiculo, onClose, onSaved }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!form.placa || !form.descricao) {
-      setError('Placa e Descrição são obrigatórios')
+    if (!form.placa || !form.marca || !form.modelo) {
+      setError('Placa, Marca e Modelo são obrigatórios')
       return
     }
     setSaving(true)
@@ -59,7 +60,8 @@ function VeiculoModal({ veiculo, onClose, onSaved }) {
       }
       onSaved()
     } catch (err) {
-      setError(err.response?.data?.detail || 'Erro ao salvar veículo')
+      const d = err.response?.data?.detail
+      setError(typeof d === 'string' ? d : Array.isArray(d) ? d.map(e => e.msg).join(', ') : 'Erro ao salvar veículo')
     } finally {
       setSaving(false)
     }
@@ -92,33 +94,30 @@ function VeiculoModal({ veiculo, onClose, onSaved }) {
               <input className="form-input" value={form.placa} onChange={setF('placa')} placeholder="ABC-1234" />
             </div>
             <div>
-              <label className="form-label">Ano</label>
+              <label className="form-label">Ano Fabricação</label>
               <input className="form-input" type="number" value={form.ano} onChange={setF('ano')} placeholder="2020" />
             </div>
           </div>
-          <div>
-            <label className="form-label">Descrição <span className="text-red-500">*</span></label>
-            <input className="form-input" value={form.descricao} onChange={setF('descricao')} placeholder="Ex: Volkswagen Gol 2020" />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="form-label">Marca <span className="text-red-500">*</span></label>
+              <input className="form-input" value={form.marca} onChange={setF('marca')} placeholder="Ex: Volkswagen" />
+            </div>
+            <div>
+              <label className="form-label">Modelo <span className="text-red-500">*</span></label>
+              <input className="form-input" value={form.modelo} onChange={setF('modelo')} placeholder="Ex: Gol" />
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="form-label">Tipo</label>
-              <select className="form-select" value={form.tipo} onChange={setF('tipo')}>
-                <option value="">-</option>
-                <option>Passeio</option>
-                <option>Utilitário</option>
-                <option>Van</option>
-                <option>Caminhão</option>
-                <option>Moto</option>
-                <option>Ônibus</option>
-              </select>
+              <input className="form-input" value={form.tipo} onChange={setF('tipo')} placeholder="Ex: Caminhão" />
             </div>
             <div>
               <label className="form-label">Grupo</label>
               <select className="form-select" value={form.grupo} onChange={setF('grupo')}>
                 <option value="">-</option>
                 <option>Leve</option>
-                <option>Médio</option>
                 <option>Pesado</option>
               </select>
             </div>
@@ -237,7 +236,8 @@ export default function ListagemVeiculos() {
             <thead>
               <tr className="bg-blue-50 border-b border-blue-100">
                 <th className="px-3 py-2 text-left text-blue-800 font-semibold">Placa</th>
-                <th className="px-3 py-2 text-left text-blue-800 font-semibold">Descrição</th>
+                <th className="px-3 py-2 text-left text-blue-800 font-semibold">Marca</th>
+                <th className="px-3 py-2 text-left text-blue-800 font-semibold">Modelo</th>
                 <th className="px-3 py-2 text-left text-blue-800 font-semibold">Tipo</th>
                 <th className="px-3 py-2 text-left text-blue-800 font-semibold">Grupo</th>
                 <th className="px-3 py-2 text-left text-blue-800 font-semibold">Ano</th>
@@ -249,14 +249,14 @@ export default function ListagemVeiculos() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="text-center py-8 text-gray-400">
+                  <td colSpan={9} className="text-center py-8 text-gray-400">
                     <RefreshCw className="w-5 h-5 animate-spin inline mr-2" />
                     Carregando...
                   </td>
                 </tr>
               ) : veiculos.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="text-center py-8 text-gray-400">
+                  <td colSpan={9} className="text-center py-8 text-gray-400">
                     Nenhum veículo encontrado.
                   </td>
                 </tr>
@@ -267,7 +267,8 @@ export default function ListagemVeiculos() {
                     className={`border-b border-gray-100 hover:bg-blue-50 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}
                   >
                     <td className="px-3 py-2 font-medium text-blue-700">{v.placa}</td>
-                    <td className="px-3 py-2">{v.descricao}</td>
+                    <td className="px-3 py-2">{v.marca || '-'}</td>
+                    <td className="px-3 py-2">{v.modelo || '-'}</td>
                     <td className="px-3 py-2">{v.tipo || '-'}</td>
                     <td className="px-3 py-2">{v.grupo || '-'}</td>
                     <td className="px-3 py-2">{v.ano || '-'}</td>

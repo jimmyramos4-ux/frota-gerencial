@@ -56,7 +56,9 @@ class TipoServicoCadOut(TipoServicoCadCreate):
 
 class VeiculoBase(BaseModel):
     placa: str
-    descricao: str
+    marca: Optional[str] = None
+    modelo: Optional[str] = None
+    descricao: Optional[str] = None
     tipo: Optional[str] = None
     grupo: Optional[str] = None
     ano: Optional[int] = None
@@ -64,11 +66,13 @@ class VeiculoBase(BaseModel):
 
 
 class VeiculoCreate(VeiculoBase):
-    pass
+    descricao: Optional[str] = None
 
 
 class VeiculoUpdate(BaseModel):
     placa: Optional[str] = None
+    marca: Optional[str] = None
+    modelo: Optional[str] = None
     descricao: Optional[str] = None
     tipo: Optional[str] = None
     grupo: Optional[str] = None
@@ -227,6 +231,45 @@ class PaginatedManutencoes(BaseModel):
 
 class PaginatedTiposServico(BaseModel):
     items: List[TipoServicoCadOut]
+    total: int
+    page: int
+    per_page: int
+    total_pages: int
+
+
+# ── Solicitacao ───────────────────────────────────────────────────────────────
+
+class SolicitacaoCreate(BaseModel):
+    veiculo_id: Optional[int] = None
+    solicitante: str
+    descricao: str
+    prioridade: str = "Média"
+    status: str = "Aberta"
+    observacao: Optional[str] = None
+    imagens: Optional[str] = None
+
+class SolicitacaoUpdate(BaseModel):
+    veiculo_id: Optional[int] = None
+    manutencao_id: Optional[int] = None
+    solicitante: Optional[str] = None
+    descricao: Optional[str] = None
+    prioridade: Optional[str] = None
+    status: Optional[str] = None
+    observacao: Optional[str] = None
+    imagens: Optional[str] = None
+
+class SolicitacaoOut(SolicitacaoCreate):
+    id: int
+    manutencao_id: Optional[int] = None
+    dt_solicitacao: datetime
+    updated_at: datetime
+    veiculo: Optional[VeiculoOut] = None
+
+    class Config:
+        from_attributes = True
+
+class PaginatedSolicitacoes(BaseModel):
+    items: List[SolicitacaoOut]
     total: int
     page: int
     per_page: int

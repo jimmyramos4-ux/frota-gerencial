@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import axios from 'axios'
-import { Loader2, Printer, ChevronLeft, Truck } from 'lucide-react'
+import { Loader2, Printer, ChevronLeft } from 'lucide-react'
+import novalogo from '../../assets/novalogo.png'
 
 const API = 'http://localhost:8000/api'
 
@@ -86,11 +87,8 @@ export default function ExtratoManutencao() {
 
       {/* Print header */}
       <div className="hidden print:flex items-center gap-3 mb-4 border-b border-gray-300 pb-3">
-        <Truck className="w-7 h-7 text-blue-700" />
-        <div>
-          <h1 className="text-lg font-bold text-blue-800">Frota Bella</h1>
-          <p className="text-xs text-gray-500">Extrato de Manutenção de Veículo</p>
-        </div>
+        <img src={novalogo} alt="Logo" className="h-10 object-contain" />
+        <p className="text-xs text-gray-500">Extrato de Manutenção de Veículo</p>
       </div>
 
       {/* Manutencao header info */}
