@@ -35,6 +35,9 @@ UPLOAD_DIR.mkdir(exist_ok=True)
 
 app.mount("/api/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
 
+# ── Frontend static files ──────────────────────────────────────────────────────
+FRONTEND_DIST = Path(__file__).parent.parent / "frontend" / "dist"
+
 
 # ── Seed data ─────────────────────────────────────────────────────────────────
 
@@ -855,3 +858,13 @@ def delete_solicitacao(sol_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Solicitação não encontrada")
     db.delete(sol)
     db.commit()
+
+
+# ── Serve React frontend (deve ficar por último) ───────────────────────────────
+if FRONTEND_DIST.exists():
+    app.mount("/assets", StaticFiles(directory=str(FRONTEND_DIST / "assets")), name="static-assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    def serve_frontend(full_path: str):
+        index = FRONTEND_DIST / "index.html"
+        return FileResponse(str(index))

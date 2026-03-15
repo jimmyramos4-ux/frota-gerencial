@@ -3,6 +3,7 @@ Frota_gerencial/deploy/_caddyfile_runtime.txt
 Frota_gerencial/frontend/dist/
 Frota_gerencial/frontend/node-bin/
 Frota_Bella/frontend/node_modules/
+# dist é commitado intencionalmente para rodar sem Node no outro PC
 Frota_Bella/backend/__pycache__/
 Frota_Bella/backend/*.db
 Frota_Bella/backend/uvicorn.log
