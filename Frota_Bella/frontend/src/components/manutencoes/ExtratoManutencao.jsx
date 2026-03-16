@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import axios from 'axios'
 import { Loader2, Printer, ChevronLeft } from 'lucide-react'
 import novalogo from '../../assets/novalogo.png'
@@ -36,6 +36,7 @@ const prioridadeColor = {
 
 export default function ExtratoManutencao() {
   const { id } = useParams()
+  const [searchParams] = useSearchParams()
   const [man, setMan] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -46,6 +47,12 @@ export default function ExtratoManutencao() {
       .catch(() => setError('Erro ao carregar extrato'))
       .finally(() => setLoading(false))
   }, [id])
+
+  useEffect(() => {
+    if (!loading && man && searchParams.get('print') === '1') {
+      setTimeout(() => window.print(), 300)
+    }
+  }, [loading, man, searchParams])
 
   if (loading) {
     return (

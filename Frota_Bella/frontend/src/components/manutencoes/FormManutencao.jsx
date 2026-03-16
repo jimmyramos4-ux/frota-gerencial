@@ -1,12 +1,15 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import axios from 'axios'
 import {
   Search, Trash2, Save, ChevronLeft,
   AlertCircle, CheckCircle, Loader2,
   Car, User, Wrench, Calendar, ClipboardList, Pencil, X,
+  Paperclip, ImagePlus, FileText, Download, ChevronLeft as ChevronLeftLb, ChevronRight,
 } from 'lucide-react'
 import LookupField from '../shared/LookupField.jsx'
+import { TipoServicoModal } from '../tiposservico/CadastroTipoServico.jsx'
+import { ParteVeiculoModal } from '../partesveiculo/CadastroParteVeiculo.jsx'
 
 const API = 'http://localhost:8000/api'
 
@@ -24,6 +27,14 @@ const emptyServico = {
   tipo_uso: '', dt_servico: '', proxima_dt_validade: '',
   proximo_km_validade: '', pessoa_responsavel: '',
   descricao: '', valor: '', horas_trabalhadas: '',
+  _nr_dias_validade: '',
+}
+
+function calcProxDt(dtServico, nrDias) {
+  if (!dtServico || !nrDias) return ''
+  const dt = new Date(dtServico)
+  dt.setDate(dt.getDate() + Number(nrDias))
+  return dt.toISOString().split('T')[0]
 }
 
 function dtToInput(dt) {
@@ -92,6 +103,13 @@ export default function FormManutencao() {
   const [success, setSuccess] = useState('')
   const [solicitacoesVeiculo, setSolicitacoesVeiculo] = useState([])
   const [solicitacoesRemovidas, setSolicitacoesRemovidas] = useState([])
+  const [tipoServicoModalCb, setTipoServicoModalCb] = useState(null)
+  const [parteVeiculoModalCb, setParteVeiculoModalCb] = useState(null)
+  const [arquivos, setArquivos] = useState([])
+  const [pendingFiles, setPendingFiles] = useState([]) // {file, preview} para nova manutenção
+  const [uploading, setUploading] = useState(false)
+  const [lightbox, setLightbox] = useState(null) // { images: [], idx: 0 }
+  const fileInputRef = useRef()
 
   useEffect(() => {
     axios.get(`${API}/veiculos`).then(r => setVeiculos(r.data))
@@ -129,6 +147,7 @@ export default function FormManutencao() {
         }
         if (m.motorista) { setMotoristaSearch(m.motorista.codigo); setMotoristaDesc(m.motorista.nome) }
         setServicos(m.servicos || [])
+        setArquivos(m.arquivos || [])
       })
       .catch(() => setError('Erro ao carregar manutenção'))
       .finally(() => setLoading(false))
@@ -144,7 +163,7 @@ export default function FormManutencao() {
   )
 
   const selectVeiculo = (v) => {
-    setForm(f => ({ ...f, veiculo_id: v.id }))
+    setForm(f => ({ ...f, veiculo_id: v.id, km_entrada: v.ultimo_km ? String(v.ultimo_km) : f.km_entrada }))
     setVeiculoSearch(v.placa)
     setVeiculoDesc(v.descricao)
     setShowVeiculoDrop(false)
@@ -222,6 +241,7 @@ export default function FormManutencao() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!form.veiculo_id) { setError('Selecione um veículo'); return }
+    if (servicos.length === 0) { setError('Adicione ao menos um Serviço Veículo antes de confirmar'); return }
     setSaving(true); setError(''); setSuccess('')
     try {
       const payload = { ...form, veiculo_id: Number(form.veiculo_id), motorista_id: form.motorista_id ? Number(form.motorista_id) : null, km_entrada: form.km_entrada ? Number(form.km_entrada) : null, horimetro_entrada: form.horimetro_entrada || null, dt_inicio: form.dt_inicio || null, dt_previsao: form.dt_previsao || null, dt_termino: form.dt_termino || null, prioridade: form.prioridade || null, tipo: form.tipo || null }
@@ -233,6 +253,11 @@ export default function FormManutencao() {
         for (const s of servicos.filter(x => x._new)) {
           const { id: _, _new, ...sRaw } = s
           await axios.post(`${API}/manutencoes/${res.data.id}/servicos`, { ...sRaw, tipo_uso: sRaw.tipo_uso || null, status: sRaw.status || 'Em Andamento', valor: sRaw.valor ? Number(sRaw.valor) : null, proximo_km_validade: sRaw.proximo_km_validade ? Number(sRaw.proximo_km_validade) : null, dt_servico: sRaw.dt_servico || null, proxima_dt_validade: sRaw.proxima_dt_validade || null })
+        }
+        for (const { file } of pendingFiles) {
+          const fd = new FormData()
+          fd.append('file', file)
+          await axios.post(`${API}/manutencoes/${res.data.id}/arquivos`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
         }
       }
       // Sync linked solicitations status based on maintenance status
@@ -251,6 +276,66 @@ export default function FormManutencao() {
     } finally { setSaving(false) }
   }
 
+  const addFilesWithPreview = (files, setter) => {
+    Array.from(files).forEach(file => {
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader()
+        reader.onload = ev => setter(p => [...p, { file, preview: ev.target.result }])
+        reader.readAsDataURL(file)
+      } else {
+        setter(p => [...p, { file, preview: null }])
+      }
+    })
+  }
+
+  const handleUploadArquivo = async (e) => {
+    const files = Array.from(e.target.files)
+    if (!files.length) return
+    e.target.value = ''
+    if (!isEdit) {
+      addFilesWithPreview(files, setPendingFiles)
+      return
+    }
+    setUploading(true)
+    try {
+      for (const file of files) {
+        const fd = new FormData()
+        fd.append('file', file)
+        const res = await axios.post(`${API}/manutencoes/${id}/arquivos`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+        setArquivos(a => [...a, res.data])
+      }
+    } catch { setError('Erro ao fazer upload do arquivo') }
+    finally { setUploading(false) }
+  }
+
+  const handlePasteArquivo = (e) => {
+    const items = Array.from(e.clipboardData.items)
+    const imageFiles = items.filter(i => i.type.startsWith('image/')).map(i => i.getAsFile())
+    if (!imageFiles.length) return
+    if (!isEdit) {
+      addFilesWithPreview(imageFiles, setPendingFiles)
+      return
+    }
+    setUploading(true)
+    Promise.all(imageFiles.map(file => {
+      const fd = new FormData()
+      fd.append('file', file)
+      return axios.post(`${API}/manutencoes/${id}/arquivos`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+        .then(res => res.data)
+    }))
+      .then(saved => setArquivos(a => [...a, ...saved]))
+      .catch(() => setError('Erro ao fazer upload do arquivo'))
+      .finally(() => setUploading(false))
+  }
+
+  const handleDeleteArquivo = async (arq) => {
+    if (!window.confirm(`Remover o arquivo "${arq.nome_arquivo}"?`)) return
+    try {
+      await axios.delete(`${API}/arquivos/${arq.id}`)
+      setArquivos(a => a.filter(x => x.id !== arq.id))
+    } catch { setError('Erro ao remover arquivo') }
+  }
+
   const handleDeleteManutencao = async () => {
     if (!window.confirm(`Excluir a Manutenção #${id} permanentemente? Esta ação não pode ser desfeita.`)) return
     try {
@@ -258,6 +343,12 @@ export default function FormManutencao() {
       navigate('/manutencoes')
     } catch { setError('Erro ao excluir manutenção') }
   }
+
+  useEffect(() => {
+    if (!error && !success) return
+    const t = setTimeout(() => { setError(''); setSuccess('') }, 4000)
+    return () => clearTimeout(t)
+  }, [error, success])
 
   const totalValor = servicos.reduce((acc, s) => acc + (parseFloat(s.valor) || 0), 0)
 
@@ -288,15 +379,15 @@ export default function FormManutencao() {
         <Wrench className="w-6 h-6 text-blue-300" />
       </div>
 
-      {/* ── ALERTAS ── */}
-      {error && (
-        <div className="bg-red-50 border border-red-300 text-red-700 px-4 py-2.5 rounded-lg flex items-center gap-2 text-sm shadow-sm">
-          <AlertCircle className="w-4 h-4 flex-shrink-0" /> {error}
-        </div>
-      )}
-      {success && (
-        <div className="bg-green-50 border border-green-300 text-green-700 px-4 py-2.5 rounded-lg flex items-center gap-2 text-sm shadow-sm">
-          <CheckCircle className="w-4 h-4 flex-shrink-0" /> {success}
+      {/* ── TOAST ── */}
+      {(error || success) && (
+        <div className={`fixed top-5 right-5 z-50 flex items-center gap-3 px-4 py-3 rounded-lg shadow-xl border text-sm font-medium animate-fade-in max-w-sm
+          ${error ? 'bg-red-600 border-red-700 text-white' : 'bg-green-600 border-green-700 text-white'}`}>
+          {error ? <AlertCircle className="w-4 h-4 flex-shrink-0" /> : <CheckCircle className="w-4 h-4 flex-shrink-0" />}
+          <span className="flex-1">{error || success}</span>
+          <button onClick={() => { setError(''); setSuccess('') }} className="ml-1 opacity-70 hover:opacity-100 transition-opacity">
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
 
@@ -508,14 +599,14 @@ export default function FormManutencao() {
                           <option>Em Andamento</option><option>Finalizado</option><option>Cancelado</option>
                         </select>
                       </td>
-                      <td className="px-1 py-1.5"><LookupField endpoint="partes-veiculo" value={editForm.parte_veiculo} onChange={v => setEditForm(f => ({ ...f, parte_veiculo: v }))} placeholder="Parte" /></td>
-                      <td className="px-1 py-1.5"><LookupField endpoint="tipos-servico" value={editForm.servico} onChange={v => setEditForm(f => ({ ...f, servico: v }))} placeholder="Serviço" /></td>
+                      <td className="px-1 py-1.5"><LookupField endpoint="partes-veiculo" value={editForm.parte_veiculo} onChange={v => setEditForm(f => ({ ...f, parte_veiculo: v }))} placeholder="Parte" onCadastrarNovo={cb => setParteVeiculoModalCb(() => cb)} /></td>
+                      <td className="px-1 py-1.5"><LookupField endpoint="tipos-servico" value={editForm.servico} onChange={v => setEditForm(f => ({ ...f, servico: v }))} placeholder="Serviço" onCadastrarNovo={cb => setTipoServicoModalCb(() => cb)} onItemSelected={item => { setEditForm(f => ({ ...f, _nr_dias_validade: item.nr_dias_validade || '', proximo_km_validade: item.hodometro_km_validade && form.km_entrada ? String(Number(form.km_entrada) + item.hodometro_km_validade) : f.proximo_km_validade, proxima_dt_validade: item.nr_dias_validade && f.dt_servico ? calcProxDt(f.dt_servico, item.nr_dias_validade) : f.proxima_dt_validade })) }} /></td>
                       <td className="px-1 py-1.5">
                         <select className={miniSel} value={editForm.tipo_uso} onChange={setEf('tipo_uso')}>
                           <option value="">-</option><option>Corretiva</option><option>Preventiva</option>
                         </select>
                       </td>
-                      <td className="px-1 py-1.5"><input className={miniInp} type="date" value={editForm.dt_servico} onChange={setEf('dt_servico')} /></td>
+                      <td className="px-1 py-1.5"><input className={miniInp} type="date" value={editForm.dt_servico} onChange={e => setEditForm(f => { const dt = e.target.value; return { ...f, dt_servico: dt, proxima_dt_validade: f._nr_dias_validade && dt ? calcProxDt(dt, f._nr_dias_validade) : f.proxima_dt_validade } })} /></td>
                       <td className="px-1 py-1.5"><input className={miniInp} type="date" value={editForm.proxima_dt_validade} onChange={setEf('proxima_dt_validade')} /></td>
                       <td className="px-1 py-1.5"><input className={`${miniInp} w-20 text-right`} type="number" value={editForm.proximo_km_validade} onChange={setEf('proximo_km_validade')} /></td>
                       <td className="px-1 py-1.5"><input className={miniInp} value={editForm.pessoa_responsavel} onChange={setEf('pessoa_responsavel')} placeholder="Resp." /></td>
@@ -575,14 +666,14 @@ export default function FormManutencao() {
                       <option>Em Andamento</option><option>Finalizado</option><option>Cancelado</option>
                     </select>
                   </td>
-                  <td className="px-1 py-1.5"><LookupField endpoint="partes-veiculo" value={newServico.parte_veiculo} onChange={v => setNewServico(s => ({ ...s, parte_veiculo: v }))} placeholder="Parte" /></td>
-                  <td className="px-1 py-1.5"><LookupField endpoint="tipos-servico" value={newServico.servico} onChange={v => setNewServico(s => ({ ...s, servico: v }))} placeholder="Serviço" /></td>
+                  <td className="px-1 py-1.5"><LookupField endpoint="partes-veiculo" value={newServico.parte_veiculo} onChange={v => setNewServico(s => ({ ...s, parte_veiculo: v }))} placeholder="Parte" onCadastrarNovo={cb => setParteVeiculoModalCb(() => cb)} /></td>
+                  <td className="px-1 py-1.5"><LookupField endpoint="tipos-servico" value={newServico.servico} onChange={v => setNewServico(s => ({ ...s, servico: v }))} placeholder="Serviço" onCadastrarNovo={cb => setTipoServicoModalCb(() => cb)} onItemSelected={item => { setNewServico(s => ({ ...s, _nr_dias_validade: item.nr_dias_validade || '', proximo_km_validade: item.hodometro_km_validade && form.km_entrada ? String(Number(form.km_entrada) + item.hodometro_km_validade) : s.proximo_km_validade, proxima_dt_validade: item.nr_dias_validade && s.dt_servico ? calcProxDt(s.dt_servico, item.nr_dias_validade) : s.proxima_dt_validade })) }} /></td>
                   <td className="px-1 py-1.5">
                     <select className="border border-gray-300 rounded px-1 py-0.5 text-xs bg-white focus:outline-none w-full" value={newServico.tipo_uso} onChange={setSf('tipo_uso')}>
                       <option value="">-</option><option>Corretiva</option><option>Preventiva</option>
                     </select>
                   </td>
-                  <td className="px-1 py-1.5"><input className="border border-gray-300 rounded px-1 py-0.5 text-xs w-full" type="date" value={newServico.dt_servico} onChange={setSf('dt_servico')} /></td>
+                  <td className="px-1 py-1.5"><input className="border border-gray-300 rounded px-1 py-0.5 text-xs w-full" type="date" value={newServico.dt_servico} onChange={e => setNewServico(s => { const dt = e.target.value; return { ...s, dt_servico: dt, proxima_dt_validade: s._nr_dias_validade && dt ? calcProxDt(dt, s._nr_dias_validade) : s.proxima_dt_validade } })} /></td>
                   <td className="px-1 py-1.5"><input className="border border-gray-300 rounded px-1 py-0.5 text-xs w-full" type="date" value={newServico.proxima_dt_validade} onChange={setSf('proxima_dt_validade')} /></td>
                   <td className="px-1 py-1.5"><input className="border border-gray-300 rounded px-1 py-0.5 text-xs w-20 text-right" type="number" value={newServico.proximo_km_validade} onChange={setSf('proximo_km_validade')} /></td>
                   <td className="px-1 py-1.5"><input className="border border-gray-300 rounded px-1 py-0.5 text-xs w-full" value={newServico.pessoa_responsavel} onChange={setSf('pessoa_responsavel')} placeholder="Resp." /></td>
@@ -609,6 +700,104 @@ export default function FormManutencao() {
             </table>
           </div>
         </div>
+
+        {/* ── SEÇÃO ANEXOS ── */}
+        <div className="rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+          <SectionHeader icon={Paperclip} title="Anexos" right={`${arquivos.length + pendingFiles.length} arquivo(s)`} />
+          <div className="p-4 bg-white">
+            <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleUploadArquivo} disabled={uploading} />
+            <div
+              className="border-2 border-dashed border-gray-300 rounded-lg p-3 bg-gray-50 hover:border-blue-400 transition-colors cursor-pointer min-h-[80px]"
+              onPaste={handlePasteArquivo}
+              onClick={() => fileInputRef.current?.click()}
+              tabIndex={0}
+              onKeyDown={e => e.key === 'Enter' && fileInputRef.current?.click()}
+            >
+              {arquivos.length === 0 && pendingFiles.length === 0 ? (
+                <div className="flex flex-col items-center justify-center gap-1 text-gray-400 py-2">
+                  {uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ImagePlus className="w-5 h-5" />}
+                  <span className="text-xs">{uploading ? 'Enviando...' : 'Cole (Ctrl+V) ou clique para adicionar arquivos/imagens'}</span>
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {/* Arquivos já salvos no servidor */}
+                  {arquivos.map(arq => {
+                    const isImg = /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(arq.nome_arquivo)
+                    const url = `http://localhost:8000/api/uploads/${arq.caminho}`
+                    return (
+                      <div key={arq.id} className="relative group" onClick={e => e.stopPropagation()}>
+                        {isImg ? (
+                          <img src={url} alt={arq.nome_arquivo}
+                            className="h-16 w-16 object-cover rounded border border-gray-200 cursor-pointer"
+                            onClick={() => {
+                              const imgs = arquivos.filter(a => /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(a.nome_arquivo)).map(a => `http://localhost:8000/api/uploads/${a.caminho}`)
+                              const idx = imgs.indexOf(url)
+                              setLightbox({ images: imgs, idx: idx >= 0 ? idx : 0 })
+                            }} />
+                        ) : (
+                          <a href={url} target="_blank" rel="noreferrer"
+                            className="h-16 w-16 flex flex-col items-center justify-center rounded border border-gray-200 bg-white text-blue-500 hover:bg-blue-50 transition-colors gap-1">
+                            <FileText className="w-5 h-5" />
+                            <span className="text-[9px] text-gray-500 truncate w-14 text-center px-1">{arq.nome_arquivo}</span>
+                          </a>
+                        )}
+                        <button type="button" onClick={e => { e.stopPropagation(); handleDeleteArquivo(arq) }}
+                          className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity" title="Remover">
+                          <X className="w-2.5 h-2.5" />
+                        </button>
+                      </div>
+                    )
+                  })}
+                  {/* Arquivos pendentes (nova manutenção) */}
+                  {pendingFiles.map(({ file, preview }, i) => (
+                    <div key={i} className="relative group" onClick={e => e.stopPropagation()}>
+                      {preview ? (
+                        <img src={preview} alt={file.name}
+                          className="h-16 w-16 object-cover rounded border border-yellow-300 cursor-pointer opacity-80"
+                          onClick={() => {
+                            const imgs = pendingFiles.filter(p => p.preview).map(p => p.preview)
+                            const idx = pendingFiles.filter(p => p.preview).findIndex((_, j) => j === pendingFiles.filter(p => p.preview).indexOf(pendingFiles.filter(p => p.preview)[i]))
+                            setLightbox({ images: imgs, idx: Math.max(idx, 0) })
+                          }} />
+                      ) : (
+                        <div className="h-16 w-16 flex flex-col items-center justify-center rounded border border-yellow-300 bg-yellow-50 text-yellow-600 gap-1">
+                          <FileText className="w-5 h-5" />
+                          <span className="text-[9px] text-gray-500 truncate w-14 text-center px-1">{file.name}</span>
+                        </div>
+                      )}
+                      <div className="absolute -bottom-1 -left-1 bg-yellow-400 text-white text-[8px] rounded px-0.5 font-bold leading-tight">Pend.</div>
+                      <button type="button" onClick={e => { e.stopPropagation(); setPendingFiles(p => p.filter((_, j) => j !== i)) }}
+                        className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity" title="Remover">
+                        <X className="w-2.5 h-2.5" />
+                      </button>
+                    </div>
+                  ))}
+                  {/* Botão adicionar mais */}
+                  <div className="h-16 w-16 border-2 border-dashed border-gray-300 rounded flex items-center justify-center text-gray-400 hover:border-blue-400 flex-shrink-0">
+                    {uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ImagePlus className="w-5 h-5" />}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* ── LIGHTBOX ── */}
+        {lightbox && (
+          <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center" onClick={() => setLightbox(null)}>
+            <button className="absolute top-4 right-4 text-white hover:text-gray-300" onClick={() => setLightbox(null)}><X className="w-6 h-6" /></button>
+            <button className="absolute left-4 text-white hover:text-gray-300 disabled:opacity-30" disabled={lightbox.idx === 0}
+              onClick={e => { e.stopPropagation(); setLightbox(lb => ({ ...lb, idx: lb.idx - 1 })) }}>
+              <ChevronLeftLb className="w-8 h-8" />
+            </button>
+            <img src={lightbox.images[lightbox.idx]} alt="" className="max-h-[85vh] max-w-[85vw] rounded shadow-2xl object-contain" onClick={e => e.stopPropagation()} />
+            <button className="absolute right-4 text-white hover:text-gray-300 disabled:opacity-30" disabled={lightbox.idx === lightbox.images.length - 1}
+              onClick={e => { e.stopPropagation(); setLightbox(lb => ({ ...lb, idx: lb.idx + 1 })) }}>
+              <ChevronRight className="w-8 h-8" />
+            </button>
+            <div className="absolute bottom-4 text-white text-sm">{lightbox.idx + 1} / {lightbox.images.length}</div>
+          </div>
+        )}
 
         {/* ── BARRA DE AÇÃO ── */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 px-4 py-3 flex items-center justify-end">
@@ -638,6 +827,19 @@ export default function FormManutencao() {
           « Listagem de Manutenções do Veículo
         </Link>
       </div>
+
+      {tipoServicoModalCb && (
+        <TipoServicoModal
+          onClose={() => setTipoServicoModalCb(null)}
+          onSelected={(nome) => { tipoServicoModalCb(nome); setTipoServicoModalCb(null) }}
+        />
+      )}
+      {parteVeiculoModalCb && (
+        <ParteVeiculoModal
+          onClose={() => setParteVeiculoModalCb(null)}
+          onSelected={(nome) => { parteVeiculoModalCb(nome); setParteVeiculoModalCb(null) }}
+        />
+      )}
     </div>
   )
 }

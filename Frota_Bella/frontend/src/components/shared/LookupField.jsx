@@ -5,7 +5,7 @@ import { Search, Plus, X, Loader2, Check } from 'lucide-react'
 
 const API = 'http://localhost:8000/api'
 
-export default function LookupField({ endpoint, value, onChange, placeholder = 'Selecione...' }) {
+export default function LookupField({ endpoint, value, onChange, placeholder = 'Selecione...', onCadastrarNovo, onItemSelected }) {
   const [inputText, setInputText] = useState(value || '')
   const [open, setOpen] = useState(false)
   const [items, setItems] = useState([])
@@ -65,18 +65,23 @@ export default function LookupField({ endpoint, value, onChange, placeholder = '
     }, 200)
   }
 
-  const handleSelect = (nome) => {
+  const handleSelect = (nome, item) => {
     confirmedRef.current = nome
     onChange(nome)
+    if (item && onItemSelected) onItemSelected(item)
     setInputText(nome)
     setOpen(false)
   }
 
   const openModal = () => {
     setOpen(false)
-    setNewNome('')
-    setAddError('')
-    setShowModal(true)
+    if (onCadastrarNovo) {
+      onCadastrarNovo((nome) => handleSelect(nome))
+    } else {
+      setNewNome('')
+      setAddError('')
+      setShowModal(true)
+    }
   }
 
   const handleAdd = async () => {
@@ -111,7 +116,7 @@ export default function LookupField({ endpoint, value, onChange, placeholder = '
             <li
               key={item.id}
               className={`px-3 py-1.5 text-xs cursor-pointer hover:bg-blue-50 flex items-center justify-between ${value === item.nome ? 'bg-blue-50 text-blue-700 font-medium' : ''}`}
-              onMouseDown={(e) => { e.preventDefault(); handleSelect(item.nome) }}
+              onMouseDown={(e) => { e.preventDefault(); handleSelect(item.nome, item) }}
             >
               {item.nome}
               {value === item.nome && <Check className="w-3 h-3 text-blue-600" />}

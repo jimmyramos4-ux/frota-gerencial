@@ -45,6 +45,10 @@ class Veiculo(Base):
     grupo = Column(String(100))
     ano = Column(Integer)
     chassi = Column(String(50))
+    capacidade = Column(String(100), nullable=True)
+    vinculo = Column(String(50), nullable=True)
+    ultimo_km = Column(Integer, nullable=True)
+    ultimo_km_data = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     manutencoes = relationship("Manutencao", back_populates="veiculo")

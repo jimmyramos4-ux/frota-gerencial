@@ -12,7 +12,16 @@ import {
   Car,
   AlertCircle,
   CheckCircle,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
+  Download,
 } from 'lucide-react'
+
+function SortIcon({ field, sortField, sortDir }) {
+  if (sortField !== field) return <ArrowUpDown className="w-3 h-3 opacity-30" />
+  return sortDir === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+}
 
 const API = 'http://localhost:8000/api'
 
@@ -24,6 +33,9 @@ const emptyForm = {
   grupo: '',
   ano: '',
   chassi: '',
+  capacidade: '',
+  vinculo: '',
+  ultimo_km: '',
 }
 
 function fmt(dt) {
@@ -31,11 +43,16 @@ function fmt(dt) {
   return new Date(dt).toLocaleDateString('pt-BR')
 }
 
+function fmtKm(km) {
+  if (!km) return '-'
+  return Number(km).toLocaleString('pt-BR') + ' km'
+}
+
 function VeiculoModal({ veiculo, onClose, onSaved }) {
   const isEdit = Boolean(veiculo?.id)
   const [form, setForm] = useState(
     veiculo
-      ? { placa: veiculo.placa, marca: veiculo.marca || '', modelo: veiculo.modelo || '', tipo: veiculo.tipo || '', grupo: veiculo.grupo || '', ano: veiculo.ano || '', chassi: veiculo.chassi || '' }
+      ? { placa: veiculo.placa, marca: veiculo.marca || '', modelo: veiculo.modelo || '', tipo: veiculo.tipo || '', grupo: veiculo.grupo || '', ano: veiculo.ano || '', chassi: veiculo.chassi || '', capacidade: veiculo.capacidade || '', vinculo: veiculo.vinculo || '', ultimo_km: veiculo.ultimo_km || '' }
       : emptyForm
   )
   const [saving, setSaving] = useState(false)
@@ -52,7 +69,7 @@ function VeiculoModal({ veiculo, onClose, onSaved }) {
     setSaving(true)
     setError('')
     try {
-      const payload = { ...form, ano: form.ano ? Number(form.ano) : null }
+      const payload = { ...form, ano: form.ano ? Number(form.ano) : null, ultimo_km: form.ultimo_km ? Number(form.ultimo_km) : null }
       if (isEdit) {
         await axios.put(`${API}/veiculos/${veiculo.id}`, payload)
       } else {
@@ -122,9 +139,30 @@ function VeiculoModal({ veiculo, onClose, onSaved }) {
               </select>
             </div>
           </div>
-          <div>
-            <label className="form-label">Chassi</label>
-            <input className="form-input" value={form.chassi} onChange={setF('chassi')} placeholder="Nº do chassi" />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="form-label">Chassi</label>
+              <input className="form-input" value={form.chassi} onChange={setF('chassi')} placeholder="Nº do chassi" />
+            </div>
+            <div>
+              <label className="form-label">Último KM</label>
+              <input className="form-input" type="number" value={form.ultimo_km} onChange={setF('ultimo_km')} placeholder="Ex: 125000" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="form-label">Capacidade</label>
+              <input className="form-input" value={form.capacidade} onChange={setF('capacidade')} placeholder="Ex: 14.000 kg" />
+            </div>
+            <div>
+              <label className="form-label">Vínculo do Veículo</label>
+              <select className="form-select" value={form.vinculo} onChange={setF('vinculo')}>
+                <option value="">-</option>
+                <option>Próprio</option>
+                <option>Locado</option>
+                <option>Terceiro</option>
+              </select>
+            </div>
           </div>
           <div className="flex gap-2 justify-end pt-1">
             <button type="button" className="btn-secondary btn-sm px-4 py-1.5" onClick={onClose}>
@@ -144,9 +182,22 @@ function VeiculoModal({ veiculo, onClose, onSaved }) {
 export default function ListagemVeiculos() {
   const [veiculos, setVeiculos] = useState([])
   const [loading, setLoading] = useState(false)
+  const [syncing, setSyncing] = useState(false)
   const [search, setSearch] = useState('')
-  const [modal, setModal] = useState(null) // null | 'new' | veiculo object
-  const [success, setSuccess] = useState('')
+  const [modal, setModal] = useState(null)
+  const [toast, setToast] = useState(null) // { msg, type: 'success'|'error' }
+  const [sortField, setSortField] = useState('')
+  const [sortDir, setSortDir] = useState('asc')
+
+  const handleSort = (field) => {
+    if (sortField === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortField(field); setSortDir('asc') }
+  }
+
+  const showToast = (msg, type = 'success') => {
+    setToast({ msg, type })
+    setTimeout(() => setToast(null), 4000)
+  }
 
   const fetchVeiculos = useCallback(async () => {
     setLoading(true)
@@ -161,31 +212,59 @@ export default function ListagemVeiculos() {
     }
   }, [search])
 
-  useEffect(() => {
-    fetchVeiculos()
-  }, [fetchVeiculos])
+  useEffect(() => { fetchVeiculos() }, [fetchVeiculos])
 
   const handleDelete = async (id) => {
     if (!window.confirm('Confirmar exclusão do veículo?')) return
     try {
       await axios.delete(`${API}/veiculos/${id}`)
-      setSuccess('Veículo excluído com sucesso.')
-      setTimeout(() => setSuccess(''), 3000)
+      showToast('Veículo excluído com sucesso.')
       fetchVeiculos()
     } catch (err) {
-      alert(err.response?.data?.detail || 'Erro ao excluir veículo')
+      showToast(err.response?.data?.detail || 'Erro ao excluir veículo', 'error')
     }
   }
 
   const handleSaved = () => {
     setModal(null)
-    setSuccess('Veículo salvo com sucesso!')
-    setTimeout(() => setSuccess(''), 3000)
+    showToast('Veículo salvo com sucesso!')
     fetchVeiculos()
   }
 
+  const handleSyncKm = async () => {
+    setSyncing(true)
+    try {
+      const res = await axios.post(`${API}/veiculos/sync-km`)
+      const { atualizados, nao_encontrados } = res.data
+      let msg = `${atualizados} veículo(s) atualizados com KM do Excel.`
+      if (nao_encontrados.length > 0) msg += ` Não encontrados: ${nao_encontrados.join(', ')}.`
+      showToast(msg)
+      fetchVeiculos()
+    } catch (err) {
+      showToast(err.response?.data?.detail || 'Erro ao sincronizar KM', 'error')
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  const cols = [
+    ['placa','Placa'],['marca','Marca'],['modelo','Modelo'],['tipo','Tipo'],
+    ['grupo','Grupo'],['ano','Ano'],['capacidade','Capacidade'],['vinculo','Vínculo'],
+    ['chassi','Chassi'],['ultimo_km','Último KM'],['created_at','Cadastro']
+  ]
+
   return (
     <div className="space-y-3">
+      {/* Toast */}
+      {toast && (
+        <div className={`fixed top-5 right-5 z-50 flex items-center gap-3 px-4 py-3 rounded-lg shadow-xl border text-sm font-medium max-w-sm
+          ${toast.type === 'error' ? 'bg-red-600 border-red-700 text-white' : 'bg-green-600 border-green-700 text-white'}`}>
+          {toast.type === 'error' ? <AlertCircle className="w-4 h-4 flex-shrink-0" /> : <CheckCircle className="w-4 h-4 flex-shrink-0" />}
+          <span className="flex-1">{toast.msg}</span>
+          <button onClick={() => setToast(null)} className="opacity-70 hover:opacity-100"><X className="w-4 h-4" /></button>
+        </div>
+      )}
+
       {/* Title */}
       <div className="flex items-center justify-between">
         <h1 className="text-base font-semibold text-gray-800">Veículos</h1>
@@ -194,21 +273,20 @@ export default function ListagemVeiculos() {
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
           <button
-            onClick={() => setModal('new')}
-            className="btn-primary flex items-center gap-1.5"
+            onClick={handleSyncKm}
+            disabled={syncing}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white rounded-lg font-bold shadow-sm transition-colors"
+            title="Sincronizar KM do Excel"
           >
+            {syncing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+            {syncing ? 'Sincronizando...' : 'Sync KM'}
+          </button>
+          <button onClick={() => setModal('new')} className="btn-primary flex items-center gap-1.5">
             <Plus className="w-3.5 h-3.5" />
             Novo Veículo
           </button>
         </div>
       </div>
-
-      {success && (
-        <div className="bg-green-50 border border-green-200 text-green-700 px-3 py-2 rounded flex items-center gap-2 text-sm">
-          <CheckCircle className="w-4 h-4 flex-shrink-0" />
-          {success}
-        </div>
-      )}
 
       {/* Search */}
       <div className="bg-white rounded shadow-sm border border-gray-200 px-3 py-2 flex items-center gap-2">
@@ -235,59 +313,51 @@ export default function ListagemVeiculos() {
           <table className="w-full text-xs">
             <thead>
               <tr className="bg-blue-50 border-b border-blue-100">
-                <th className="px-3 py-2 text-left text-blue-800 font-semibold">Placa</th>
-                <th className="px-3 py-2 text-left text-blue-800 font-semibold">Marca</th>
-                <th className="px-3 py-2 text-left text-blue-800 font-semibold">Modelo</th>
-                <th className="px-3 py-2 text-left text-blue-800 font-semibold">Tipo</th>
-                <th className="px-3 py-2 text-left text-blue-800 font-semibold">Grupo</th>
-                <th className="px-3 py-2 text-left text-blue-800 font-semibold">Ano</th>
-                <th className="px-3 py-2 text-left text-blue-800 font-semibold">Chassi</th>
-                <th className="px-3 py-2 text-left text-blue-800 font-semibold">Cadastro</th>
+                {cols.map(([f, l]) => (
+                  <th key={f} className="px-3 py-2 text-left text-blue-800 font-semibold cursor-pointer select-none hover:bg-blue-100 whitespace-nowrap" onClick={() => handleSort(f)}>
+                    <span className="flex items-center gap-1">{l} <SortIcon field={f} sortField={sortField} sortDir={sortDir} /></span>
+                  </th>
+                ))}
                 <th className="px-3 py-2 text-center text-blue-800 font-semibold">Ações</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr>
-                  <td colSpan={9} className="text-center py-8 text-gray-400">
-                    <RefreshCw className="w-5 h-5 animate-spin inline mr-2" />
-                    Carregando...
-                  </td>
-                </tr>
+                <tr><td colSpan={12} className="text-center py-8 text-gray-400">
+                  <RefreshCw className="w-5 h-5 animate-spin inline mr-2" />Carregando...
+                </td></tr>
               ) : veiculos.length === 0 ? (
-                <tr>
-                  <td colSpan={9} className="text-center py-8 text-gray-400">
-                    Nenhum veículo encontrado.
-                  </td>
-                </tr>
+                <tr><td colSpan={12} className="text-center py-8 text-gray-400">Nenhum veículo encontrado.</td></tr>
               ) : (
-                veiculos.map((v, idx) => (
-                  <tr
-                    key={v.id}
-                    className={`border-b border-gray-100 hover:bg-blue-50 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}
-                  >
+                (sortField ? [...veiculos].sort((a, b) => {
+                  const va = a[sortField] ?? ''; const vb = b[sortField] ?? ''
+                  return sortDir === 'asc' ? String(va).localeCompare(String(vb), 'pt-BR', { numeric: true }) : String(vb).localeCompare(String(va), 'pt-BR', { numeric: true })
+                }) : veiculos).map((v, idx) => (
+                  <tr key={v.id} className={`border-b border-gray-100 hover:bg-blue-50 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
                     <td className="px-3 py-2 font-medium text-blue-700">{v.placa}</td>
                     <td className="px-3 py-2">{v.marca || '-'}</td>
                     <td className="px-3 py-2">{v.modelo || '-'}</td>
                     <td className="px-3 py-2">{v.tipo || '-'}</td>
                     <td className="px-3 py-2">{v.grupo || '-'}</td>
                     <td className="px-3 py-2">{v.ano || '-'}</td>
+                    <td className="px-3 py-2">{v.capacidade || '-'}</td>
+                    <td className="px-3 py-2">{v.vinculo || '-'}</td>
                     <td className="px-3 py-2 text-gray-500">{v.chassi || '-'}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      {v.ultimo_km ? (
+                        <span className="inline-flex flex-col">
+                          <span className="font-semibold text-blue-700">{fmtKm(v.ultimo_km)}</span>
+                          {v.ultimo_km_data && <span className="text-gray-400 text-[10px]">{fmt(v.ultimo_km_data)}</span>}
+                        </span>
+                      ) : <span className="text-gray-300">-</span>}
+                    </td>
                     <td className="px-3 py-2 whitespace-nowrap text-gray-500">{fmt(v.created_at)}</td>
                     <td className="px-3 py-2">
                       <div className="flex items-center justify-center gap-1.5">
-                        <button
-                          className="p-0.5 text-gray-500 hover:text-yellow-600"
-                          title="Editar"
-                          onClick={() => setModal(v)}
-                        >
+                        <button className="p-0.5 text-gray-500 hover:text-yellow-600" title="Editar" onClick={() => setModal(v)}>
                           <Pencil className="w-3.5 h-3.5" />
                         </button>
-                        <button
-                          className="p-0.5 text-gray-500 hover:text-red-600"
-                          title="Excluir"
-                          onClick={() => handleDelete(v.id)}
-                        >
+                        <button className="p-0.5 text-gray-500 hover:text-red-600" title="Excluir" onClick={() => handleDelete(v.id)}>
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
@@ -300,7 +370,6 @@ export default function ListagemVeiculos() {
         </div>
       </div>
 
-      {/* Modal */}
       {modal && (
         <VeiculoModal
           veiculo={modal === 'new' ? null : modal}

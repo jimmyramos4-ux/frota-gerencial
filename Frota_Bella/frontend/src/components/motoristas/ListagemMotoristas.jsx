@@ -12,7 +12,15 @@ import {
   Users,
   AlertCircle,
   CheckCircle,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
 } from 'lucide-react'
+
+function SortIcon({ field, sortField, sortDir }) {
+  if (sortField !== field) return <ArrowUpDown className="w-3 h-3 opacity-30" />
+  return sortDir === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+}
 
 const API = 'http://localhost:8000/api'
 
@@ -119,6 +127,13 @@ export default function ListagemMotoristas() {
   const [search, setSearch] = useState('')
   const [modal, setModal] = useState(null) // null | 'new' | motorista object
   const [success, setSuccess] = useState('')
+  const [sortField, setSortField] = useState('')
+  const [sortDir, setSortDir] = useState('asc')
+
+  const handleSort = (field) => {
+    if (sortField === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortField(field); setSortDir('asc') }
+  }
 
   const fetchMotoristas = useCallback(async () => {
     setLoading(true)
@@ -211,9 +226,11 @@ export default function ListagemMotoristas() {
           <table className="w-full text-xs">
             <thead>
               <tr className="bg-blue-50 border-b border-blue-100">
-                <th className="px-3 py-2 text-left text-blue-800 font-semibold">Código</th>
-                <th className="px-3 py-2 text-left text-blue-800 font-semibold">Nome</th>
-                <th className="px-3 py-2 text-left text-blue-800 font-semibold">Cadastro</th>
+                {[['codigo','Código'],['nome','Nome'],['created_at','Cadastro']].map(([f,l]) => (
+                  <th key={f} className="px-3 py-2 text-left text-blue-800 font-semibold cursor-pointer select-none hover:bg-blue-100 whitespace-nowrap" onClick={() => handleSort(f)}>
+                    <span className="flex items-center gap-1">{l} <SortIcon field={f} sortField={sortField} sortDir={sortDir} /></span>
+                  </th>
+                ))}
                 <th className="px-3 py-2 text-center text-blue-800 font-semibold">Ações</th>
               </tr>
             </thead>
@@ -232,7 +249,10 @@ export default function ListagemMotoristas() {
                   </td>
                 </tr>
               ) : (
-                motoristas.map((m, idx) => (
+                (sortField ? [...motoristas].sort((a, b) => {
+                  const va = a[sortField] ?? ''; const vb = b[sortField] ?? ''
+                  return sortDir === 'asc' ? String(va).localeCompare(String(vb), 'pt-BR', { numeric: true }) : String(vb).localeCompare(String(va), 'pt-BR', { numeric: true })
+                }) : motoristas).map((m, idx) => (
                   <tr
                     key={m.id}
                     className={`border-b border-gray-100 hover:bg-blue-50 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}

@@ -20,7 +20,22 @@ from database import engine, get_db, Base
 
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Frota Bella API", version="1.0.0")
+# Migration: adiciona colunas novo se não existirem
+def _add_column_if_missing(engine, table, col_def):
+    from sqlalchemy import text, inspect
+    insp = inspect(engine)
+    cols = [c["name"] for c in insp.get_columns(table)]
+    if col_def[0] not in cols:
+        with engine.connect() as conn:
+            conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col_def[0]} {col_def[1]}"))
+            conn.commit()
+
+_add_column_if_missing(engine, "veiculos", ("ultimo_km", "INTEGER"))
+_add_column_if_missing(engine, "veiculos", ("ultimo_km_data", "DATETIME"))
+_add_column_if_missing(engine, "veiculos", ("capacidade", "VARCHAR(100)"))
+_add_column_if_missing(engine, "veiculos", ("vinculo", "VARCHAR(50)"))
+
+app = FastAPI(title="Frota Bello API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -368,6 +383,67 @@ def create_veiculo(data: schemas.VeiculoCreate, db: Session = Depends(get_db)):
     return veiculo
 
 
+# ── Ultimo Sync KM ────────────────────────────────────────────────────────────
+
+_last_sync_dt: str | None = None
+
+@app.get("/api/veiculos/ultimo-sync")
+def ultimo_sync_km(db: Session = Depends(get_db)):
+    from sqlalchemy import func
+    total = db.query(func.count(models.Veiculo.id)).filter(models.Veiculo.ultimo_km != None).scalar()
+    return {"ultima_sync": _last_sync_dt, "veiculos_com_km": total}
+
+
+# ── Sync KM Excel ─────────────────────────────────────────────────────────────
+
+EXCEL_KM_PATH = r"C:\Users\jimmy.ramos\OneDrive - Bello Alimentos LTDA\Bello\ULTIMOS KM.xlsx"
+
+@app.post("/api/veiculos/sync-km")
+def sync_km(db: Session = Depends(get_db)):
+    global _last_sync_dt
+    import openpyxl
+    from datetime import datetime as dt
+    try:
+        wb = openpyxl.load_workbook(EXCEL_KM_PATH)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Erro ao abrir Excel: {e}")
+
+    ws = wb.active
+    # Agrupa pelo KM mais recente por placa (col 0=placa, col 2=data, col 4=km)
+    placas: dict = {}
+    for row in ws.iter_rows(min_row=4, values_only=True):
+        placa = row[0]
+        km = row[4]
+        data = row[2]
+        if not placa or not isinstance(km, (int, float)) or km <= 0:
+            continue
+        if not hasattr(data, 'year'):
+            continue
+        placa = str(placa).strip().upper()
+        if placa not in placas or data > placas[placa][0]:
+            placas[placa] = (data, int(km))
+
+    atualizados = []
+    nao_encontrados = []
+    for placa, (data, km) in placas.items():
+        v = db.query(models.Veiculo).filter(models.Veiculo.placa == placa).first()
+        if v:
+            v.ultimo_km = km
+            v.ultimo_km_data = data
+            atualizados.append({"placa": placa, "km": km})
+        else:
+            nao_encontrados.append(placa)
+
+    db.commit()
+    from datetime import datetime as dt
+    _last_sync_dt = dt.now().isoformat()
+    return {
+        "atualizados": len(atualizados),
+        "nao_encontrados": nao_encontrados,
+        "detalhes": atualizados,
+    }
+
+
 @app.get("/api/veiculos/{veiculo_id}", response_model=schemas.VeiculoOut)
 def get_veiculo(veiculo_id: int, db: Session = Depends(get_db)):
     veiculo = db.query(models.Veiculo).filter(models.Veiculo.id == veiculo_id).first()
@@ -401,6 +477,121 @@ def delete_veiculo(veiculo_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Veículo não encontrado")
     db.delete(veiculo)
     db.commit()
+
+
+# ── Vencimentos ───────────────────────────────────────────────────────────────
+
+@app.get("/api/vencimentos")
+def list_vencimentos(db: Session = Depends(get_db)):
+    from datetime import date as dt_date
+    servicos = (
+        db.query(models.ServicoVeiculo, models.Manutencao, models.Veiculo)
+        .join(models.Manutencao, models.ServicoVeiculo.manutencao_id == models.Manutencao.id)
+        .join(models.Veiculo, models.Manutencao.veiculo_id == models.Veiculo.id)
+        .filter(
+            or_(
+                models.ServicoVeiculo.proximo_km_validade != None,
+                models.ServicoVeiculo.proxima_dt_validade != None,
+            )
+        )
+        .all()
+    )
+    today = dt_date.today()
+
+    # Carregar todos os tipos de serviço cadastrados para usar seus thresholds de notificação
+    tipos_map: dict = {}
+    for ts in db.query(models.TipoServicoCad).all():
+        tipos_map[(ts.nome or '').strip().lower()] = ts
+
+    # KM efetivo por veículo = max(ultimo_km, maior km_entrada das manutenções)
+    from sqlalchemy import func as sqlfunc
+    km_max_por_veiculo: dict = {}
+    rows = (
+        db.query(models.Manutencao.veiculo_id, sqlfunc.max(models.Manutencao.km_entrada))
+        .filter(models.Manutencao.km_entrada != None)
+        .group_by(models.Manutencao.veiculo_id)
+        .all()
+    )
+    for vid, max_km in rows:
+        km_max_por_veiculo[vid] = max_km
+
+    STATUS_ORDER = {"Vencido": 0, "Próximo": 1, "Ok": 2}
+
+    # Agrupar por (veiculo_id, servico) e manter apenas o registro mais recente
+    latest: dict = {}
+    for sv, m, v in servicos:
+        key = (v.id, (sv.servico or '').strip().lower())
+        km_val = sv.proximo_km_validade or 0
+        dt_val = sv.proxima_dt_validade or dt_date.min
+        existing = latest.get(key)
+        if existing is None:
+            latest[key] = (sv, m, v)
+        else:
+            esv, _, _ = existing
+            ex_km = esv.proximo_km_validade or 0
+            ex_dt = esv.proxima_dt_validade or dt_date.min
+            if (km_val, dt_val) > (ex_km, ex_dt):
+                latest[key] = (sv, m, v)
+
+    result = []
+    for sv, m, v in latest.values():
+        km_restante = None
+        status_km = None
+        dt_restante = None
+        status_dt = None
+
+        # Buscar tipo de serviço cadastrado para usar thresholds configurados
+        ts_key = (sv.servico or '').strip().lower()
+        tipo = tipos_map.get(ts_key)
+        km_notificacao = (tipo.hodometro_km_notificacao if tipo and tipo.hodometro_km_notificacao else None) or 5000
+        dias_notificacao = (tipo.nr_dias_notificacao if tipo and tipo.nr_dias_notificacao else None) or 30
+        # Parte do veículo: preferir o registrado no serviço, fallback para o do tipo cadastrado
+        parte_veiculo = sv.parte_veiculo or (tipo.parte_veiculo if tipo else None)
+
+        km_efetivo = max(
+            v.ultimo_km or 0,
+            km_max_por_veiculo.get(v.id) or 0,
+        ) or None
+        if sv.proximo_km_validade is not None and km_efetivo:
+            km_restante = sv.proximo_km_validade - km_efetivo
+            if km_restante <= 0:
+                status_km = "Vencido"
+            elif km_restante <= km_notificacao:
+                status_km = "Próximo"
+            else:
+                status_km = "Ok"
+        if sv.proxima_dt_validade is not None:
+            dt_restante = (sv.proxima_dt_validade - today).days
+            if dt_restante < 0:
+                status_dt = "Vencido"
+            elif dt_restante <= dias_notificacao:
+                status_dt = "Próximo"
+            else:
+                status_dt = "Ok"
+        overall = min(
+            STATUS_ORDER.get(status_km or '', 3),
+            STATUS_ORDER.get(status_dt or '', 3)
+        )
+        overall_label = ["Vencido", "Próximo", "Ok", None][overall]
+        result.append({
+            "servico_id": sv.id,
+            "manutencao_id": m.id,
+            "veiculo_id": v.id,
+            "veiculo_placa": v.placa,
+            "veiculo_descricao": v.descricao,
+            "ultimo_km": km_efetivo,
+            "servico": sv.servico,
+            "parte_veiculo": parte_veiculo,
+            "proximo_km_validade": sv.proximo_km_validade,
+            "proxima_dt_validade": sv.proxima_dt_validade.isoformat() if sv.proxima_dt_validade else None,
+            "km_restante": km_restante,
+            "dt_restante_dias": dt_restante,
+            "status_km": status_km,
+            "status_dt": status_dt,
+            "status": overall_label,
+        })
+    result.sort(key=lambda x: STATUS_ORDER.get(x["status"] or '', 3))
+    return result
 
 
 # ── Motoristas ────────────────────────────────────────────────────────────────
@@ -468,6 +659,17 @@ def list_manutencoes(
     motorista: Optional[str] = None,
     dt_inicio_gte: Optional[str] = None,
     dt_inicio_lte: Optional[str] = None,
+    dt_termino_gte: Optional[str] = None,
+    dt_termino_lte: Optional[str] = None,
+    dt_previsao_gte: Optional[str] = None,
+    dt_previsao_lte: Optional[str] = None,
+    km_gte: Optional[str] = None,
+    km_lte: Optional[str] = None,
+    resp_manutencao: Optional[str] = None,
+    servicos_solicitados: Optional[str] = None,
+    manutencao: Optional[str] = None,
+    anexo: Optional[str] = None,
+    tipo_servico: Optional[str] = None,
     search: Optional[str] = None,
     db: Session = Depends(get_db),
 ):
@@ -496,6 +698,25 @@ def list_manutencoes(
                 models.Motorista.codigo.ilike(f"%{motorista}%"),
             )
         )
+    if manutencao:
+        try:
+            query = query.filter(models.Manutencao.id == int(manutencao))
+        except ValueError:
+            pass
+    if resp_manutencao:
+        query = query.filter(models.Manutencao.responsavel_manutencao.ilike(f"%{resp_manutencao}%"))
+    if servicos_solicitados:
+        query = query.filter(models.Manutencao.servicos_solicitados.ilike(f"%{servicos_solicitados}%"))
+    if km_gte:
+        try:
+            query = query.filter(models.Manutencao.km_entrada >= int(km_gte))
+        except ValueError:
+            pass
+    if km_lte:
+        try:
+            query = query.filter(models.Manutencao.km_entrada <= int(km_lte))
+        except ValueError:
+            pass
     if dt_inicio_gte:
         try:
             query = query.filter(models.Manutencao.dt_inicio >= datetime.fromisoformat(dt_inicio_gte))
@@ -506,6 +727,40 @@ def list_manutencoes(
             query = query.filter(models.Manutencao.dt_inicio <= datetime.fromisoformat(dt_inicio_lte))
         except ValueError:
             pass
+    if dt_termino_gte:
+        try:
+            query = query.filter(models.Manutencao.dt_termino >= datetime.fromisoformat(dt_termino_gte))
+        except ValueError:
+            pass
+    if dt_termino_lte:
+        try:
+            query = query.filter(models.Manutencao.dt_termino <= datetime.fromisoformat(dt_termino_lte))
+        except ValueError:
+            pass
+    if dt_previsao_gte:
+        try:
+            query = query.filter(models.Manutencao.dt_previsao >= datetime.fromisoformat(dt_previsao_gte))
+        except ValueError:
+            pass
+    if dt_previsao_lte:
+        try:
+            query = query.filter(models.Manutencao.dt_previsao <= datetime.fromisoformat(dt_previsao_lte))
+        except ValueError:
+            pass
+    if anexo == 'sim':
+        ids_com_arquivo = db.query(models.ArquivoManutencao.manutencao_id).distinct().subquery()
+        query = query.filter(models.Manutencao.id.in_(ids_com_arquivo))
+    elif anexo == 'nao':
+        ids_com_arquivo = db.query(models.ArquivoManutencao.manutencao_id).distinct().subquery()
+        query = query.filter(~models.Manutencao.id.in_(ids_com_arquivo))
+    if tipo_servico:
+        ids_com_servico = (
+            db.query(models.ServicoVeiculo.manutencao_id)
+            .filter(models.ServicoVeiculo.servico.ilike(f"%{tipo_servico}%"))
+            .distinct()
+            .subquery()
+        )
+        query = query.filter(models.Manutencao.id.in_(ids_com_servico))
     if search:
         query = query.filter(
             or_(
@@ -542,6 +797,7 @@ def list_manutencoes(
                 tipo=m.tipo,
                 status=m.status,
                 created_at=m.created_at,
+                arquivos_count=len(m.arquivos),
             )
         )
 
@@ -796,7 +1052,7 @@ def frota_status(db: Session = Depends(get_db)):
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "app": "Frota Bella"}
+    return {"status": "ok", "app": "Frota Bello"}
 
 
 # ── Solicitações ──────────────────────────────────────────────────────────────

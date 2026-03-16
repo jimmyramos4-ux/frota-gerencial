@@ -1,7 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import axios from 'axios'
-import { Pencil, RefreshCw, AlertCircle, CheckCircle, Info } from 'lucide-react'
+import { Pencil, RefreshCw, AlertCircle, CheckCircle, Info, X, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
+
+function SortIcon({ field, sortField, sortDir }) {
+  if (sortField !== field) return <ArrowUpDown className="w-3 h-3 opacity-30" />
+  return sortDir === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+}
 
 const API = 'http://localhost:8000/api'
 
@@ -75,7 +80,7 @@ function Cell({ label, children }) {
 }
 
 // ─── FORMULÁRIO ──────────────────────────────────────────────────────────────
-function FormView({ editItem, partes, onSaved, onCancelEdit }) {
+export function FormView({ editItem, partes, onSaved, onCancelEdit }) {
   const [form, setForm] = useState(EMPTY)
   const [acao, setAcao] = useState('alterar')
   const [status, setStatus] = useState({ msg: '', type: '' })
@@ -134,22 +139,23 @@ function FormView({ editItem, partes, onSaved, onCancelEdit }) {
   const handleSubmit = async () => {
     setLoading(true)
     try {
+      let createdNome = null
       if (editItem && acao === 'excluir') {
         await axios.delete(`${API}/tipos-servico/${editItem.id}`)
         showStatus('Excluído com sucesso!')
-        onSaved()
       } else {
         if (!form.nome.trim()) { showStatus('Informe o Tipo de Serviço.', 'error'); setLoading(false); return }
         if (editItem) {
           await axios.put(`${API}/tipos-servico/${editItem.id}`, payload())
           showStatus('Atualizado com sucesso!')
         } else {
-          await axios.post(`${API}/tipos-servico`, payload())
+          const res = await axios.post(`${API}/tipos-servico`, payload())
           showStatus('Cadastrado com sucesso!')
+          createdNome = res.data.nome
           setForm(EMPTY)
         }
-        onSaved()
       }
+      onSaved(createdNome)
     } catch (err) {
       showStatus(err.response?.data?.detail || 'Erro ao salvar.', 'error')
     } finally { setLoading(false) }
@@ -306,6 +312,40 @@ function FormView({ editItem, partes, onSaved, onCancelEdit }) {
   )
 }
 
+// ─── MODAL POPUP (usado pelo LookupField) ─────────────────────────────────────
+export function TipoServicoModal({ onClose, onSelected }) {
+  const [partes, setPartes] = useState([])
+
+  useEffect(() => {
+    axios.get(`${API}/partes-veiculo/lookup`).then(r => setPartes(r.data)).catch(() => {})
+  }, [])
+
+  const handleSaved = (nome) => {
+    if (nome) { onSelected(nome); onClose() }
+  }
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[10000] flex items-start justify-center overflow-y-auto py-4"
+      style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl mx-4 my-auto" onMouseDown={e => e.stopPropagation()}>
+        <div className="bg-gradient-to-r from-blue-700 to-blue-500 px-4 py-3 flex items-center justify-between rounded-t-xl sticky top-0 z-10">
+          <span className="text-white font-bold text-sm">Cadastro de Tipo de Serviço</span>
+          <button type="button" onClick={onClose} className="text-blue-200 hover:text-white transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="p-4">
+          <FormView editItem={null} partes={partes} onSaved={handleSaved} onCancelEdit={onClose} />
+        </div>
+      </div>
+    </div>,
+    document.body
+  )
+}
+
 // ─── LISTAGEM ─────────────────────────────────────────────────────────────────
 export default function CadastroTipoServico() {
   const [view, setView] = useState('list') // 'list' | 'form'
@@ -320,6 +360,14 @@ export default function CadastroTipoServico() {
   const [totalPages, setTotalPages] = useState(1)
   const [loading, setLoading] = useState(false)
   const [statusMsg, setStatusMsg] = useState('')
+
+  const [sortField, setSortField] = useState('')
+  const [sortDir, setSortDir] = useState('asc')
+
+  const handleSort = (field) => {
+    if (sortField === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortField(field); setSortDir('asc') }
+  }
 
   // filtros
   const [fNome, setFNome] = useState('')
@@ -449,13 +497,11 @@ export default function CadastroTipoServico() {
           <table className="w-full text-xs">
             <thead>
               <tr className="bg-blue-100 border-b border-blue-200">
-                <th className="px-2 py-1.5 text-left text-blue-800 font-semibold">Tipo de Serviço</th>
-                <th className="px-2 py-1.5 text-left text-blue-800 font-semibold">Parte do Veículo</th>
-                <th className="px-2 py-1.5 text-center text-blue-800 font-semibold">Dias Val.</th>
-                <th className="px-2 py-1.5 text-center text-blue-800 font-semibold">Dias Not.</th>
-                <th className="px-2 py-1.5 text-center text-blue-800 font-semibold">Hodômetro Val. (Km)</th>
-                <th className="px-2 py-1.5 text-center text-blue-800 font-semibold">Hodômetro Not. (Km)</th>
-                <th className="px-2 py-1.5 text-center text-blue-800 font-semibold">Ativo</th>
+                {[['nome','Tipo de Serviço','left'],['parte_veiculo','Parte do Veículo','left'],['nr_dias_validade','Dias Val.','center'],['nr_dias_notificacao','Dias Not.','center'],['hodometro_km_validade','Hodômetro Val. (Km)','center'],['hodometro_km_notificacao','Hodômetro Not. (Km)','center'],['ativo','Ativo','center']].map(([f,l,align]) => (
+                  <th key={f} className={`px-2 py-1.5 text-${align} text-blue-800 font-semibold cursor-pointer select-none hover:bg-blue-200 whitespace-nowrap`} onClick={() => handleSort(f)}>
+                    <span className={`flex items-center gap-1 ${align === 'center' ? 'justify-center' : ''}`}>{l} <SortIcon field={f} sortField={sortField} sortDir={sortDir} /></span>
+                  </th>
+                ))}
                 <th className="px-2 py-1.5 text-center text-blue-800 font-semibold"></th>
               </tr>
             </thead>
@@ -466,7 +512,10 @@ export default function CadastroTipoServico() {
                 </td></tr>
               ) : items.length === 0 ? (
                 <tr><td colSpan={8} className="text-center py-8 text-gray-400">Nenhum registro encontrado.</td></tr>
-              ) : items.map((item, idx) => (
+              ) : (sortField ? [...items].sort((a, b) => {
+                  const va = a[sortField] ?? ''; const vb = b[sortField] ?? ''
+                  return sortDir === 'asc' ? String(va).localeCompare(String(vb), 'pt-BR', { numeric: true }) : String(vb).localeCompare(String(va), 'pt-BR', { numeric: true })
+                }) : items).map((item, idx) => (
                 <tr key={item.id} className={`border-b border-gray-100 hover:bg-blue-50 ${idx % 2 === 0 ? '' : 'bg-gray-50'}`}>
                   <td className="px-2 py-1.5 font-medium">{item.nome}</td>
                   <td className="px-2 py-1.5 text-gray-600">{item.parte_veiculo || ''}</td>

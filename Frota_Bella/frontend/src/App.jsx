@@ -11,6 +11,7 @@ import ListagemMotoristas from './components/motoristas/ListagemMotoristas.jsx'
 import CadastroParteVeiculo from './components/partesveiculo/CadastroParteVeiculo.jsx'
 import CadastroTipoServico from './components/tiposservico/CadastroTipoServico.jsx'
 import Solicitacoes from './components/solicitacoes/Solicitacoes.jsx'
+import Vencimentos from './components/vencimentos/Vencimentos.jsx'
 import { Cog } from 'lucide-react'
 
 export default function App() {
@@ -30,6 +31,7 @@ export default function App() {
           <Route path="partes-veiculo" element={<CadastroParteVeiculo />} />
           <Route path="tipos-servico" element={<CadastroTipoServico />} />
           <Route path="solicitacoes" element={<Solicitacoes />} />
+          <Route path="vencimentos" element={<Vencimentos />} />
         </Route>
       </Routes>
     </BrowserRouter>

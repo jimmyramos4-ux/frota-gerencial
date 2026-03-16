@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import axios from 'axios'
-import { Pencil, RefreshCw, AlertCircle, CheckCircle } from 'lucide-react'
+import { Pencil, RefreshCw, AlertCircle, CheckCircle, X } from 'lucide-react'
 
 const API = 'http://localhost:8000/api'
 const EMPTY = { nome: '', email_notificacao: '', ativo: true }
@@ -31,7 +31,7 @@ function LupaIcon() {
 }
 
 // ─── FORMULÁRIO ──────────────────────────────────────────────────────────────
-function FormView({ editItem, onSaved, onCancelEdit }) {
+export function FormView({ editItem, onSaved, onCancelEdit }) {
   const [form, setForm] = useState(EMPTY)
   const [acao, setAcao] = useState('alterar') // 'alterar' | 'excluir'
   const [status, setStatus] = useState({ msg: '', type: '' })
@@ -79,14 +79,14 @@ function FormView({ editItem, onSaved, onCancelEdit }) {
         showStatus('Atualizado com sucesso!')
         onSaved()
       } else {
-        await axios.post(`${API}/partes-veiculo`, {
+        const res = await axios.post(`${API}/partes-veiculo`, {
           nome: form.nome.trim(),
           email_notificacao: form.email_notificacao || null,
           ativo: form.ativo,
         })
         showStatus('Cadastrado com sucesso!')
         setForm(EMPTY)
-        onSaved()
+        onSaved(res.data.nome)
       }
     } catch (err) {
       showStatus(err.response?.data?.detail || 'Erro ao salvar.', 'error')
@@ -231,6 +231,34 @@ function FormView({ editItem, onSaved, onCancelEdit }) {
         </button>
       </div>
     </div>
+  )
+}
+
+// ─── MODAL POPUP (usado pelo LookupField) ─────────────────────────────────────
+export function ParteVeiculoModal({ onClose, onSelected }) {
+  const handleSaved = (nome) => {
+    if (nome) { onSelected(nome); onClose() }
+  }
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[10000] flex items-center justify-center overflow-auto py-4"
+      style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-xl mx-4" onMouseDown={e => e.stopPropagation()}>
+        <div className="bg-gradient-to-r from-blue-700 to-blue-500 px-4 py-3 flex items-center justify-between rounded-t-xl">
+          <span className="text-white font-bold text-sm">Cadastro de Parte do Veículo</span>
+          <button type="button" onClick={onClose} className="text-blue-200 hover:text-white transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="p-4">
+          <FormView editItem={null} onSaved={handleSaved} onCancelEdit={onClose} />
+        </div>
+      </div>
+    </div>,
+    document.body
   )
 }
 

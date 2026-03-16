@@ -8,6 +8,6 @@ echo.
 echo Installing npm dependencies...
 npm install
 echo.
-echo Starting Frota Bella Frontend on http://localhost:5173
+echo Starting Frota Bello Frontend on http://localhost:5173
 echo.
 npm run dev

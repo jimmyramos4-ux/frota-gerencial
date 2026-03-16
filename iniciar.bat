@@ -1,9 +1,9 @@
 @echo off
-title Frota Bella - Sistema de Gestão de Frotas
+title Frota Bello - Sistema de Gestão de Frotas
 color 0A
 
 echo ============================================
-echo   Frota Bella - Iniciando o sistema...
+echo   Frota Bello - Iniciando o sistema...
 echo ============================================
 echo.
 
@@ -23,10 +23,10 @@ cd /d "%~dp0Frota_Bella\backend"
 pip install -r requirements.txt -q
 
 :: Verifica se o banco de dados existe
-if not exist "frota_bella.db" (
+if not exist "frota_bello.db" (
     echo.
-    echo [AVISO] Arquivo frota_bella.db não encontrado!
-    echo Copie o arquivo frota_bella.db para a pasta:
+    echo [AVISO] Arquivo frota_bello.db não encontrado!
+    echo Copie o arquivo frota_bello.db para a pasta:
     echo %~dp0Frota_Bella\backend\
     echo.
     pause

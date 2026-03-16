@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import axios from 'axios'
 import {
   Wrench, Car, RefreshCw, ChevronDown, ChevronUp, ChevronsUpDown,
-  AlertTriangle, CheckCircle2,
+  AlertTriangle, CheckCircle2, Eye,
 } from 'lucide-react'
 
 const API = 'http://localhost:8000/api'
@@ -104,12 +105,25 @@ function VeiculoRow({ v }) {
             )
             : <span className="text-gray-300">—</span>}
         </td>
+
+        {/* Ver manutenção */}
+        <td className="px-3 py-2 text-center" onClick={e => e.stopPropagation()}>
+          {manut
+            ? (
+              <Link to={`/manutencoes/${manut.id}/editar`}
+                className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 hover:text-blue-800 transition-colors"
+                title="Ver manutenção">
+                <Eye className="w-3.5 h-3.5" />
+              </Link>
+            )
+            : <span className="text-gray-300">—</span>}
+        </td>
       </tr>
 
       {/* Sub-tabela de serviços */}
       {open && manut && (
         <tr>
-          <td colSpan={9} className="px-0 pb-0 pt-0 bg-orange-50 border-b-2 border-orange-300">
+          <td colSpan={10} className="px-0 pb-0 pt-0 bg-orange-50 border-b-2 border-orange-300">
             <div className="mx-4 mb-3 mt-1 rounded-lg border border-orange-300 overflow-hidden shadow-sm">
               {/* Cabeçalho resumo da manutenção */}
               <div className="bg-gradient-to-r from-orange-500 to-orange-400 px-4 py-2 text-xs text-white flex flex-wrap gap-x-5 gap-y-0.5 font-medium">
@@ -203,8 +217,8 @@ function sortFrota(list, col, dir) {
 export default function Dashboard() {
   const [frota, setFrota] = useState([])
   const [loading, setLoading] = useState(true)
-  const [sortCol, setSortCol] = useState('')
-  const [sortDir, setSortDir] = useState('asc')
+  const [sortCol, setSortCol] = useState('status')
+  const [sortDir, setSortDir] = useState('desc')
 
   const fetchAll = async () => {
     setLoading(true)
@@ -306,14 +320,15 @@ export default function Dashboard() {
                   { col: 'responsavel',label: 'Responsável',  cls: 'px-3 py-2 text-left' },
                   { col: 'prioridade', label: 'Prioridade',   cls: 'px-3 py-2 text-left' },
                   { col: 'servicos',   label: 'Serviços',     cls: 'px-3 py-2 text-left' },
+                  { col: '_ver',       label: '',             cls: 'px-3 py-2 text-center w-8' },
                 ].map(({ col, label, cls }) => (
                   <th key={col}
-                    onClick={() => handleSort(col)}
-                    className={`${cls} text-gray-600 font-semibold cursor-pointer select-none hover:bg-gray-200 transition-colors`}
+                    onClick={() => col !== '_ver' && handleSort(col)}
+                    className={`${cls} text-gray-600 font-semibold select-none transition-colors ${col !== '_ver' ? 'cursor-pointer hover:bg-gray-200' : ''}`}
                   >
                     <span className="inline-flex items-center gap-1">
                       {label}
-                      <SortIcon col={col} sortCol={sortCol} sortDir={sortDir} />
+                      {col !== '_ver' && <SortIcon col={col} sortCol={sortCol} sortDir={sortDir} />}
                     </span>
                   </th>
                 ))}
@@ -321,11 +336,11 @@ export default function Dashboard() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={9} className="text-center py-10 text-gray-400">
+                <tr><td colSpan={10} className="text-center py-10 text-gray-400">
                   <RefreshCw className="w-4 h-4 animate-spin inline mr-2" />Carregando...
                 </td></tr>
               ) : sorted.length === 0 ? (
-                <tr><td colSpan={9} className="text-center py-10 text-gray-400">Nenhum veículo cadastrado.</td></tr>
+                <tr><td colSpan={10} className="text-center py-10 text-gray-400">Nenhum veículo cadastrado.</td></tr>
               ) : (
                 sorted.map(v => <VeiculoRow key={v.id} v={v} />)
               )}

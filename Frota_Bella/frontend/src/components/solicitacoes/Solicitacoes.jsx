@@ -4,15 +4,21 @@ import axios from 'axios'
 import {
   ClipboardList, Plus, Trash2, Pencil, Check, X,
   AlertTriangle, ChevronDown, Search, Car, Wrench, ImagePlus, Paperclip, ChevronLeft, ChevronRight,
+  ArrowUp, ArrowDown, ArrowUpDown,
 } from 'lucide-react'
+
+function SortIcon({ field, sortField, sortDir }) {
+  if (sortField !== field) return <ArrowUpDown className="w-3 h-3 opacity-30" />
+  return sortDir === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+}
 
 const API = 'http://localhost:8000/api'
 
-const PRIORIDADES = ['Urgente', 'Alta', 'Média', 'Baixa']
+const PRIORIDADES = ['Crítico', 'Alta', 'Média', 'Baixa']
 const STATUS_LIST = ['Aberta', 'Em Análise', 'Finalizada', 'Rejeitada']
 
 const priorBadge = {
-  Urgente: 'bg-red-600 text-white',
+  Crítico: 'bg-red-600 text-white',
   Alta:    'bg-orange-500 text-white',
   Média:   'bg-yellow-400 text-gray-900',
   Baixa:   'bg-green-500 text-white',
@@ -26,7 +32,7 @@ const statusBadge = {
   Rejeitada:   'bg-red-100 text-red-700 border border-red-300',
 }
 
-const priorOrder = { Urgente: 0, Alta: 1, Média: 2, Baixa: 3 }
+const priorOrder = { Crítico: 0, Alta: 1, Média: 2, Baixa: 3 }
 
 const emptyForm = {
   veiculo_id: '',
@@ -63,6 +69,13 @@ export default function Solicitacoes() {
   const editFileInputRef = useRef()
   const [editImages, setEditImages] = useState([])
   const [lightbox, setLightbox] = useState(null) // { images: [], idx: 0 }
+  const [sortField, setSortField] = useState('')
+  const [sortDir, setSortDir] = useState('asc')
+
+  const handleSort = (field) => {
+    if (sortField === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortField(field); setSortDir('asc') }
+  }
 
   useEffect(() => {
     load()
@@ -81,8 +94,8 @@ export default function Solicitacoes() {
 
   const handleSave = async (e) => {
     e.preventDefault()
-    if (!form.solicitante.trim() || !form.descricao.trim()) {
-      setError('Solicitante e Descrição são obrigatórios'); return
+    if (!form.veiculo_id || !form.descricao.trim()) {
+      setError('Veículo e Descrição são obrigatórios'); return
     }
     setSaving(true); setError('')
     try {
@@ -91,6 +104,7 @@ export default function Solicitacoes() {
       setItems(prev => [r.data, ...prev])
       setForm(emptyForm)
       setFormImages([])
+      setShowForm(false)
     } catch (err) {
       setError(err.response?.data?.detail || 'Erro ao salvar')
     } finally { setSaving(false) }
@@ -150,7 +164,14 @@ export default function Solicitacoes() {
     .filter(s => !search || s.descricao.toLowerCase().includes(search.toLowerCase()) || s.solicitante.toLowerCase().includes(search.toLowerCase()))
     .sort((a, b) => (priorOrder[a.prioridade] ?? 9) - (priorOrder[b.prioridade] ?? 9))
 
-  const counts = { total: items.length, abertas: items.filter(x => x.status === 'Aberta').length, urgentes: items.filter(x => x.prioridade === 'Urgente' && x.status === 'Aberta').length }
+  const displayItems = sortField
+    ? [...filtered].sort((a, b) => {
+        const va = a[sortField] ?? ''; const vb = b[sortField] ?? ''
+        return sortDir === 'asc' ? String(va).localeCompare(String(vb), 'pt-BR', { numeric: true }) : String(vb).localeCompare(String(va), 'pt-BR', { numeric: true })
+      })
+    : filtered
+
+  const counts = { total: items.length, abertas: items.filter(x => x.status === 'Aberta').length, urgentes: items.filter(x => x.prioridade === 'Crítico' && x.status === 'Aberta').length }
 
   return (
     <div className="space-y-4 max-w-7xl mx-auto">
@@ -175,7 +196,7 @@ export default function Solicitacoes() {
           </div>
           <div className="bg-blue-700 rounded px-3 py-1.5 text-center">
             <div className="text-red-300 font-bold text-lg leading-none">{counts.urgentes}</div>
-            <div className="text-blue-300">Urgentes</div>
+            <div className="text-blue-300">Críticos</div>
           </div>
         </div>
       </div>
@@ -204,17 +225,17 @@ export default function Solicitacoes() {
           <form onSubmit={handleSave} className="p-4 bg-white space-y-3">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-blue-800 mb-1">Solicitante <span className="text-red-500">*</span></label>
-                <input className={inp} placeholder="Nome do solicitante" value={form.solicitante} onChange={setF('solicitante')} />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-blue-800 mb-1">Veículo</label>
+                <label className="block text-xs font-semibold text-blue-800 mb-1">Veículo <span className="text-red-500">*</span></label>
                 <select className={sel} value={form.veiculo_id} onChange={setF('veiculo_id')}>
                   <option value="">— Selecione —</option>
                   {veiculos.map(v => (
                     <option key={v.id} value={v.id}>{v.placa} — {v.descricao}</option>
                   ))}
                 </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-blue-800 mb-1">Solicitante</label>
+                <input className={inp} placeholder="Nome do solicitante" value={form.solicitante} onChange={setF('solicitante')} />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-blue-800 mb-1">Prioridade</label>
@@ -227,9 +248,15 @@ export default function Solicitacoes() {
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-blue-800 mb-1">Descrição do Problema / Serviço Solicitado <span className="text-red-500">*</span></label>
-              <textarea className={`${inp} resize-none`} rows={3} placeholder="Descreva o problema ou serviço necessário..." value={form.descricao} onChange={setF('descricao')} />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-blue-800 mb-1">Descrição do Problema / Serviço Solicitado <span className="text-red-500">*</span></label>
+                <textarea className={`${inp} resize-none`} rows={3} placeholder="Descreva o problema ou serviço necessário..." value={form.descricao} onChange={setF('descricao')} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-blue-800 mb-1">Observações</label>
+                <textarea className={`${inp} resize-none`} rows={3} placeholder="Observações adicionais..." value={form.observacao} onChange={setF('observacao')} />
+              </div>
             </div>
 
             <div>
@@ -310,13 +337,13 @@ export default function Solicitacoes() {
       <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
         {/* Cabeçalho */}
         <div className="bg-blue-50 border-b border-blue-100 px-3 py-2 flex items-center gap-2 text-xs font-semibold text-blue-800 select-none">
-          <span className="w-8 flex-shrink-0">#</span>
-          <span className="w-24 flex-shrink-0">Veículo</span>
-          <span className="w-32 flex-shrink-0">Solicitante</span>
-          <span className="flex-1 min-w-0">Descrição</span>
-          <span className="w-20 flex-shrink-0">Prioridade</span>
-          <span className="w-24 flex-shrink-0 text-center">Dias em Aberto</span>
-          <span className="w-24 flex-shrink-0">Status</span>
+          <span className="w-8 flex-shrink-0 cursor-pointer hover:text-blue-600" onClick={() => handleSort('id')}><span className="flex items-center gap-0.5"># <SortIcon field="id" sortField={sortField} sortDir={sortDir} /></span></span>
+          <span className="w-24 flex-shrink-0 cursor-pointer hover:text-blue-600" onClick={() => handleSort('veiculo_id')}><span className="flex items-center gap-0.5">Veículo <SortIcon field="veiculo_id" sortField={sortField} sortDir={sortDir} /></span></span>
+          <span className="w-32 flex-shrink-0 cursor-pointer hover:text-blue-600" onClick={() => handleSort('solicitante')}><span className="flex items-center gap-0.5">Solicitante <SortIcon field="solicitante" sortField={sortField} sortDir={sortDir} /></span></span>
+          <span className="flex-1 min-w-0 cursor-pointer hover:text-blue-600" onClick={() => handleSort('descricao')}><span className="flex items-center gap-0.5">Descrição <SortIcon field="descricao" sortField={sortField} sortDir={sortDir} /></span></span>
+          <span className="w-20 flex-shrink-0 cursor-pointer hover:text-blue-600" onClick={() => handleSort('prioridade')}><span className="flex items-center gap-0.5">Prioridade <SortIcon field="prioridade" sortField={sortField} sortDir={sortDir} /></span></span>
+          <span className="w-24 flex-shrink-0 text-center cursor-pointer hover:text-blue-600" onClick={() => handleSort('dt_solicitacao')}><span className="flex items-center justify-center gap-0.5">Dias em Aberto <SortIcon field="dt_solicitacao" sortField={sortField} sortDir={sortDir} /></span></span>
+          <span className="w-24 flex-shrink-0 cursor-pointer hover:text-blue-600" onClick={() => handleSort('status')}><span className="flex items-center gap-0.5">Status <SortIcon field="status" sortField={sortField} sortDir={sortDir} /></span></span>
           <span className="w-24 flex-shrink-0">Manutenção</span>
           <span className="w-10 flex-shrink-0 text-center">Anexo</span>
           <span className="w-16 flex-shrink-0 text-center">Ações</span>
@@ -326,9 +353,9 @@ export default function Solicitacoes() {
           <div className="p-8 text-center text-gray-400 text-sm">
             Nenhuma solicitação encontrada.
           </div>
-        ) : filtered.map((s, idx) => (
+        ) : displayItems.map((s, idx) => (
           <div key={s.id} className={`border-b border-gray-100 last:border-b-0 ${
-            s.prioridade === 'Urgente' ? 'border-l-4 border-l-red-500' :
+            s.prioridade === 'Crítico' ? 'border-l-4 border-l-red-500' :
             s.prioridade === 'Alta'    ? 'border-l-4 border-l-orange-400' :
             s.prioridade === 'Média'   ? 'border-l-4 border-l-yellow-400' :
                                          'border-l-4 border-l-green-400'
@@ -424,7 +451,7 @@ export default function Solicitacoes() {
                 <span className="w-32 flex-shrink-0 text-xs text-gray-700 truncate">{s.solicitante}</span>
                 <span className="flex-1 min-w-0 text-xs font-medium text-gray-800 truncate">{s.descricao}</span>
                 <span className={`w-20 flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold whitespace-nowrap ${priorBadge[s.prioridade]}`}>
-                  {s.prioridade === 'Urgente' && <AlertTriangle className="w-3 h-3" />}
+                  {s.prioridade === 'Crítico' && <AlertTriangle className="w-3 h-3" />}
                   {s.prioridade}
                 </span>
                 <span className="w-24 flex-shrink-0 text-center text-xs font-semibold text-gray-600">

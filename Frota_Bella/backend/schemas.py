@@ -63,6 +63,8 @@ class VeiculoBase(BaseModel):
     grupo: Optional[str] = None
     ano: Optional[int] = None
     chassi: Optional[str] = None
+    capacidade: Optional[str] = None
+    vinculo: Optional[str] = None
 
 
 class VeiculoCreate(VeiculoBase):
@@ -78,10 +80,16 @@ class VeiculoUpdate(BaseModel):
     grupo: Optional[str] = None
     ano: Optional[int] = None
     chassi: Optional[str] = None
+    capacidade: Optional[str] = None
+    vinculo: Optional[str] = None
+    ultimo_km: Optional[int] = None
+    ultimo_km_data: Optional[datetime] = None
 
 
 class VeiculoOut(VeiculoBase):
     id: int
+    ultimo_km: Optional[int] = None
+    ultimo_km_data: Optional[datetime] = None
     created_at: datetime
 
     class Config:
@@ -203,6 +211,7 @@ class ManutencaoListItem(BaseModel):
     tipo: Optional[str] = None
     status: Optional[str] = None
     created_at: datetime
+    arquivos_count: int = 0
 
     class Config:
         from_attributes = True
