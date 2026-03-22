@@ -1,49 +1,41 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import axios from 'axios'
 import { Pencil, RefreshCw, AlertCircle, CheckCircle, X } from 'lucide-react'
 
 const API = 'http://localhost:8000/api'
-const EMPTY = { nome: '', email_notificacao: '', ativo: true }
+const EMPTY = {
+  nome: '', cnpj_cpf: '', telefone: '', email: '',
+  endereco: '', cidade: '', especialidade: '', observacao: '', ativo: true,
+}
 
 const inp = "border border-gray-300 dark:border-gray-600 rounded px-2 py-0.5 text-xs w-full focus:outline-none focus:border-blue-400 dark:bg-gray-700 dark:text-gray-100"
 const sel = "border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 text-xs focus:outline-none focus:border-blue-400 bg-white dark:bg-gray-700 dark:text-gray-100"
 
-function WarnIcon() {
-  return (
-    <span className="inline-flex items-center justify-center w-5 h-5 bg-yellow-500 rounded-sm" title="Informativo">
-      <svg width="11" height="11" viewBox="0 0 24 24" fill="white" stroke="white" strokeWidth="1">
-        <path d="M12 2L1 21h22L12 2z" fill="none" stroke="white" strokeWidth="2"/>
-        <text x="11" y="18" fontSize="10" fill="white" fontWeight="bold">!</text>
-      </svg>
-    </span>
-  )
-}
-
-function LupaIcon() {
-  return (
-    <span className="ml-1 inline-flex items-center justify-center w-5 h-5 bg-yellow-400 rounded-sm cursor-pointer" title="Ajuda">
-      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
-        <circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-      </svg>
-    </span>
-  )
-}
+const ESPECIALIDADES = [
+  '', 'Mecânica Geral', 'Elétrica Automotiva', 'Funilaria e Pintura',
+  'Borracharia', 'Freios e Suspensão', 'Ar-condicionado', 'Injeção Eletrônica',
+  'Carroceria e Baú', 'Lavagem e Higienização', 'Guincho e Reboque', 'Outro',
+]
 
 // ─── FORMULÁRIO ──────────────────────────────────────────────────────────────
 export function FormView({ editItem, onSaved, onCancelEdit }) {
   const [form, setForm] = useState(EMPTY)
-  const [acao, setAcao] = useState('alterar') // 'alterar' | 'excluir'
+  const [acao, setAcao] = useState('alterar')
   const [status, setStatus] = useState({ msg: '', type: '' })
   const [loading, setLoading] = useState(false)
-  const [showTooltip, setShowTooltip] = useState(false)
-  const tooltipAnchorRef = useRef(null)
 
   useEffect(() => {
     if (editItem) {
       setForm({
         nome: editItem.nome || '',
-        email_notificacao: editItem.email_notificacao || '',
+        cnpj_cpf: editItem.cnpj_cpf || '',
+        telefone: editItem.telefone || '',
+        email: editItem.email || '',
+        endereco: editItem.endereco || '',
+        cidade: editItem.cidade || '',
+        especialidade: editItem.especialidade || '',
+        observacao: editItem.observacao || '',
         ativo: editItem.ativo ?? true,
       })
       setAcao('alterar')
@@ -53,9 +45,7 @@ export function FormView({ editItem, onSaved, onCancelEdit }) {
     }
   }, [editItem])
 
-  const set = (field) => (e) => {
-    setForm(f => ({ ...f, [field]: e.target.value }))
-  }
+  const set = (field) => (e) => setForm(f => ({ ...f, [field]: e.target.value }))
 
   const showStatus = (msg, type = 'success') => {
     setStatus({ msg, type })
@@ -63,25 +53,37 @@ export function FormView({ editItem, onSaved, onCancelEdit }) {
   }
 
   const handleSubmit = async () => {
-    if (!form.nome.trim()) { showStatus('Informe a Parte do Veículo.', 'error'); return }
+    if (!form.nome.trim()) { showStatus('Informe o Nome da Oficina/Prestador.', 'error'); return }
     setLoading(true)
     try {
       if (acao === 'excluir' && editItem) {
-        await axios.delete(`${API}/partes-veiculo/${editItem.id}`)
+        await axios.delete(`${API}/oficinas-prestadores/${editItem.id}`)
         showStatus('Excluído com sucesso!')
         setTimeout(() => onCancelEdit(), 1500)
       } else if (editItem) {
-        await axios.put(`${API}/partes-veiculo/${editItem.id}`, {
+        await axios.put(`${API}/oficinas-prestadores/${editItem.id}`, {
           nome: form.nome.trim(),
-          email_notificacao: form.email_notificacao || null,
+          cnpj_cpf: form.cnpj_cpf || null,
+          telefone: form.telefone || null,
+          email: form.email || null,
+          endereco: form.endereco || null,
+          cidade: form.cidade || null,
+          especialidade: form.especialidade || null,
+          observacao: form.observacao || null,
           ativo: form.ativo,
         })
         showStatus('Atualizado com sucesso!')
         onSaved()
       } else {
-        const res = await axios.post(`${API}/partes-veiculo`, {
+        const res = await axios.post(`${API}/oficinas-prestadores`, {
           nome: form.nome.trim(),
-          email_notificacao: form.email_notificacao || null,
+          cnpj_cpf: form.cnpj_cpf || null,
+          telefone: form.telefone || null,
+          email: form.email || null,
+          endereco: form.endereco || null,
+          cidade: form.cidade || null,
+          especialidade: form.especialidade || null,
+          observacao: form.observacao || null,
           ativo: form.ativo,
         })
         showStatus('Cadastrado com sucesso!')
@@ -93,85 +95,80 @@ export function FormView({ editItem, onSaved, onCancelEdit }) {
     } finally { setLoading(false) }
   }
 
+  const rowLbl = "px-3 py-2 text-right text-xs font-bold text-blue-900 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/40 whitespace-nowrap w-52"
+  const rowLblOpt = "px-3 py-2 text-right text-xs font-semibold text-blue-900 dark:text-blue-300 bg-gray-100 dark:bg-gray-700 border border-blue-200 dark:border-blue-800/40 whitespace-nowrap"
+  const rowCell = "px-2 py-1.5 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+
   return (
     <div className="space-y-3 max-w-2xl mx-auto">
       <h1 className="text-center text-base font-bold text-blue-700">
-        Manutenção de Parte do Veículo
+        Cadastro de Oficina / Prestador
       </h1>
 
       <div className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded shadow-sm overflow-hidden">
         <table className="w-full border-collapse">
           <tbody>
-            {/* Parte Veículo */}
             <tr>
-              <td className="px-3 py-2 text-right text-xs font-bold text-blue-900 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/40 whitespace-nowrap w-56">
-                Parte Veículo
-              </td>
-              <td className="px-2 py-1.5 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-                <input
-                  className={`${inp} border-orange-400 focus:border-orange-500`}
-                  value={form.nome}
-                  onChange={set('nome')}
-                  placeholder="Obrigatório"
-                />
+              <td className={rowLbl}>Nome <span className="text-red-500">*</span></td>
+              <td className={rowCell}>
+                <input className={`${inp} border-orange-400 focus:border-orange-500`}
+                  value={form.nome} onChange={set('nome')} placeholder="Obrigatório" />
               </td>
             </tr>
-
-            {/* E-mail Notificação */}
             <tr>
-              <td className="px-3 py-2 text-right text-xs font-semibold text-blue-900 dark:text-blue-300 bg-gray-100 dark:bg-gray-700 border border-blue-200 dark:border-blue-800/40 whitespace-nowrap">
-                <span className="flex items-center justify-end gap-1">
-                  E-mail Vcto. de Notificação de Serviço
-                  <span
-                    ref={tooltipAnchorRef}
-                    className="relative cursor-pointer"
-                    onMouseEnter={() => setShowTooltip(true)}
-                    onMouseLeave={() => setShowTooltip(false)}
-                  >
-                    <WarnIcon />
-                  </span>
-                  {showTooltip && tooltipAnchorRef.current && createPortal(
-                    <div className="fixed z-50 w-80 bg-blue-50 border border-blue-300 rounded shadow-lg p-3 text-xs text-left pointer-events-none" style={(() => {
-                      const r = tooltipAnchorRef.current.getBoundingClientRect()
-                      return { top: r.bottom + 6, left: Math.max(8, r.left - 280 + r.width) }
-                    })()}>
-                      <p className="font-bold text-blue-800 mb-1">Informativo</p>
-                      <p>E-mail para o qual será enviado uma notificação, quando os <strong>Serviços preventivos</strong> estiverem nos prazos de vencimento de Data e/ou Quilometragem.</p>
-                    </div>,
-                    document.body
-                  )}
-                </span>
-              </td>
-              <td className="px-2 py-1.5 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-                <span className="flex items-center gap-1">
-                  <input
-                    type="email"
-                    className={inp}
-                    value={form.email_notificacao}
-                    onChange={set('email_notificacao')}
-                    placeholder="email@exemplo.com"
-                  />
-                  <LupaIcon />
-                </span>
+              <td className={rowLblOpt}>CNPJ / CPF</td>
+              <td className={rowCell}>
+                <input className={inp} value={form.cnpj_cpf} onChange={set('cnpj_cpf')} placeholder="00.000.000/0001-00" />
               </td>
             </tr>
-
-            {/* Ativo */}
             <tr>
-              <td className="px-3 py-2 text-right text-xs font-bold text-blue-900 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/40">
-                Ativo
+              <td className={rowLbl}>Telefone</td>
+              <td className={rowCell}>
+                <input className={inp} value={form.telefone} onChange={set('telefone')} placeholder="(00) 00000-0000" />
               </td>
-              <td className="px-2 py-1.5 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-                <select className={sel}
-                  value={form.ativo ? 'Sim' : 'Não'}
+            </tr>
+            <tr>
+              <td className={rowLblOpt}>E-mail</td>
+              <td className={rowCell}>
+                <input type="email" className={inp} value={form.email} onChange={set('email')} placeholder="contato@oficina.com.br" />
+              </td>
+            </tr>
+            <tr>
+              <td className={rowLbl}>Especialidade</td>
+              <td className={rowCell}>
+                <select className={sel} value={form.especialidade} onChange={set('especialidade')}>
+                  {ESPECIALIDADES.map(e => <option key={e} value={e}>{e || '— Selecione —'}</option>)}
+                </select>
+              </td>
+            </tr>
+            <tr>
+              <td className={rowLblOpt}>Endereço</td>
+              <td className={rowCell}>
+                <input className={inp} value={form.endereco} onChange={set('endereco')} placeholder="Rua, número, bairro" />
+              </td>
+            </tr>
+            <tr>
+              <td className={rowLbl}>Cidade</td>
+              <td className={rowCell}>
+                <input className={inp} value={form.cidade} onChange={set('cidade')} placeholder="Cidade / UF" />
+              </td>
+            </tr>
+            <tr>
+              <td className={rowLblOpt}>Observação</td>
+              <td className={rowCell}>
+                <textarea className={`${inp} resize-none`} rows={2} value={form.observacao} onChange={set('observacao')} placeholder="Informações adicionais..." />
+              </td>
+            </tr>
+            <tr>
+              <td className={rowLbl}>Ativo</td>
+              <td className={rowCell}>
+                <select className={sel} value={form.ativo ? 'Sim' : 'Não'}
                   onChange={(e) => setForm(f => ({ ...f, ativo: e.target.value === 'Sim' }))}>
                   <option>Sim</option>
                   <option>Não</option>
                 </select>
               </td>
             </tr>
-
-            {/* Ação */}
             <tr>
               <td className="px-3 py-2 text-right text-xs font-semibold text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 border border-blue-200 dark:border-blue-800/40">
                 Ação:
@@ -181,12 +178,10 @@ export function FormView({ editItem, onSaved, onCancelEdit }) {
                   {editItem ? (
                     <>
                       <label className="flex items-center gap-1 cursor-pointer">
-                        <input type="radio" name="acao" checked={acao === 'alterar'} onChange={() => setAcao('alterar')} />
-                        Alterar
+                        <input type="radio" name="acao" checked={acao === 'alterar'} onChange={() => setAcao('alterar')} /> Alterar
                       </label>
                       <label className="flex items-center gap-1 cursor-pointer">
-                        <input type="radio" name="acao" checked={acao === 'excluir'} onChange={() => setAcao('excluir')} />
-                        Excluir
+                        <input type="radio" name="acao" checked={acao === 'excluir'} onChange={() => setAcao('excluir')} /> Excluir
                       </label>
                     </>
                   ) : (
@@ -200,7 +195,6 @@ export function FormView({ editItem, onSaved, onCancelEdit }) {
           </tbody>
         </table>
 
-        {/* Confirmar */}
         <div className="bg-gray-100 dark:bg-gray-700 border-t border-gray-300 dark:border-gray-600 flex items-center justify-center gap-3 py-2">
           <button onClick={handleSubmit} disabled={loading}
             className={`px-6 py-1 text-xs border rounded shadow-sm bg-white dark:bg-gray-600 hover:bg-gray-50 dark:hover:bg-gray-500 dark:text-gray-200 ${acao === 'excluir' ? 'border-red-400 text-red-600' : 'border-gray-400 dark:border-gray-500'}`}>
@@ -214,7 +208,6 @@ export function FormView({ editItem, onSaved, onCancelEdit }) {
           )}
         </div>
 
-        {/* Status */}
         <div className={`px-3 py-1.5 text-xs flex items-center gap-2 border-t border-gray-300 dark:border-gray-600 ${
           status.type === 'error' ? 'bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400' :
           status.msg ? 'bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400' : 'bg-blue-50 dark:bg-blue-900/20 text-blue-400'}`}>
@@ -227,15 +220,15 @@ export function FormView({ editItem, onSaved, onCancelEdit }) {
 
       <div className="text-center">
         <button onClick={onCancelEdit} className="text-xs text-blue-600 hover:underline font-medium">
-          ← Listagem de Partes do Veículo
+          ← Listagem de Oficinas / Prestadores
         </button>
       </div>
     </div>
   )
 }
 
-// ─── MODAL POPUP (usado pelo LookupField) ─────────────────────────────────────
-export function ParteVeiculoModal({ onClose, onSelected }) {
+// ─── MODAL (usado pelo LookupField) ──────────────────────────────────────────
+export function OficinaPrestadorModal({ onClose, onSelected }) {
   const handleSaved = (nome) => {
     if (nome) { onSelected(nome); onClose() }
   }
@@ -246,9 +239,9 @@ export function ParteVeiculoModal({ onClose, onSelected }) {
       style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
       onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-xl mx-4" onMouseDown={e => e.stopPropagation()}>
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-xl mx-4" onMouseDown={e => e.stopPropagation()}>
         <div className="bg-gradient-to-r from-blue-700 to-blue-500 px-4 py-3 flex items-center justify-between rounded-t-xl">
-          <span className="text-white font-bold text-sm">Cadastro de Parte do Veículo</span>
+          <span className="text-white font-bold text-sm">Cadastro de Oficina / Prestador</span>
           <button type="button" onClick={onClose} className="text-blue-200 hover:text-white transition-colors">
             <X className="w-4 h-4" />
           </button>
@@ -263,7 +256,7 @@ export function ParteVeiculoModal({ onClose, onSelected }) {
 }
 
 // ─── LISTAGEM ─────────────────────────────────────────────────────────────────
-export default function CadastroParteVeiculo() {
+export default function CadastroOficinaPrestador() {
   const [view, setView] = useState('list')
   const [editItem, setEditItem] = useState(null)
   const [items, setItems] = useState([])
@@ -273,14 +266,16 @@ export default function CadastroParteVeiculo() {
   const [totalPages, setTotalPages] = useState(1)
   const [loading, setLoading] = useState(false)
   const [statusMsg, setStatusMsg] = useState('')
-  const [fNome, setFNome] = useState('')
+  const [fSearch, setFSearch] = useState('')
+  const [fCidade, setFCidade] = useState('')
+  const [fEspecialidade, setFEspecialidade] = useState('')
   const [fAtivo, setFAtivo] = useState('')
   const [appliedFilters, setAppliedFilters] = useState({})
 
   const loadList = useCallback(async (filters = appliedFilters, pg = page, pp = perPage) => {
     setLoading(true)
     try {
-      const r = await axios.get(`${API}/partes-veiculo`, { params: { page: pg, per_page: pp, ...filters } })
+      const r = await axios.get(`${API}/oficinas-prestadores`, { params: { page: pg, per_page: pp, ...filters } })
       setItems(r.data.items)
       setTotal(r.data.total)
       setTotalPages(r.data.total_pages)
@@ -293,7 +288,9 @@ export default function CadastroParteVeiculo() {
 
   const handleFiltrar = () => {
     const f = {}
-    if (fNome) f.search = fNome
+    if (fSearch) f.search = fSearch
+    if (fCidade) f.cidade = fCidade
+    if (fEspecialidade) f.especialidade = fEspecialidade
     if (fAtivo) f.ativo = fAtivo
     setAppliedFilters(f)
     setPage(1)
@@ -301,7 +298,7 @@ export default function CadastroParteVeiculo() {
   }
 
   const handleLimpar = () => {
-    setFNome(''); setFAtivo('')
+    setFSearch(''); setFCidade(''); setFEspecialidade(''); setFAtivo('')
     setAppliedFilters({})
     setPage(1)
     loadList({}, 1, perPage)
@@ -315,15 +312,10 @@ export default function CadastroParteVeiculo() {
 
   const handleSaved = () => {
     loadList()
-    if (editItem) {
-      setView('list')
-      setEditItem(null)
-      setStatusMsg('Atualizado com sucesso!')
-      setTimeout(() => setStatusMsg(''), 3000)
-    } else {
-      setStatusMsg('Cadastrado com sucesso!')
-      setTimeout(() => setStatusMsg(''), 3000)
-    }
+    setView('list')
+    setEditItem(null)
+    setStatusMsg('Salvo com sucesso!')
+    setTimeout(() => setStatusMsg(''), 3000)
   }
 
   const handleCancelEdit = () => { setView('list'); setEditItem(null); loadList() }
@@ -343,9 +335,9 @@ export default function CadastroParteVeiculo() {
   }
 
   return (
-    <div className="space-y-3 max-w-4xl mx-auto">
+    <div className="space-y-3 max-w-5xl mx-auto">
       <h1 className="text-center text-base font-bold text-blue-700">
-        Listagem de Partes do Veículo
+        Listagem de Oficinas / Prestadores
       </h1>
 
       <div className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded shadow-sm overflow-hidden">
@@ -375,7 +367,7 @@ export default function CadastroParteVeiculo() {
           </div>
         </div>
 
-        <div className="text-center text-xs text-blue-600 py-1 border-b border-gray-200">
+        <div className="text-center text-xs text-blue-600 py-1 border-b border-gray-200 dark:border-gray-700">
           {total === 0 ? 'Nenhum registro' : `${(page - 1) * perPage + 1} à ${Math.min(page * perPage, total)} de ${total}`}
         </div>
 
@@ -384,23 +376,29 @@ export default function CadastroParteVeiculo() {
           <table className="w-full text-xs">
             <thead>
               <tr className="bg-blue-100 dark:bg-blue-900/20 border-b border-blue-200 dark:border-blue-800/40">
-                <th className="px-3 py-1.5 text-left text-blue-800 dark:text-blue-300 font-semibold">Parte do Veículo</th>
-                <th className="px-3 py-1.5 text-left text-blue-800 dark:text-blue-300 font-semibold">E-mail Notificação</th>
+                <th className="px-3 py-1.5 text-left text-blue-800 dark:text-blue-300 font-semibold">Nome</th>
+                <th className="px-3 py-1.5 text-left text-blue-800 dark:text-blue-300 font-semibold">CNPJ/CPF</th>
+                <th className="px-3 py-1.5 text-left text-blue-800 dark:text-blue-300 font-semibold">Telefone</th>
+                <th className="px-3 py-1.5 text-left text-blue-800 dark:text-blue-300 font-semibold">Especialidade</th>
+                <th className="px-3 py-1.5 text-left text-blue-800 dark:text-blue-300 font-semibold">Cidade</th>
                 <th className="px-3 py-1.5 text-center text-blue-800 dark:text-blue-300 font-semibold">Ativo</th>
                 <th className="px-3 py-1.5 text-center text-blue-800 dark:text-blue-300 font-semibold"></th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={4} className="text-center py-8 text-gray-400">
+                <tr><td colSpan={7} className="text-center py-8 text-gray-400">
                   <RefreshCw className="w-4 h-4 animate-spin inline mr-2" />Carregando...
                 </td></tr>
               ) : items.length === 0 ? (
-                <tr><td colSpan={4} className="text-center py-8 text-gray-400">Nenhum registro encontrado.</td></tr>
+                <tr><td colSpan={7} className="text-center py-8 text-gray-400">Nenhum registro encontrado.</td></tr>
               ) : items.map((item, idx) => (
                 <tr key={item.id} className={`border-b border-gray-100 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/20 ${idx % 2 === 0 ? 'dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-700/50'}`}>
                   <td className="px-3 py-1.5 font-medium dark:text-gray-200">{item.nome}</td>
-                  <td className="px-3 py-1.5 text-gray-500 dark:text-gray-400">{item.email_notificacao || ''}</td>
+                  <td className="px-3 py-1.5 text-gray-500 dark:text-gray-400">{item.cnpj_cpf || '-'}</td>
+                  <td className="px-3 py-1.5 text-gray-500 dark:text-gray-400">{item.telefone || '-'}</td>
+                  <td className="px-3 py-1.5 text-gray-500 dark:text-gray-400">{item.especialidade || '-'}</td>
+                  <td className="px-3 py-1.5 text-gray-500 dark:text-gray-400">{item.cidade || '-'}</td>
                   <td className="px-3 py-1.5 text-center">
                     <span className={`px-1.5 py-0.5 rounded text-xs ${item.ativo ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
                       {item.ativo ? 'Sim' : 'Não'}
@@ -421,13 +419,27 @@ export default function CadastroParteVeiculo() {
         <div className="border-t border-gray-200 dark:border-gray-700 bg-blue-50 dark:bg-blue-900/20 px-3 py-2">
           <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs mb-2">
             <div className="flex items-center gap-2">
-              <span className="font-semibold text-blue-900 dark:text-blue-300 w-28 text-right shrink-0">Parte do Veículo</span>
+              <span className="font-semibold text-blue-900 dark:text-blue-300 w-28 text-right shrink-0">Nome / Telefone</span>
               <input className="border border-gray-300 dark:border-gray-600 rounded px-2 py-0.5 flex-1 text-xs focus:outline-none bg-white dark:bg-gray-700 dark:text-gray-100"
-                value={fNome} onChange={e => setFNome(e.target.value)}
+                value={fSearch} onChange={e => setFSearch(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleFiltrar()} />
             </div>
             <div className="flex items-center gap-2">
-              <span className="font-semibold text-blue-900 dark:text-blue-300 w-12 text-right shrink-0">Ativo</span>
+              <span className="font-semibold text-blue-900 dark:text-blue-300 w-20 text-right shrink-0">Cidade</span>
+              <input className="border border-gray-300 dark:border-gray-600 rounded px-2 py-0.5 flex-1 text-xs focus:outline-none bg-white dark:bg-gray-700 dark:text-gray-100"
+                value={fCidade} onChange={e => setFCidade(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleFiltrar()} />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-blue-900 dark:text-blue-300 w-28 text-right shrink-0">Especialidade</span>
+              <select className="border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 text-xs bg-white dark:bg-gray-700 dark:text-gray-100 focus:outline-none flex-1"
+                value={fEspecialidade} onChange={e => setFEspecialidade(e.target.value)}>
+                <option value=""></option>
+                {ESPECIALIDADES.filter(Boolean).map(e => <option key={e} value={e}>{e}</option>)}
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-blue-900 dark:text-blue-300 w-20 text-right shrink-0">Ativo</span>
               <select className="border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 text-xs bg-white dark:bg-gray-700 dark:text-gray-100 focus:outline-none"
                 value={fAtivo} onChange={e => setFAtivo(e.target.value)}>
                 <option value=""></option>
@@ -455,7 +467,7 @@ export default function CadastroParteVeiculo() {
       <div className="text-center">
         <button onClick={() => { setEditItem(null); setView('form') }}
           className="text-xs text-blue-600 hover:underline font-medium">
-          Adicionar Parte do Veículo
+          Adicionar Oficina / Prestador
         </button>
       </div>
     </div>

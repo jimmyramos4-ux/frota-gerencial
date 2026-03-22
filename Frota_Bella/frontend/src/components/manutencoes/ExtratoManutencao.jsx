@@ -79,7 +79,7 @@ export default function ExtratoManutencao() {
           <Link to="/manutencoes" className="text-gray-500 hover:text-blue-600">
             <ChevronLeft className="w-5 h-5" />
           </Link>
-          <h1 className="text-base font-semibold text-gray-800">
+          <h1 className="text-base font-semibold text-gray-800 dark:text-gray-100">
             Extrato de Manutenções do Veículo
           </h1>
         </div>
@@ -99,7 +99,7 @@ export default function ExtratoManutencao() {
       </div>
 
       {/* Manutencao header info */}
-      <div className="bg-white rounded shadow-sm border border-gray-200">
+      <div className="bg-white dark:bg-gray-800 rounded shadow-sm border border-gray-200 dark:border-gray-700">
         <div className="section-header">
           Manutenção #{man.id}
         </div>
@@ -107,29 +107,29 @@ export default function ExtratoManutencao() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
             <div>
               <p className="form-label">Veículo</p>
-              <p className="font-medium">{man.veiculo?.placa}</p>
-              <p className="text-gray-500 text-xs">{man.veiculo?.descricao}</p>
+              <p className="font-medium dark:text-gray-200">{man.veiculo?.placa}</p>
+              <p className="text-gray-500 dark:text-gray-400 text-xs">{man.veiculo?.descricao}</p>
             </div>
             <div>
               <p className="form-label">Motorista</p>
-              <p className="font-medium">{man.motorista?.nome || '-'}</p>
-              {man.motorista && <p className="text-gray-500 text-xs">Cód: {man.motorista.codigo}</p>}
+              <p className="font-medium dark:text-gray-200">{man.motorista?.nome || '-'}</p>
+              {man.motorista && <p className="text-gray-500 dark:text-gray-400 text-xs">Cód: {man.motorista.codigo}</p>}
             </div>
             <div>
-              <p className="form-label">Resp. Manutenção</p>
-              <p className="font-medium">{man.responsavel_manutencao || '-'}</p>
+              <p className="form-label">Oficina / Prestador</p>
+              <p className="font-medium dark:text-gray-200">{man.responsavel_manutencao || '-'}</p>
             </div>
             <div>
               <p className="form-label">Requisitante</p>
-              <p className="font-medium">{man.requisitante || '-'}</p>
+              <p className="font-medium dark:text-gray-200">{man.requisitante || '-'}</p>
             </div>
             <div>
               <p className="form-label">Km Entrada</p>
-              <p className="font-medium">{man.km_entrada ? man.km_entrada.toLocaleString('pt-BR') : '-'}</p>
+              <p className="font-medium dark:text-gray-200">{man.km_entrada ? man.km_entrada.toLocaleString('pt-BR') : '-'}</p>
             </div>
             <div>
               <p className="form-label">Horímetro</p>
-              <p className="font-medium">{man.horimetro_entrada || '-'}</p>
+              <p className="font-medium dark:text-gray-200">{man.horimetro_entrada || '-'}</p>
             </div>
             <div>
               <p className="form-label">Status</p>
@@ -143,71 +143,71 @@ export default function ExtratoManutencao() {
             </div>
             <div>
               <p className="form-label">Tipo</p>
-              <p className="font-medium">{man.tipo || '-'}</p>
+              <p className="font-medium dark:text-gray-200">{man.tipo || '-'}</p>
             </div>
             <div>
               <p className="form-label">Dt. Início</p>
-              <p className="font-medium">{fmt(man.dt_inicio)}</p>
+              <p className="font-medium dark:text-gray-200">{fmt(man.dt_inicio)}</p>
             </div>
             <div>
               <p className="form-label">Dt. Previsão</p>
-              <p className="font-medium">{fmt(man.dt_previsao)}</p>
+              <p className="font-medium dark:text-gray-200">{fmt(man.dt_previsao)}</p>
             </div>
             <div>
               <p className="form-label">Dt. Término</p>
-              <p className="font-medium">{fmt(man.dt_termino)}</p>
+              <p className="font-medium dark:text-gray-200">{fmt(man.dt_termino)}</p>
             </div>
           </div>
 
           {man.servicos_solicitados && (
-            <div className="mt-3 pt-3 border-t border-gray-100">
+            <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
               <p className="form-label">Serviços Solicitados</p>
-              <p className="text-sm text-gray-700">{man.servicos_solicitados}</p>
+              <p className="text-sm text-gray-700 dark:text-gray-300">{man.servicos_solicitados}</p>
             </div>
           )}
           {man.observacao && (
             <div className="mt-2">
               <p className="form-label">Observação</p>
-              <p className="text-sm text-gray-700">{man.observacao}</p>
+              <p className="text-sm text-gray-700 dark:text-gray-300">{man.observacao}</p>
             </div>
           )}
         </div>
       </div>
 
       {/* Servicos */}
-      <div className="bg-white rounded shadow-sm border border-gray-200">
+      <div className="bg-white dark:bg-gray-800 rounded shadow-sm border border-gray-200 dark:border-gray-700">
         <div className="section-header">
           Serviços Veículo ({man.servicos?.length || 0})
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
-              <tr className="bg-blue-50 border-b border-blue-100">
-                <th className="px-2 py-1.5 text-left text-blue-800 font-semibold">#</th>
-                <th className="px-2 py-1.5 text-left text-blue-800 font-semibold">Status</th>
-                <th className="px-2 py-1.5 text-left text-blue-800 font-semibold">Parte Veículo</th>
-                <th className="px-2 py-1.5 text-left text-blue-800 font-semibold">Serviço</th>
-                <th className="px-2 py-1.5 text-left text-blue-800 font-semibold">Tipo</th>
-                <th className="px-2 py-1.5 text-left text-blue-800 font-semibold">Dt. Serviço</th>
-                <th className="px-2 py-1.5 text-left text-blue-800 font-semibold">Próx. Dt. Val.</th>
-                <th className="px-2 py-1.5 text-right text-blue-800 font-semibold">Próx. Km</th>
-                <th className="px-2 py-1.5 text-left text-blue-800 font-semibold">Responsável</th>
-                <th className="px-2 py-1.5 text-left text-blue-800 font-semibold">Descrição</th>
-                <th className="px-2 py-1.5 text-right text-blue-800 font-semibold">Valor R$</th>
-                <th className="px-2 py-1.5 text-left text-blue-800 font-semibold">Horas</th>
+              <tr className="bg-blue-50 dark:bg-blue-900/20 border-b border-blue-100 dark:border-blue-800/40">
+                <th className="px-2 py-1.5 text-left text-blue-800 dark:text-blue-300 font-semibold">#</th>
+                <th className="px-2 py-1.5 text-left text-blue-800 dark:text-blue-300 font-semibold">Status</th>
+                <th className="px-2 py-1.5 text-left text-blue-800 dark:text-blue-300 font-semibold">Parte Veículo</th>
+                <th className="px-2 py-1.5 text-left text-blue-800 dark:text-blue-300 font-semibold">Serviço</th>
+                <th className="px-2 py-1.5 text-left text-blue-800 dark:text-blue-300 font-semibold">Tipo</th>
+                <th className="px-2 py-1.5 text-left text-blue-800 dark:text-blue-300 font-semibold">Dt. Serviço</th>
+                <th className="px-2 py-1.5 text-left text-blue-800 dark:text-blue-300 font-semibold">Próx. Dt. Val.</th>
+                <th className="px-2 py-1.5 text-right text-blue-800 dark:text-blue-300 font-semibold">Próx. Km</th>
+                <th className="px-2 py-1.5 text-left text-blue-800 dark:text-blue-300 font-semibold">Responsável</th>
+                <th className="px-2 py-1.5 text-left text-blue-800 dark:text-blue-300 font-semibold">Descrição</th>
+                <th className="px-2 py-1.5 text-right text-blue-800 dark:text-blue-300 font-semibold">Valor R$</th>
+                <th className="px-2 py-1.5 text-left text-blue-800 dark:text-blue-300 font-semibold">Horas</th>
               </tr>
             </thead>
             <tbody>
               {(man.servicos || []).length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="text-center py-4 text-gray-400">
+                  <td colSpan={12} className="text-center py-4 text-gray-400 dark:text-gray-500">
                     Nenhum serviço registrado.
                   </td>
                 </tr>
               ) : (
                 (man.servicos || []).map((s, idx) => (
-                  <tr key={s.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                    <td className="px-2 py-1.5 text-gray-400">{idx + 1}</td>
+                  <tr key={s.id} className={idx % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-700/50'}>
+                    <td className="px-2 py-1.5 text-gray-400 dark:text-gray-500">{idx + 1}</td>
                     <td className="px-2 py-1.5">
                       <span className={`status-badge ${
                         s.status === 'Finalizado' ? 'bg-green-100 text-green-800' :
@@ -215,22 +215,22 @@ export default function ExtratoManutencao() {
                         'bg-blue-100 text-blue-800'
                       }`}>{s.status}</span>
                     </td>
-                    <td className="px-2 py-1.5">{s.parte_veiculo || '-'}</td>
-                    <td className="px-2 py-1.5 font-medium">{s.servico || '-'}</td>
-                    <td className="px-2 py-1.5">{s.tipo_uso || '-'}</td>
-                    <td className="px-2 py-1.5 whitespace-nowrap">{fmtDate(s.dt_servico)}</td>
-                    <td className="px-2 py-1.5 whitespace-nowrap">{fmtDate(s.proxima_dt_validade)}</td>
-                    <td className="px-2 py-1.5 text-right tabular-nums">{s.proximo_km_validade || '-'}</td>
-                    <td className="px-2 py-1.5">{s.pessoa_responsavel || '-'}</td>
-                    <td className="px-2 py-1.5 max-w-[140px] truncate" title={s.descricao}>{s.descricao || '-'}</td>
-                    <td className="px-2 py-1.5 text-right tabular-nums">{fmtMoney(s.valor)}</td>
-                    <td className="px-2 py-1.5">{s.horas_trabalhadas || '-'}</td>
+                    <td className="px-2 py-1.5 dark:text-gray-300">{s.parte_veiculo || '-'}</td>
+                    <td className="px-2 py-1.5 font-medium dark:text-gray-200">{s.servico || '-'}</td>
+                    <td className="px-2 py-1.5 dark:text-gray-300">{s.tipo_uso || '-'}</td>
+                    <td className="px-2 py-1.5 whitespace-nowrap dark:text-gray-300">{fmtDate(s.dt_servico)}</td>
+                    <td className="px-2 py-1.5 whitespace-nowrap dark:text-gray-300">{fmtDate(s.proxima_dt_validade)}</td>
+                    <td className="px-2 py-1.5 text-right tabular-nums dark:text-gray-300">{s.proximo_km_validade || '-'}</td>
+                    <td className="px-2 py-1.5 dark:text-gray-300">{s.pessoa_responsavel || '-'}</td>
+                    <td className="px-2 py-1.5 max-w-[140px] truncate dark:text-gray-300" title={s.descricao}>{s.descricao || '-'}</td>
+                    <td className="px-2 py-1.5 text-right tabular-nums dark:text-gray-300">{fmtMoney(s.valor)}</td>
+                    <td className="px-2 py-1.5 dark:text-gray-300">{s.horas_trabalhadas || '-'}</td>
                   </tr>
                 ))
               )}
               {(man.servicos || []).length > 0 && (
-                <tr className="bg-gray-100 border-t-2 border-gray-300 font-semibold">
-                  <td colSpan={10} className="px-2 py-1.5 text-right text-xs text-gray-700">
+                <tr className="bg-gray-100 dark:bg-gray-700 border-t-2 border-gray-300 dark:border-gray-600 font-semibold">
+                  <td colSpan={10} className="px-2 py-1.5 text-right text-xs text-gray-700 dark:text-gray-300">
                     Total:
                   </td>
                   <td className="px-2 py-1.5 text-right text-xs tabular-nums">
@@ -246,7 +246,7 @@ export default function ExtratoManutencao() {
 
       {/* Arquivos */}
       {(man.arquivos || []).length > 0 && (
-        <div className="bg-white rounded shadow-sm border border-gray-200">
+        <div className="bg-white dark:bg-gray-800 rounded shadow-sm border border-gray-200 dark:border-gray-700">
           <div className="section-header">
             Arquivos Anexados ({man.arquivos.length})
           </div>
@@ -258,7 +258,7 @@ export default function ExtratoManutencao() {
                   href={`http://localhost:8000/api/uploads/${a.caminho}`}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex items-center gap-1.5 bg-blue-50 border border-blue-200 rounded px-2 py-1 text-xs text-blue-700 hover:bg-blue-100 transition-colors"
+                  className="flex items-center gap-1.5 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/40 rounded px-2 py-1 text-xs text-blue-700 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
                 >
                   📎 {a.nome_arquivo}
                 </a>

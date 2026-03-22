@@ -5,7 +5,7 @@ import { Search, Plus, X, Loader2, Check } from 'lucide-react'
 
 const API = 'http://localhost:8000/api'
 
-export default function LookupField({ endpoint, value, onChange, placeholder = 'Selecione...', onCadastrarNovo, onItemSelected }) {
+export default function LookupField({ endpoint, value, onChange, placeholder = 'Selecione...', onCadastrarNovo, onItemSelected, extraParams }) {
   const [inputText, setInputText] = useState(value || '')
   const [open, setOpen] = useState(false)
   const [items, setItems] = useState([])
@@ -30,7 +30,7 @@ export default function LookupField({ endpoint, value, onChange, placeholder = '
   const fetchItems = async (q = '') => {
     setLoading(true)
     try {
-      const res = await axios.get(`${API}/${endpoint}/lookup`, { params: q ? { search: q } : {} })
+      const res = await axios.get(`${API}/${endpoint}/lookup`, { params: { ...(q ? { search: q } : {}), ...(extraParams || {}) } })
       setItems(res.data)
     } catch {}
     finally { setLoading(false) }
@@ -102,20 +102,20 @@ export default function LookupField({ endpoint, value, onChange, placeholder = '
   const dropdown = open && createPortal(
     <div
       style={{ position: 'fixed', top: dropPos.top, left: dropPos.left, width: dropPos.width, zIndex: 9999 }}
-      className="bg-white border border-gray-200 rounded shadow-lg"
+      className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow-lg"
     >
       <ul className="max-h-44 overflow-y-auto">
         {loading ? (
-          <li className="px-3 py-2 text-gray-400 text-xs flex items-center gap-1">
+          <li className="px-3 py-2 text-gray-400 dark:text-gray-500 text-xs flex items-center gap-1">
             <Loader2 className="w-3 h-3 animate-spin" /> Carregando...
           </li>
         ) : items.length === 0 ? (
-          <li className="px-3 py-2 text-gray-400 text-xs">Nenhum resultado.</li>
+          <li className="px-3 py-2 text-gray-400 dark:text-gray-500 text-xs">Nenhum resultado.</li>
         ) : (
           items.map((item) => (
             <li
               key={item.id}
-              className={`px-3 py-1.5 text-xs cursor-pointer hover:bg-blue-50 flex items-center justify-between ${value === item.nome ? 'bg-blue-50 text-blue-700 font-medium' : ''}`}
+              className={`px-3 py-1.5 text-xs cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30 flex items-center justify-between ${value === item.nome ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 font-medium' : ''}`}
               onMouseDown={(e) => { e.preventDefault(); handleSelect(item.nome, item) }}
             >
               {item.nome}
@@ -124,10 +124,10 @@ export default function LookupField({ endpoint, value, onChange, placeholder = '
           ))
         )}
       </ul>
-      <div className="border-t border-gray-100 p-1.5">
+      <div className="border-t border-gray-100 dark:border-gray-700 p-1.5">
         <button
           type="button"
-          className="w-full text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 px-1 py-0.5 hover:bg-blue-50 rounded"
+          className="w-full text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 flex items-center gap-1 px-1 py-0.5 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded"
           onMouseDown={(e) => { e.preventDefault(); openModal() }}
         >
           <Plus className="w-3 h-3" /> Cadastrar novo
@@ -144,7 +144,7 @@ export default function LookupField({ endpoint, value, onChange, placeholder = '
       style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}
       onMouseDown={(e) => { if (e.target === e.currentTarget) setShowModal(false) }}
     >
-      <div className="bg-white rounded-xl shadow-2xl w-80 overflow-hidden">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-80 overflow-hidden">
         {/* Header */}
         <div className="bg-gradient-to-r from-blue-700 to-blue-500 px-4 py-3 flex items-center justify-between">
           <span className="text-white font-bold text-sm flex items-center gap-2">
@@ -165,7 +165,7 @@ export default function LookupField({ endpoint, value, onChange, placeholder = '
           <div>
             <label className="block text-xs font-semibold text-blue-800 mb-1">Nome</label>
             <input
-              className="border border-gray-300 rounded px-3 py-2 text-sm w-full focus:outline-none focus:border-blue-400"
+              className="border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm w-full focus:outline-none focus:border-blue-400 dark:bg-gray-700 dark:text-gray-100"
               placeholder="Digite o nome..."
               value={newNome}
               onChange={(e) => setNewNome(e.target.value)}
@@ -174,16 +174,16 @@ export default function LookupField({ endpoint, value, onChange, placeholder = '
             />
           </div>
           {addError && (
-            <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-2 py-1">{addError}</p>
+            <p className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded px-2 py-1">{addError}</p>
           )}
         </div>
 
         {/* Footer */}
-        <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 flex justify-end gap-2">
+        <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700 border-t border-gray-100 dark:border-gray-600 flex justify-end gap-2">
           <button
             type="button"
             onClick={() => setShowModal(false)}
-            className="px-4 py-1.5 text-xs border border-gray-300 rounded-lg hover:bg-gray-100 text-gray-600 font-medium transition-colors"
+            className="px-4 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 font-medium transition-colors"
           >
             Cancelar
           </button>
@@ -215,7 +215,7 @@ export default function LookupField({ endpoint, value, onChange, placeholder = '
         />
         <button
           type="button"
-          className="border border-gray-300 rounded px-1.5 hover:bg-blue-50 text-gray-500 hover:text-blue-600 transition-colors"
+          className="border border-gray-300 dark:border-gray-600 rounded px-1.5 hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-blue-600 transition-colors"
           onMouseDown={(e) => { e.preventDefault(); calcPos(); setOpen(o => !o); if (!open) fetchItems('') }}
           title="Buscar"
         >

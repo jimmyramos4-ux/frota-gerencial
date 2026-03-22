@@ -2,9 +2,27 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --chart-label: #374151;
+  --chart-label-muted: #9ca3af;
+}
+.dark {
+  --chart-label: #e5e7eb;
+  --chart-label-muted: #6b7280;
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-slide-up { animation: slide-up 0.3s ease-out both; }
+
 @layer base {
   body {
     @apply bg-gray-100 text-gray-800 text-sm;
+  }
+  html.dark body {
+    @apply bg-gray-900 text-gray-100;
   }
 }
 
@@ -22,13 +40,13 @@
     @apply py-0.5 px-2.5 text-xs;
   }
   .form-input {
-    @apply border border-gray-300 rounded px-2 py-1 text-sm w-full focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400;
+    @apply border border-gray-300 rounded px-2 py-1 text-sm w-full focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100;
   }
   .form-select {
-    @apply border border-gray-300 rounded px-2 py-1 text-sm w-full focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 bg-white;
+    @apply border border-gray-300 rounded px-2 py-1 text-sm w-full focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100;
   }
   .form-label {
-    @apply block text-xs font-medium text-gray-600 mb-0.5;
+    @apply block text-xs font-medium text-gray-600 mb-0.5 dark:text-gray-300;
   }
   .table-header {
     @apply bg-blue-50 text-blue-800 font-semibold text-xs uppercase tracking-wide;

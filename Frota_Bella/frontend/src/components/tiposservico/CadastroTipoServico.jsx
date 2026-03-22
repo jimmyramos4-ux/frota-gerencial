@@ -55,11 +55,11 @@ function InfoTooltip({ text }) {
   )
 }
 
-const inp = "border border-gray-300 rounded px-2 py-0.5 text-xs w-full focus:outline-none focus:border-blue-400"
-const sel = "border border-gray-300 rounded px-1 py-0.5 text-xs focus:outline-none focus:border-blue-400 bg-white"
+const inp = "border border-gray-300 dark:border-gray-600 rounded px-2 py-0.5 text-xs w-full focus:outline-none focus:border-blue-400 dark:bg-gray-700 dark:text-gray-100"
+const sel = "border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 text-xs focus:outline-none focus:border-blue-400 bg-white dark:bg-gray-700 dark:text-gray-100"
 
-const tdLbl = "px-3 py-1.5 text-right text-xs font-semibold text-blue-900 bg-blue-100 border border-blue-200 whitespace-nowrap w-44"
-const tdVal = "px-2 py-1 border border-gray-200 bg-white"
+const tdLbl = "px-3 py-1.5 text-right text-xs font-semibold text-blue-900 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/40 whitespace-nowrap w-44"
+const tdVal = "px-2 py-1 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
 
 function Row({ label, children, colSpan = false }) {
   return (
@@ -167,7 +167,7 @@ export function FormView({ editItem, partes, onSaved, onCancelEdit }) {
         Manutenção de Tipo de Serviço
       </h1>
 
-      <div className="bg-white border border-gray-300 rounded shadow-sm overflow-hidden">
+      <div className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded shadow-sm overflow-hidden">
         <table className="w-full border-collapse">
           <tbody>
             <Row label="Tipo de Serviço" colSpan>
@@ -175,15 +175,15 @@ export function FormView({ editItem, partes, onSaved, onCancelEdit }) {
             </Row>
 
             <tr>
-              <td className="px-3 py-1.5 text-right text-xs font-semibold text-blue-900 bg-blue-100 border border-blue-200 whitespace-nowrap w-44">Parte do Veículo</td>
-              <td className="px-2 py-1 border border-gray-200 bg-white">
+              <td className="px-3 py-1.5 text-right text-xs font-semibold text-blue-900 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/40 whitespace-nowrap w-44">Parte do Veículo</td>
+              <td className="px-2 py-1 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
                 <select className={sel} value={form.parte_veiculo} onChange={set('parte_veiculo')}>
                   <option value=""></option>
                   {partes.map(p => <option key={p.id} value={p.nome}>{p.nome}</option>)}
                 </select>
               </td>
-              <td className="px-3 py-1.5 text-center text-xs font-semibold text-blue-900 bg-blue-100 border border-blue-200 whitespace-nowrap">Uso</td>
-              <td className="px-2 py-1 border border-gray-200 bg-white">
+              <td className="px-3 py-1.5 text-center text-xs font-semibold text-blue-900 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/40 whitespace-nowrap">Uso</td>
+              <td className="px-2 py-1 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
                 <select className={sel} value={form.uso} onChange={set('uso')}>
                   <option>Veículo</option>
                   <option>Equipamento</option>
@@ -280,22 +280,22 @@ export function FormView({ editItem, partes, onSaved, onCancelEdit }) {
           </tbody>
         </table>
 
-        <div className="bg-gray-100 border-t border-gray-300 flex items-center justify-center gap-3 py-2">
+        <div className="bg-gray-100 dark:bg-gray-700 border-t border-gray-300 dark:border-gray-600 flex items-center justify-center gap-3 py-2">
           <button onClick={handleSubmit} disabled={loading}
-            className="px-6 py-1 text-xs bg-white border border-gray-400 rounded hover:bg-gray-50 shadow-sm">
+            className="px-6 py-1 text-xs bg-white dark:bg-gray-600 dark:text-gray-200 border border-gray-400 dark:border-gray-500 rounded hover:bg-gray-50 dark:hover:bg-gray-500 shadow-sm">
             {loading ? 'Salvando...' : 'Confirmar'}
           </button>
           {editItem && (
             <button onClick={onCancelEdit}
-              className="px-4 py-1 text-xs bg-white border border-gray-400 rounded hover:bg-gray-50 shadow-sm">
+              className="px-4 py-1 text-xs bg-white dark:bg-gray-600 dark:text-gray-200 border border-gray-400 dark:border-gray-500 rounded hover:bg-gray-50 dark:hover:bg-gray-500 shadow-sm">
               Cancelar
             </button>
           )}
         </div>
 
-        <div className={`px-3 py-1.5 text-xs flex items-center gap-2 border-t border-gray-300 ${
-          status.type === 'error' ? 'bg-red-100 text-red-700' :
-          status.msg ? 'bg-green-100 text-green-700' : 'bg-blue-50 text-blue-400'}`}>
+        <div className={`px-3 py-1.5 text-xs flex items-center gap-2 border-t border-gray-300 dark:border-gray-600 ${
+          status.type === 'error' ? 'bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400' :
+          status.msg ? 'bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400' : 'bg-blue-50 dark:bg-blue-900/20 text-blue-400 dark:text-blue-500'}`}>
           <span className="font-semibold">Status:</span>
           {status.type === 'error' && <AlertCircle className="w-3.5 h-3.5" />}
           {status.type === 'success' && <CheckCircle className="w-3.5 h-3.5" />}
@@ -460,25 +460,25 @@ export default function CadastroTipoServico() {
         Listagem de Tipos de Serviço
       </h1>
 
-      <div className="bg-white border border-gray-300 rounded shadow-sm overflow-hidden">
+      <div className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded shadow-sm overflow-hidden">
 
         {/* Paginação superior */}
-        <div className="bg-gray-100 border-b border-gray-300 px-3 py-2 flex items-center justify-between gap-2 flex-wrap">
+        <div className="bg-gray-100 dark:bg-gray-700 border-b border-gray-300 dark:border-gray-600 px-3 py-2 flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-1">
             <button onClick={() => setPage(1)} disabled={page === 1}
-              className="px-1.5 py-0.5 text-xs border rounded disabled:opacity-40 bg-white hover:bg-gray-50">«</button>
+              className="px-1.5 py-0.5 text-xs border rounded disabled:opacity-40 bg-white dark:bg-gray-600 dark:text-gray-200 dark:border-gray-500 hover:bg-gray-50 dark:hover:bg-gray-500">«</button>
             <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-              className="px-1.5 py-0.5 text-xs border rounded disabled:opacity-40 bg-white hover:bg-gray-50">‹</button>
+              className="px-1.5 py-0.5 text-xs border rounded disabled:opacity-40 bg-white dark:bg-gray-600 dark:text-gray-200 dark:border-gray-500 hover:bg-gray-50 dark:hover:bg-gray-500">‹</button>
             {pageNums().map(n => (
               <button key={n} onClick={() => setPage(n)}
-                className={`px-2 py-0.5 text-xs border rounded ${n === page ? 'bg-blue-700 text-white border-blue-700' : 'bg-white hover:bg-gray-50'}`}>
+                className={`px-2 py-0.5 text-xs border rounded ${n === page ? 'bg-blue-700 text-white border-blue-700' : 'bg-white dark:bg-gray-600 dark:text-gray-200 dark:border-gray-500 hover:bg-gray-50 dark:hover:bg-gray-500'}`}>
                 {n}
               </button>
             ))}
             <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
-              className="px-1.5 py-0.5 text-xs border rounded disabled:opacity-40 bg-white hover:bg-gray-50">›</button>
+              className="px-1.5 py-0.5 text-xs border rounded disabled:opacity-40 bg-white dark:bg-gray-600 dark:text-gray-200 dark:border-gray-500 hover:bg-gray-50 dark:hover:bg-gray-500">›</button>
             <button onClick={() => setPage(totalPages)} disabled={page === totalPages}
-              className="px-1.5 py-0.5 text-xs border rounded disabled:opacity-40 bg-white hover:bg-gray-50">»</button>
+              className="px-1.5 py-0.5 text-xs border rounded disabled:opacity-40 bg-white dark:bg-gray-600 dark:text-gray-200 dark:border-gray-500 hover:bg-gray-50 dark:hover:bg-gray-500">»</button>
           </div>
           <div className="flex items-center gap-2">
             <select className="border border-gray-300 rounded text-xs px-1 py-0.5 bg-blue-700 text-white"
@@ -496,13 +496,13 @@ export default function CadastroTipoServico() {
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
-              <tr className="bg-blue-100 border-b border-blue-200">
+              <tr className="bg-blue-100 dark:bg-blue-900/20 border-b border-blue-200 dark:border-blue-800/40">
                 {[['nome','Tipo de Serviço','left'],['parte_veiculo','Parte do Veículo','left'],['nr_dias_validade','Dias Val.','center'],['nr_dias_notificacao','Dias Not.','center'],['hodometro_km_validade','Hodômetro Val. (Km)','center'],['hodometro_km_notificacao','Hodômetro Not. (Km)','center'],['ativo','Ativo','center']].map(([f,l,align]) => (
-                  <th key={f} className={`px-2 py-1.5 text-${align} text-blue-800 font-semibold cursor-pointer select-none hover:bg-blue-200 whitespace-nowrap`} onClick={() => handleSort(f)}>
+                  <th key={f} className={`px-2 py-1.5 text-${align} text-blue-800 dark:text-blue-300 font-semibold cursor-pointer select-none hover:bg-blue-200 dark:hover:bg-blue-900/30 whitespace-nowrap`} onClick={() => handleSort(f)}>
                     <span className={`flex items-center gap-1 ${align === 'center' ? 'justify-center' : ''}`}>{l} <SortIcon field={f} sortField={sortField} sortDir={sortDir} /></span>
                   </th>
                 ))}
-                <th className="px-2 py-1.5 text-center text-blue-800 font-semibold"></th>
+                <th className="px-2 py-1.5 text-center text-blue-800 dark:text-blue-300 font-semibold"></th>
               </tr>
             </thead>
             <tbody>
@@ -516,13 +516,13 @@ export default function CadastroTipoServico() {
                   const va = a[sortField] ?? ''; const vb = b[sortField] ?? ''
                   return sortDir === 'asc' ? String(va).localeCompare(String(vb), 'pt-BR', { numeric: true }) : String(vb).localeCompare(String(va), 'pt-BR', { numeric: true })
                 }) : items).map((item, idx) => (
-                <tr key={item.id} className={`border-b border-gray-100 hover:bg-blue-50 ${idx % 2 === 0 ? '' : 'bg-gray-50'}`}>
-                  <td className="px-2 py-1.5 font-medium">{item.nome}</td>
-                  <td className="px-2 py-1.5 text-gray-600">{item.parte_veiculo || ''}</td>
-                  <td className="px-2 py-1.5 text-center text-gray-600">{item.nr_dias_validade ?? ''}</td>
-                  <td className="px-2 py-1.5 text-center text-gray-600">{item.nr_dias_notificacao ?? ''}</td>
-                  <td className="px-2 py-1.5 text-center text-gray-600">{item.hodometro_km_validade ? item.hodometro_km_validade.toLocaleString('pt-BR') : ''}</td>
-                  <td className="px-2 py-1.5 text-center text-gray-600">{item.hodometro_km_notificacao ? item.hodometro_km_notificacao.toLocaleString('pt-BR') : ''}</td>
+                <tr key={item.id} className={`border-b border-gray-100 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/20 ${idx % 2 === 0 ? 'dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-700/50'}`}>
+                  <td className="px-2 py-1.5 font-medium dark:text-gray-200">{item.nome}</td>
+                  <td className="px-2 py-1.5 text-gray-600 dark:text-gray-400">{item.parte_veiculo || ''}</td>
+                  <td className="px-2 py-1.5 text-center text-gray-600 dark:text-gray-400">{item.nr_dias_validade ?? ''}</td>
+                  <td className="px-2 py-1.5 text-center text-gray-600 dark:text-gray-400">{item.nr_dias_notificacao ?? ''}</td>
+                  <td className="px-2 py-1.5 text-center text-gray-600 dark:text-gray-400">{item.hodometro_km_validade ? item.hodometro_km_validade.toLocaleString('pt-BR') : ''}</td>
+                  <td className="px-2 py-1.5 text-center text-gray-600 dark:text-gray-400">{item.hodometro_km_notificacao ? item.hodometro_km_notificacao.toLocaleString('pt-BR') : ''}</td>
                   <td className="px-2 py-1.5 text-center">
                     <span className={`px-1.5 py-0.5 rounded text-xs ${item.ativo ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
                       {item.ativo ? 'Sim' : 'Não'}
@@ -540,44 +540,44 @@ export default function CadastroTipoServico() {
         </div>
 
         {/* Filtros */}
-        <div className="border-t border-gray-200 bg-blue-50 px-3 py-2">
+        <div className="border-t border-gray-200 dark:border-gray-700 bg-blue-50 dark:bg-blue-900/20 px-3 py-2">
           <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs mb-2">
             <div className="flex items-center gap-2">
-              <span className="font-semibold text-blue-900 w-28 text-right shrink-0">Tipo de Serviço</span>
-              <input className="border border-gray-300 rounded px-2 py-0.5 flex-1 text-xs focus:outline-none" value={fNome} onChange={e => setFNome(e.target.value)}
+              <span className="font-semibold text-blue-900 dark:text-blue-300 w-28 text-right shrink-0">Tipo de Serviço</span>
+              <input className="border border-gray-300 dark:border-gray-600 rounded px-2 py-0.5 flex-1 text-xs focus:outline-none bg-white dark:bg-gray-700 dark:text-gray-100" value={fNome} onChange={e => setFNome(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleFiltrar()} />
             </div>
             <div className="flex items-center gap-2">
-              <span className="font-semibold text-blue-900 w-20 text-right shrink-0">Descrição</span>
-              <input className="border border-gray-300 rounded px-2 py-0.5 flex-1 text-xs focus:outline-none" value={fDesc} onChange={e => setFDesc(e.target.value)}
+              <span className="font-semibold text-blue-900 dark:text-blue-300 w-20 text-right shrink-0">Descrição</span>
+              <input className="border border-gray-300 dark:border-gray-600 rounded px-2 py-0.5 flex-1 text-xs focus:outline-none bg-white dark:bg-gray-700 dark:text-gray-100" value={fDesc} onChange={e => setFDesc(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleFiltrar()} />
             </div>
             <div className="flex items-center gap-2">
-              <span className="font-semibold text-blue-900 w-28 text-right shrink-0">Parte do Veículo</span>
-              <input className="border border-gray-300 rounded px-2 py-0.5 flex-1 text-xs focus:outline-none" value={fParte} onChange={e => setFParte(e.target.value)}
+              <span className="font-semibold text-blue-900 dark:text-blue-300 w-28 text-right shrink-0">Parte do Veículo</span>
+              <input className="border border-gray-300 dark:border-gray-600 rounded px-2 py-0.5 flex-1 text-xs focus:outline-none bg-white dark:bg-gray-700 dark:text-gray-100" value={fParte} onChange={e => setFParte(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleFiltrar()} />
             </div>
             <div className="flex items-center gap-2">
-              <span className="font-semibold text-blue-900 w-20 text-right shrink-0">Uso</span>
-              <select className="border border-gray-300 rounded px-1 py-0.5 text-xs bg-white focus:outline-none flex-1" value={fUso} onChange={e => setFUso(e.target.value)}>
+              <span className="font-semibold text-blue-900 dark:text-blue-300 w-20 text-right shrink-0">Uso</span>
+              <select className="border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 text-xs bg-white dark:bg-gray-700 dark:text-gray-100 focus:outline-none flex-1" value={fUso} onChange={e => setFUso(e.target.value)}>
                 <option value=""></option><option>Veículo</option><option>Equipamento</option><option>Frota</option>
               </select>
             </div>
             <div className="flex items-center gap-2">
-              <span className="font-semibold text-blue-900 w-28 text-right shrink-0">Ativo</span>
-              <select className="border border-gray-300 rounded px-1 py-0.5 text-xs bg-white focus:outline-none" value={fAtivo} onChange={e => setFAtivo(e.target.value)}>
+              <span className="font-semibold text-blue-900 dark:text-blue-300 w-28 text-right shrink-0">Ativo</span>
+              <select className="border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 text-xs bg-white dark:bg-gray-700 dark:text-gray-100 focus:outline-none" value={fAtivo} onChange={e => setFAtivo(e.target.value)}>
                 <option value=""></option><option value="true">Sim</option><option value="false">Não</option>
               </select>
             </div>
           </div>
           <div className="flex gap-2 justify-center">
-            <button onClick={handleFiltrar} className="px-5 py-1 text-xs bg-white border border-gray-400 rounded hover:bg-gray-50 shadow-sm">Filtrar</button>
-            <button onClick={handleLimpar} className="px-5 py-1 text-xs bg-white border border-gray-400 rounded hover:bg-gray-50 shadow-sm">Limpar</button>
+            <button onClick={handleFiltrar} className="px-5 py-1 text-xs bg-white dark:bg-gray-700 dark:text-gray-200 border border-gray-400 dark:border-gray-500 rounded hover:bg-gray-50 dark:hover:bg-gray-600 shadow-sm">Filtrar</button>
+            <button onClick={handleLimpar} className="px-5 py-1 text-xs bg-white dark:bg-gray-700 dark:text-gray-200 border border-gray-400 dark:border-gray-500 rounded hover:bg-gray-50 dark:hover:bg-gray-600 shadow-sm">Limpar</button>
           </div>
         </div>
 
         {/* Status bar */}
-        <div className={`px-3 py-1.5 text-xs flex items-center gap-2 border-t border-gray-300 ${statusMsg ? 'bg-green-100 text-green-700' : 'bg-blue-50 text-blue-400'}`}>
+        <div className={`px-3 py-1.5 text-xs flex items-center gap-2 border-t border-gray-300 dark:border-gray-600 ${statusMsg ? 'bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400' : 'bg-blue-50 dark:bg-blue-900/20 text-blue-400 dark:text-blue-500'}`}>
           <span className="font-semibold">Status:</span>
           {statusMsg && <CheckCircle className="w-3.5 h-3.5" />}
           {statusMsg}

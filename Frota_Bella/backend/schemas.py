@@ -52,6 +52,44 @@ class TipoServicoCadOut(TipoServicoCadCreate):
         from_attributes = True
 
 
+# ── OficinaPrestador ─────────────────────────────────────────────────────────
+
+class OficinaPrestadorCreate(BaseModel):
+    nome: str
+    cnpj_cpf: Optional[str] = None
+    telefone: Optional[str] = None
+    email: Optional[str] = None
+    endereco: Optional[str] = None
+    cidade: Optional[str] = None
+    especialidade: Optional[str] = None
+    observacao: Optional[str] = None
+    ativo: bool = True
+
+class OficinaPrestadorUpdate(BaseModel):
+    nome: Optional[str] = None
+    cnpj_cpf: Optional[str] = None
+    telefone: Optional[str] = None
+    email: Optional[str] = None
+    endereco: Optional[str] = None
+    cidade: Optional[str] = None
+    especialidade: Optional[str] = None
+    observacao: Optional[str] = None
+    ativo: Optional[bool] = None
+
+class OficinaPrestadorOut(OficinaPrestadorCreate):
+    id: int
+    created_at: datetime
+    class Config:
+        from_attributes = True
+
+class PaginatedOficinasPrestadores(BaseModel):
+    items: List[OficinaPrestadorOut]
+    total: int
+    page: int
+    per_page: int
+    total_pages: int
+
+
 # ── Veiculo ──────────────────────────────────────────────────────────────────
 
 class VeiculoBase(BaseModel):
@@ -256,6 +294,7 @@ class SolicitacaoCreate(BaseModel):
     status: str = "Aberta"
     observacao: Optional[str] = None
     imagens: Optional[str] = None
+    dt_solicitacao: Optional[datetime] = None
 
 class SolicitacaoUpdate(BaseModel):
     veiculo_id: Optional[int] = None

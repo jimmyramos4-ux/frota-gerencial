@@ -86,7 +86,7 @@ function VeiculoModal({ veiculo, onClose, onSaved }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded shadow-xl w-full max-w-lg mx-4">
+      <div className="bg-white dark:bg-gray-800 rounded shadow-xl w-full max-w-lg mx-4">
         <div className="flex items-center justify-between bg-blue-700 text-white px-4 py-2 rounded-t">
           <div className="flex items-center gap-2">
             <Car className="w-4 h-4" />
@@ -100,7 +100,7 @@ function VeiculoModal({ veiculo, onClose, onSaved }) {
         </div>
         <form onSubmit={handleSubmit} className="p-5 space-y-3">
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded flex items-center gap-2 text-sm">
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-3 py-2 rounded flex items-center gap-2 text-sm">
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
               {error}
             </div>
@@ -267,7 +267,7 @@ export default function ListagemVeiculos() {
 
       {/* Title */}
       <div className="flex items-center justify-between">
-        <h1 className="text-base font-semibold text-gray-800">Veículos</h1>
+        <h1 className="text-base font-semibold text-gray-800 dark:text-gray-100">Veículos</h1>
         <div className="flex items-center gap-2">
           <button onClick={fetchVeiculos} className="text-gray-500 hover:text-blue-600 transition-colors" title="Atualizar">
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -289,10 +289,10 @@ export default function ListagemVeiculos() {
       </div>
 
       {/* Search */}
-      <div className="bg-white rounded shadow-sm border border-gray-200 px-3 py-2 flex items-center gap-2">
+      <div className="bg-white dark:bg-gray-800 rounded shadow-sm border border-gray-200 dark:border-gray-700 px-3 py-2 flex items-center gap-2">
         <Search className="w-4 h-4 text-gray-400 flex-shrink-0" />
         <input
-          className="flex-1 text-sm outline-none"
+          className="flex-1 text-sm outline-none dark:text-gray-100 dark:placeholder-gray-400 bg-transparent"
           placeholder="Pesquisar por placa ou descrição..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -305,20 +305,20 @@ export default function ListagemVeiculos() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded shadow-sm border border-gray-200">
+      <div className="bg-white dark:bg-gray-800 rounded shadow-sm border border-gray-200 dark:border-gray-700">
         <div className="section-header">
           Veículos Cadastrados ({veiculos.length})
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
-              <tr className="bg-blue-50 border-b border-blue-100">
+              <tr className="bg-blue-50 dark:bg-blue-900/20 border-b border-blue-100 dark:border-blue-800/40">
                 {cols.map(([f, l]) => (
-                  <th key={f} className="px-3 py-2 text-left text-blue-800 font-semibold cursor-pointer select-none hover:bg-blue-100 whitespace-nowrap" onClick={() => handleSort(f)}>
+                  <th key={f} className="px-3 py-2 text-left text-blue-800 dark:text-blue-300 font-semibold cursor-pointer select-none hover:bg-blue-100 dark:hover:bg-blue-900/30 whitespace-nowrap" onClick={() => handleSort(f)}>
                     <span className="flex items-center gap-1">{l} <SortIcon field={f} sortField={sortField} sortDir={sortDir} /></span>
                   </th>
                 ))}
-                <th className="px-3 py-2 text-center text-blue-800 font-semibold">Ações</th>
+                <th className="px-3 py-2 text-center text-blue-800 dark:text-blue-300 font-semibold">Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -333,8 +333,8 @@ export default function ListagemVeiculos() {
                   const va = a[sortField] ?? ''; const vb = b[sortField] ?? ''
                   return sortDir === 'asc' ? String(va).localeCompare(String(vb), 'pt-BR', { numeric: true }) : String(vb).localeCompare(String(va), 'pt-BR', { numeric: true })
                 }) : veiculos).map((v, idx) => (
-                  <tr key={v.id} className={`border-b border-gray-100 hover:bg-blue-50 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
-                    <td className="px-3 py-2 font-medium text-blue-700">{v.placa}</td>
+                  <tr key={v.id} className={`border-b border-gray-100 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors ${idx % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-700/50'}`}>
+                    <td className="px-3 py-2 font-medium text-blue-700 dark:text-blue-400">{v.placa}</td>
                     <td className="px-3 py-2">{v.marca || '-'}</td>
                     <td className="px-3 py-2">{v.modelo || '-'}</td>
                     <td className="px-3 py-2">{v.tipo || '-'}</td>
@@ -342,16 +342,16 @@ export default function ListagemVeiculos() {
                     <td className="px-3 py-2">{v.ano || '-'}</td>
                     <td className="px-3 py-2">{v.capacidade || '-'}</td>
                     <td className="px-3 py-2">{v.vinculo || '-'}</td>
-                    <td className="px-3 py-2 text-gray-500">{v.chassi || '-'}</td>
+                    <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{v.chassi || '-'}</td>
                     <td className="px-3 py-2 whitespace-nowrap">
                       {v.ultimo_km ? (
                         <span className="inline-flex flex-col">
                           <span className="font-semibold text-blue-700">{fmtKm(v.ultimo_km)}</span>
-                          {v.ultimo_km_data && <span className="text-gray-400 text-[10px]">{fmt(v.ultimo_km_data)}</span>}
+                          {v.ultimo_km_data && <span className="text-gray-400 dark:text-gray-500 text-[10px]">{fmt(v.ultimo_km_data)}</span>}
                         </span>
                       ) : <span className="text-gray-300">-</span>}
                     </td>
-                    <td className="px-3 py-2 whitespace-nowrap text-gray-500">{fmt(v.created_at)}</td>
+                    <td className="px-3 py-2 whitespace-nowrap text-gray-500 dark:text-gray-400">{fmt(v.created_at)}</td>
                     <td className="px-3 py-2">
                       <div className="flex items-center justify-center gap-1.5">
                         <button className="p-0.5 text-gray-500 hover:text-yellow-600" title="Editar" onClick={() => setModal(v)}>

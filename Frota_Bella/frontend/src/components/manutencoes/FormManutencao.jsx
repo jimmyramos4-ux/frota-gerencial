@@ -10,6 +10,7 @@ import {
 import LookupField from '../shared/LookupField.jsx'
 import { TipoServicoModal } from '../tiposservico/CadastroTipoServico.jsx'
 import { ParteVeiculoModal } from '../partesveiculo/CadastroParteVeiculo.jsx'
+import { OficinaPrestadorModal } from '../oficinasprestadores/CadastroOficinaPrestador.jsx'
 
 const API = 'http://localhost:8000/api'
 
@@ -49,8 +50,8 @@ function fmtMoney(v) {
   return Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2 })
 }
 
-const inp = "border border-gray-300 rounded px-2 py-1.5 text-xs w-full focus:outline-none focus:border-blue-400 bg-white"
-const sel = "border border-gray-300 rounded px-2 py-1.5 text-xs w-full focus:outline-none focus:border-blue-400 bg-white"
+const inp = "border border-gray-300 dark:border-gray-600 rounded px-2 py-1.5 text-xs w-full focus:outline-none focus:border-blue-400 bg-white dark:bg-gray-700 dark:text-gray-100"
+const sel = "border border-gray-300 dark:border-gray-600 rounded px-2 py-1.5 text-xs w-full focus:outline-none focus:border-blue-400 bg-white dark:bg-gray-700 dark:text-gray-100"
 
 const statusBadge = {
   'Em Andamento': 'bg-blue-500 text-white',
@@ -76,7 +77,7 @@ function SectionHeader({ icon: Icon, title, right }) {
 }
 
 function Lbl({ children }) {
-  return <label className="block text-xs font-semibold text-blue-800 mb-1">{children}</label>
+  return <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">{children}</label>
 }
 
 export default function FormManutencao() {
@@ -105,6 +106,7 @@ export default function FormManutencao() {
   const [solicitacoesRemovidas, setSolicitacoesRemovidas] = useState([])
   const [tipoServicoModalCb, setTipoServicoModalCb] = useState(null)
   const [parteVeiculoModalCb, setParteVeiculoModalCb] = useState(null)
+  const [oficinaModalCb, setOficinaModalCb] = useState(null)
   const [arquivos, setArquivos] = useState([])
   const [pendingFiles, setPendingFiles] = useState([]) // {file, preview} para nova manutenção
   const [uploading, setUploading] = useState(false)
@@ -394,10 +396,10 @@ export default function FormManutencao() {
       <form onSubmit={handleSubmit} className="space-y-4">
 
         {/* ── SEÇÃO MANUTENÇÃO ── */}
-        <div className="rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <div className="rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
           <SectionHeader icon={ClipboardList} title="Manutenção" />
 
-          <div className="p-4 space-y-4 bg-white">
+          <div className="p-4 space-y-4 bg-white dark:bg-gray-800">
 
             {/* Veículo + Motorista */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -410,19 +412,19 @@ export default function FormManutencao() {
                     onFocus={() => setShowVeiculoDrop(true)}
                     onBlur={() => setTimeout(() => setShowVeiculoDrop(false), 200)} />
                   <button type="button" onClick={() => setShowVeiculoDrop(!showVeiculoDrop)}
-                    className="border border-gray-300 rounded px-2 bg-blue-50 hover:bg-blue-100 text-blue-600 transition-colors">
+                    className="border border-gray-300 dark:border-gray-600 rounded px-2 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 transition-colors">
                     <Search className="w-3.5 h-3.5" />
                   </button>
                 </div>
-                {veiculoDesc && <p className="text-xs text-blue-600 mt-0.5 pl-1 font-medium">{veiculoDesc}</p>}
+                {veiculoDesc && <p className="text-xs text-blue-600 dark:text-blue-400 mt-0.5 pl-1 font-medium">{veiculoDesc}</p>}
                 {showVeiculoDrop && filteredVeiculos.length > 0 && (
-                  <ul className="absolute z-30 bg-white border border-gray-200 rounded-lg shadow-lg mt-0.5 w-full max-h-40 overflow-y-auto text-xs">
+                  <ul className="absolute z-30 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg mt-0.5 w-full max-h-40 overflow-y-auto text-xs">
                     {filteredVeiculos.map(v => (
-                      <li key={v.id} className="px-3 py-2 hover:bg-blue-50 cursor-pointer border-b border-gray-50 last:border-0 flex items-center gap-2"
+                      <li key={v.id} className="px-3 py-2 hover:bg-blue-50 dark:hover:bg-blue-900/30 cursor-pointer border-b border-gray-50 dark:border-gray-700 last:border-0 flex items-center gap-2"
                         onMouseDown={() => selectVeiculo(v)}>
                         <Car className="w-3 h-3 text-blue-400" />
-                        <span className="font-semibold">{v.placa}</span>
-                        <span className="text-gray-400">{v.descricao}</span>
+                        <span className="font-semibold dark:text-gray-200">{v.placa}</span>
+                        <span className="text-gray-400 dark:text-gray-500">{v.descricao}</span>
                       </li>
                     ))}
                   </ul>
@@ -438,19 +440,19 @@ export default function FormManutencao() {
                     onFocus={() => setShowMotoristaDrop(true)}
                     onBlur={() => setTimeout(() => setShowMotoristaDrop(false), 200)} />
                   <button type="button" onClick={() => setShowMotoristaDrop(!showMotoristaDrop)}
-                    className="border border-gray-300 rounded px-2 bg-blue-50 hover:bg-blue-100 text-blue-600 transition-colors">
+                    className="border border-gray-300 dark:border-gray-600 rounded px-2 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 transition-colors">
                     <Search className="w-3.5 h-3.5" />
                   </button>
                 </div>
-                {motoristaDesc && <p className="text-xs text-blue-600 mt-0.5 pl-1 font-medium">{motoristaDesc}</p>}
+                {motoristaDesc && <p className="text-xs text-blue-600 dark:text-blue-400 mt-0.5 pl-1 font-medium">{motoristaDesc}</p>}
                 {showMotoristaDrop && filteredMotoristas.length > 0 && (
-                  <ul className="absolute z-30 bg-white border border-gray-200 rounded-lg shadow-lg mt-0.5 w-full max-h-40 overflow-y-auto text-xs">
+                  <ul className="absolute z-30 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg mt-0.5 w-full max-h-40 overflow-y-auto text-xs">
                     {filteredMotoristas.map(m => (
-                      <li key={m.id} className="px-3 py-2 hover:bg-blue-50 cursor-pointer border-b border-gray-50 last:border-0 flex items-center gap-2"
+                      <li key={m.id} className="px-3 py-2 hover:bg-blue-50 dark:hover:bg-blue-900/30 cursor-pointer border-b border-gray-50 dark:border-gray-700 last:border-0 flex items-center gap-2"
                         onMouseDown={() => selectMotorista(m)}>
                         <User className="w-3 h-3 text-blue-400" />
-                        <span className="font-semibold">{m.codigo}</span>
-                        <span className="text-gray-400">{m.nome}</span>
+                        <span className="font-semibold dark:text-gray-200">{m.codigo}</span>
+                        <span className="text-gray-400 dark:text-gray-500">{m.nome}</span>
                       </li>
                     ))}
                   </ul>
@@ -462,7 +464,7 @@ export default function FormManutencao() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <div><Lbl>Km Entrada</Lbl><input className={inp} type="number" value={form.km_entrada} onChange={setF('km_entrada')} /></div>
               <div><Lbl>Horímetro Entrada</Lbl><input className={inp} type="number" step="0.01" value={form.horimetro_entrada} onChange={setF('horimetro_entrada')} /></div>
-              <div><Lbl>Resp. Manutenção</Lbl><input className={inp} value={form.responsavel_manutencao} onChange={setF('responsavel_manutencao')} /></div>
+              <div><Lbl>Oficina / Prestador</Lbl><LookupField endpoint="oficinas-prestadores" value={form.responsavel_manutencao} onChange={v => setForm(f => ({ ...f, responsavel_manutencao: v }))} placeholder="Oficina / Prestador" onCadastrarNovo={cb => setOficinaModalCb(() => cb)} /></div>
               <div><Lbl>Requisitante</Lbl><input className={inp} value={form.requisitante} onChange={setF('requisitante')} /></div>
             </div>
 
@@ -531,11 +533,11 @@ export default function FormManutencao() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
                 <Lbl>Serviços Solicitados</Lbl>
-                <div className="border border-gray-300 rounded bg-white focus-within:border-blue-400 min-h-[80px]">
+                <div className="border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 focus-within:border-blue-400 min-h-[80px]">
                   {solicitacoesVeiculo.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 p-2 border-b border-gray-100">
+                    <div className="flex flex-wrap gap-1.5 p-2 border-b border-gray-100 dark:border-gray-600">
                       {solicitacoesVeiculo.map(sol => (
-                        <span key={sol.id} className="inline-flex items-center gap-1 bg-blue-50 border border-blue-200 text-blue-800 text-xs rounded-full px-2.5 py-1 font-medium max-w-xs">
+                        <span key={sol.id} className="inline-flex items-center gap-1 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800/40 text-blue-800 dark:text-blue-300 text-xs rounded-full px-2.5 py-1 font-medium max-w-xs">
                           <span className="truncate" title={sol.descricao}>#{sol.id} {sol.descricao}</span>
                           <button type="button" onClick={() => removeSolicitacao(sol)}
                             className="ml-0.5 text-blue-400 hover:text-red-500 flex-shrink-0 transition-colors" title="Remover desta manutenção">
@@ -545,7 +547,7 @@ export default function FormManutencao() {
                       ))}
                     </div>
                   )}
-                  <textarea className="w-full px-2 py-1.5 text-xs outline-none bg-transparent resize-none" rows={3} value={form.servicos_solicitados} onChange={setF('servicos_solicitados')} placeholder="Descreva os serviços solicitados..." />
+                  <textarea className="w-full px-2 py-1.5 text-xs outline-none bg-transparent dark:text-gray-100 dark:placeholder-gray-500 resize-none" rows={3} value={form.servicos_solicitados} onChange={setF('servicos_solicitados')} placeholder="Descreva os serviços solicitados..." />
                 </div>
               </div>
               <div>
@@ -555,7 +557,7 @@ export default function FormManutencao() {
             </div>
 
             {!form.veiculo_id && (
-              <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              <div className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 rounded-lg px-3 py-2">
                 <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
                 Informe o Veículo para habilitar os Serviços do Veículo.
               </div>
@@ -564,43 +566,43 @@ export default function FormManutencao() {
         </div>
 
         {/* ── SEÇÃO SERVIÇOS ── */}
-        <div className="rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <div className="rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
           <SectionHeader icon={Wrench} title="Serviços Veículo" right={`${servicos.length} serviço(s)`} />
 
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
-                <tr className="bg-blue-50 border-b border-blue-100">
-                  <th className="px-2 py-2 text-left text-blue-800 font-semibold">Status</th>
-                  <th className="px-2 py-2 text-left text-blue-800 font-semibold">Parte Veículo</th>
-                  <th className="px-2 py-2 text-left text-blue-800 font-semibold">Serviço</th>
-                  <th className="px-2 py-2 text-left text-blue-800 font-semibold">Tipo</th>
-                  <th className="px-2 py-2 text-left text-blue-800 font-semibold">Dt. Serviço</th>
-                  <th className="px-2 py-2 text-left text-blue-800 font-semibold">Próx. Dt. Val.</th>
-                  <th className="px-2 py-2 text-right text-blue-800 font-semibold">Próx. Km</th>
-                  <th className="px-2 py-2 text-left text-blue-800 font-semibold">Responsável</th>
-                  <th className="px-2 py-2 text-left text-blue-800 font-semibold">Descrição</th>
-                  <th className="px-2 py-2 text-right text-blue-800 font-semibold">Valor R$</th>
-                  <th className="px-2 py-2 text-left text-blue-800 font-semibold">Horas</th>
-                  <th className="px-2 py-2 text-center text-blue-800 font-semibold">Ação</th>
+                <tr className="bg-blue-50 dark:bg-blue-900/20 border-b border-blue-100 dark:border-blue-800/40">
+                  <th className="px-2 py-2 text-left text-blue-800 dark:text-blue-300 font-semibold">Status</th>
+                  <th className="px-2 py-2 text-left text-blue-800 dark:text-blue-300 font-semibold">Parte Veículo</th>
+                  <th className="px-2 py-2 text-left text-blue-800 dark:text-blue-300 font-semibold">Serviço</th>
+                  <th className="px-2 py-2 text-left text-blue-800 dark:text-blue-300 font-semibold">Tipo</th>
+                  <th className="px-2 py-2 text-left text-blue-800 dark:text-blue-300 font-semibold">Dt. Serviço</th>
+                  <th className="px-2 py-2 text-left text-blue-800 dark:text-blue-300 font-semibold">Próx. Dt. Val.</th>
+                  <th className="px-2 py-2 text-right text-blue-800 dark:text-blue-300 font-semibold">Próx. Km</th>
+                  <th className="px-2 py-2 text-left text-blue-800 dark:text-blue-300 font-semibold">Responsável</th>
+                  <th className="px-2 py-2 text-left text-blue-800 dark:text-blue-300 font-semibold">Descrição</th>
+                  <th className="px-2 py-2 text-right text-blue-800 dark:text-blue-300 font-semibold">Valor R$</th>
+                  <th className="px-2 py-2 text-left text-blue-800 dark:text-blue-300 font-semibold">Horas</th>
+                  <th className="px-2 py-2 text-center text-blue-800 dark:text-blue-300 font-semibold">Ação</th>
                 </tr>
               </thead>
               <tbody>
                 {servicos.map((s, idx) => {
                   const isEditing = editingId === s.id
-                  const rowCls = `border-b border-gray-100 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`
-                  const miniSel = "border border-gray-300 rounded px-1 py-0.5 text-xs bg-white focus:outline-none w-full"
-                  const miniInp = "border border-gray-300 rounded px-1 py-0.5 text-xs w-full focus:outline-none"
+                  const rowCls = `border-b border-gray-100 dark:border-gray-700 ${idx % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-700/50'}`
+                  const miniSel = "border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 text-xs bg-white dark:bg-gray-700 dark:text-gray-100 focus:outline-none w-full"
+                  const miniInp = "border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 text-xs w-full focus:outline-none dark:bg-gray-700 dark:text-gray-100"
 
                   if (isEditing) return (
-                    <tr key={s.id} className="border-b border-blue-200 bg-blue-50">
+                    <tr key={s.id} className="border-b border-blue-200 dark:border-blue-800/40 bg-blue-50 dark:bg-blue-900/20">
                       <td className="px-1 py-1.5">
                         <select className={miniSel} value={editForm.status} onChange={setEf('status')}>
                           <option>Em Andamento</option><option>Finalizado</option><option>Cancelado</option>
                         </select>
                       </td>
                       <td className="px-1 py-1.5"><LookupField endpoint="partes-veiculo" value={editForm.parte_veiculo} onChange={v => setEditForm(f => ({ ...f, parte_veiculo: v }))} placeholder="Parte" onCadastrarNovo={cb => setParteVeiculoModalCb(() => cb)} /></td>
-                      <td className="px-1 py-1.5"><LookupField endpoint="tipos-servico" value={editForm.servico} onChange={v => setEditForm(f => ({ ...f, servico: v }))} placeholder="Serviço" onCadastrarNovo={cb => setTipoServicoModalCb(() => cb)} onItemSelected={item => { setEditForm(f => ({ ...f, _nr_dias_validade: item.nr_dias_validade || '', proximo_km_validade: item.hodometro_km_validade && form.km_entrada ? String(Number(form.km_entrada) + item.hodometro_km_validade) : f.proximo_km_validade, proxima_dt_validade: item.nr_dias_validade && f.dt_servico ? calcProxDt(f.dt_servico, item.nr_dias_validade) : f.proxima_dt_validade })) }} /></td>
+                      <td className="px-1 py-1.5"><LookupField endpoint="tipos-servico" value={editForm.servico} onChange={v => setEditForm(f => ({ ...f, servico: v }))} placeholder="Serviço" onCadastrarNovo={cb => setTipoServicoModalCb(() => cb)} extraParams={editForm.parte_veiculo ? { parte_veiculo: editForm.parte_veiculo } : undefined} onItemSelected={item => { setEditForm(f => ({ ...f, _nr_dias_validade: item.nr_dias_validade || '', proximo_km_validade: item.hodometro_km_validade && form.km_entrada ? String(Number(form.km_entrada) + item.hodometro_km_validade) : f.proximo_km_validade, proxima_dt_validade: item.nr_dias_validade && f.dt_servico ? calcProxDt(f.dt_servico, item.nr_dias_validade) : f.proxima_dt_validade })) }} /></td>
                       <td className="px-1 py-1.5">
                         <select className={miniSel} value={editForm.tipo_uso} onChange={setEf('tipo_uso')}>
                           <option value="">-</option><option>Corretiva</option><option>Preventiva</option>
@@ -629,20 +631,20 @@ export default function FormManutencao() {
                   )
 
                   return (
-                    <tr key={s.id} className={`${rowCls} hover:bg-blue-50 transition-colors`}>
+                    <tr key={s.id} className={`${rowCls} hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors`}>
                       <td className="px-2 py-2">
                         <span className={`px-2 py-0.5 rounded-full text-xs font-bold whitespace-nowrap ${statusBadge[s.status] || 'bg-gray-100 text-gray-700'}`}>{s.status}</span>
                       </td>
-                      <td className="px-2 py-2 font-medium">{s.parte_veiculo || '-'}</td>
-                      <td className="px-2 py-2">{s.servico || '-'}</td>
-                      <td className="px-2 py-2 text-gray-500">{s.tipo_uso || '-'}</td>
-                      <td className="px-2 py-2 whitespace-nowrap text-gray-600">{s.dt_servico || '-'}</td>
-                      <td className="px-2 py-2 whitespace-nowrap text-gray-600">{s.proxima_dt_validade || '-'}</td>
-                      <td className="px-2 py-2 text-right tabular-nums text-gray-600">{s.proximo_km_validade || '-'}</td>
-                      <td className="px-2 py-2 text-gray-600">{s.pessoa_responsavel || '-'}</td>
-                      <td className="px-2 py-2 text-gray-500">{s.descricao || '-'}</td>
-                      <td className="px-2 py-2 text-right tabular-nums font-semibold text-gray-700">{s.valor ? `R$ ${fmtMoney(s.valor)}` : '-'}</td>
-                      <td className="px-2 py-2 text-gray-600">{s.horas_trabalhadas || '-'}</td>
+                      <td className="px-2 py-2 font-medium dark:text-gray-200">{s.parte_veiculo || '-'}</td>
+                      <td className="px-2 py-2 dark:text-gray-200">{s.servico || '-'}</td>
+                      <td className="px-2 py-2 text-gray-500 dark:text-gray-400">{s.tipo_uso || '-'}</td>
+                      <td className="px-2 py-2 whitespace-nowrap text-gray-600 dark:text-gray-400">{s.dt_servico || '-'}</td>
+                      <td className="px-2 py-2 whitespace-nowrap text-gray-600 dark:text-gray-400">{s.proxima_dt_validade || '-'}</td>
+                      <td className="px-2 py-2 text-right tabular-nums text-gray-600 dark:text-gray-400">{s.proximo_km_validade || '-'}</td>
+                      <td className="px-2 py-2 text-gray-600 dark:text-gray-400">{s.pessoa_responsavel || '-'}</td>
+                      <td className="px-2 py-2 text-gray-500 dark:text-gray-400">{s.descricao || '-'}</td>
+                      <td className="px-2 py-2 text-right tabular-nums font-semibold text-gray-700 dark:text-gray-300">{s.valor ? `R$ ${fmtMoney(s.valor)}` : '-'}</td>
+                      <td className="px-2 py-2 text-gray-600 dark:text-gray-400">{s.horas_trabalhadas || '-'}</td>
                       <td className="px-2 py-2 text-center">
                         <div className="flex items-center justify-center gap-1">
                           <button type="button" onClick={() => startEdit(s)} title="Editar"
@@ -660,26 +662,26 @@ export default function FormManutencao() {
                 })}
 
                 {/* Linha nova */}
-                <tr className="bg-yellow-50 border-t-2 border-yellow-300">
+                <tr className="bg-yellow-50 dark:bg-yellow-900/10 border-t-2 border-yellow-300 dark:border-yellow-800/40">
                   <td className="px-1 py-1.5">
-                    <select className="border border-gray-300 rounded px-1 py-0.5 text-xs bg-white focus:outline-none w-full" value={newServico.status} onChange={setSf('status')}>
+                    <select className="border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 text-xs bg-white dark:bg-gray-700 dark:text-gray-100 focus:outline-none w-full" value={newServico.status} onChange={setSf('status')}>
                       <option>Em Andamento</option><option>Finalizado</option><option>Cancelado</option>
                     </select>
                   </td>
                   <td className="px-1 py-1.5"><LookupField endpoint="partes-veiculo" value={newServico.parte_veiculo} onChange={v => setNewServico(s => ({ ...s, parte_veiculo: v }))} placeholder="Parte" onCadastrarNovo={cb => setParteVeiculoModalCb(() => cb)} /></td>
-                  <td className="px-1 py-1.5"><LookupField endpoint="tipos-servico" value={newServico.servico} onChange={v => setNewServico(s => ({ ...s, servico: v }))} placeholder="Serviço" onCadastrarNovo={cb => setTipoServicoModalCb(() => cb)} onItemSelected={item => { setNewServico(s => ({ ...s, _nr_dias_validade: item.nr_dias_validade || '', proximo_km_validade: item.hodometro_km_validade && form.km_entrada ? String(Number(form.km_entrada) + item.hodometro_km_validade) : s.proximo_km_validade, proxima_dt_validade: item.nr_dias_validade && s.dt_servico ? calcProxDt(s.dt_servico, item.nr_dias_validade) : s.proxima_dt_validade })) }} /></td>
+                  <td className="px-1 py-1.5"><LookupField endpoint="tipos-servico" value={newServico.servico} onChange={v => setNewServico(s => ({ ...s, servico: v }))} placeholder="Serviço" onCadastrarNovo={cb => setTipoServicoModalCb(() => cb)} extraParams={newServico.parte_veiculo ? { parte_veiculo: newServico.parte_veiculo } : undefined} onItemSelected={item => { setNewServico(s => ({ ...s, _nr_dias_validade: item.nr_dias_validade || '', proximo_km_validade: item.hodometro_km_validade && form.km_entrada ? String(Number(form.km_entrada) + item.hodometro_km_validade) : s.proximo_km_validade, proxima_dt_validade: item.nr_dias_validade && s.dt_servico ? calcProxDt(s.dt_servico, item.nr_dias_validade) : s.proxima_dt_validade })) }} /></td>
                   <td className="px-1 py-1.5">
-                    <select className="border border-gray-300 rounded px-1 py-0.5 text-xs bg-white focus:outline-none w-full" value={newServico.tipo_uso} onChange={setSf('tipo_uso')}>
+                    <select className="border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 text-xs bg-white dark:bg-gray-700 dark:text-gray-100 focus:outline-none w-full" value={newServico.tipo_uso} onChange={setSf('tipo_uso')}>
                       <option value="">-</option><option>Corretiva</option><option>Preventiva</option>
                     </select>
                   </td>
-                  <td className="px-1 py-1.5"><input className="border border-gray-300 rounded px-1 py-0.5 text-xs w-full" type="date" value={newServico.dt_servico} onChange={e => setNewServico(s => { const dt = e.target.value; return { ...s, dt_servico: dt, proxima_dt_validade: s._nr_dias_validade && dt ? calcProxDt(dt, s._nr_dias_validade) : s.proxima_dt_validade } })} /></td>
-                  <td className="px-1 py-1.5"><input className="border border-gray-300 rounded px-1 py-0.5 text-xs w-full" type="date" value={newServico.proxima_dt_validade} onChange={setSf('proxima_dt_validade')} /></td>
-                  <td className="px-1 py-1.5"><input className="border border-gray-300 rounded px-1 py-0.5 text-xs w-20 text-right" type="number" value={newServico.proximo_km_validade} onChange={setSf('proximo_km_validade')} /></td>
-                  <td className="px-1 py-1.5"><input className="border border-gray-300 rounded px-1 py-0.5 text-xs w-full" value={newServico.pessoa_responsavel} onChange={setSf('pessoa_responsavel')} placeholder="Resp." /></td>
-                  <td className="px-1 py-1.5"><input className="border border-gray-300 rounded px-1 py-0.5 text-xs w-full" value={newServico.descricao} onChange={setSf('descricao')} placeholder="Desc." /></td>
-                  <td className="px-1 py-1.5"><input className="border border-gray-300 rounded px-1 py-0.5 text-xs w-20 text-right" type="number" step="0.01" value={newServico.valor} onChange={setSf('valor')} placeholder="0,00" /></td>
-                  <td className="px-1 py-1.5"><input className="border border-gray-300 rounded px-1 py-0.5 text-xs w-16" value={newServico.horas_trabalhadas} onChange={setSf('horas_trabalhadas')} placeholder="h:mm" /></td>
+                  <td className="px-1 py-1.5"><input className="border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 text-xs w-full dark:bg-gray-700 dark:text-gray-100" type="date" value={newServico.dt_servico} onChange={e => setNewServico(s => { const dt = e.target.value; return { ...s, dt_servico: dt, proxima_dt_validade: s._nr_dias_validade && dt ? calcProxDt(dt, s._nr_dias_validade) : s.proxima_dt_validade } })} /></td>
+                  <td className="px-1 py-1.5"><input className="border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 text-xs w-full dark:bg-gray-700 dark:text-gray-100" type="date" value={newServico.proxima_dt_validade} onChange={setSf('proxima_dt_validade')} /></td>
+                  <td className="px-1 py-1.5"><input className="border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 text-xs w-20 text-right dark:bg-gray-700 dark:text-gray-100" type="number" value={newServico.proximo_km_validade} onChange={setSf('proximo_km_validade')} /></td>
+                  <td className="px-1 py-1.5"><input className="border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 text-xs w-full dark:bg-gray-700 dark:text-gray-100" value={newServico.pessoa_responsavel} onChange={setSf('pessoa_responsavel')} placeholder="Resp." /></td>
+                  <td className="px-1 py-1.5"><input className="border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 text-xs w-full dark:bg-gray-700 dark:text-gray-100" value={newServico.descricao} onChange={setSf('descricao')} placeholder="Desc." /></td>
+                  <td className="px-1 py-1.5"><input className="border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 text-xs w-20 text-right dark:bg-gray-700 dark:text-gray-100" type="number" step="0.01" value={newServico.valor} onChange={setSf('valor')} placeholder="0,00" /></td>
+                  <td className="px-1 py-1.5"><input className="border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 text-xs w-16 dark:bg-gray-700 dark:text-gray-100" value={newServico.horas_trabalhadas} onChange={setSf('horas_trabalhadas')} placeholder="h:mm" /></td>
                   <td className="px-1 py-1.5 text-center">
                     <button type="button" onClick={handleAddServico} title="Adicionar serviço"
                       className="p-1 text-green-600 hover:text-green-800 hover:bg-green-50 border border-green-400 rounded transition-colors">
@@ -690,9 +692,9 @@ export default function FormManutencao() {
 
                 {/* Total */}
                 {servicos.length > 0 && (
-                  <tr className="bg-gray-100 border-t-2 border-gray-300">
-                    <td colSpan={9} className="px-3 py-2 text-right text-xs font-bold text-gray-700">Total:</td>
-                    <td className="px-2 py-2 text-right text-sm font-extrabold text-blue-700 tabular-nums">R$ {fmtMoney(totalValor)}</td>
+                  <tr className="bg-gray-100 dark:bg-gray-700 border-t-2 border-gray-300 dark:border-gray-600">
+                    <td colSpan={9} className="px-3 py-2 text-right text-xs font-bold text-gray-700 dark:text-gray-300">Total:</td>
+                    <td className="px-2 py-2 text-right text-sm font-extrabold text-blue-700 dark:text-blue-400 tabular-nums">R$ {fmtMoney(totalValor)}</td>
                     <td colSpan={2} />
                   </tr>
                 )}
@@ -702,19 +704,19 @@ export default function FormManutencao() {
         </div>
 
         {/* ── SEÇÃO ANEXOS ── */}
-        <div className="rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <div className="rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
           <SectionHeader icon={Paperclip} title="Anexos" right={`${arquivos.length + pendingFiles.length} arquivo(s)`} />
-          <div className="p-4 bg-white">
+          <div className="p-4 bg-white dark:bg-gray-800">
             <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleUploadArquivo} disabled={uploading} />
             <div
-              className="border-2 border-dashed border-gray-300 rounded-lg p-3 bg-gray-50 hover:border-blue-400 transition-colors cursor-pointer min-h-[80px]"
+              className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-3 bg-gray-50 dark:bg-gray-700/50 hover:border-blue-400 transition-colors cursor-pointer min-h-[80px]"
               onPaste={handlePasteArquivo}
               onClick={() => fileInputRef.current?.click()}
               tabIndex={0}
               onKeyDown={e => e.key === 'Enter' && fileInputRef.current?.click()}
             >
               {arquivos.length === 0 && pendingFiles.length === 0 ? (
-                <div className="flex flex-col items-center justify-center gap-1 text-gray-400 py-2">
+                <div className="flex flex-col items-center justify-center gap-1 text-gray-400 dark:text-gray-500 py-2">
                   {uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ImagePlus className="w-5 h-5" />}
                   <span className="text-xs">{uploading ? 'Enviando...' : 'Cole (Ctrl+V) ou clique para adicionar arquivos/imagens'}</span>
                 </div>
@@ -736,9 +738,9 @@ export default function FormManutencao() {
                             }} />
                         ) : (
                           <a href={url} target="_blank" rel="noreferrer"
-                            className="h-16 w-16 flex flex-col items-center justify-center rounded border border-gray-200 bg-white text-blue-500 hover:bg-blue-50 transition-colors gap-1">
+                            className="h-16 w-16 flex flex-col items-center justify-center rounded border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors gap-1">
                             <FileText className="w-5 h-5" />
-                            <span className="text-[9px] text-gray-500 truncate w-14 text-center px-1">{arq.nome_arquivo}</span>
+                            <span className="text-[9px] text-gray-500 dark:text-gray-400 truncate w-14 text-center px-1">{arq.nome_arquivo}</span>
                           </a>
                         )}
                         <button type="button" onClick={e => { e.stopPropagation(); handleDeleteArquivo(arq) }}
@@ -760,9 +762,9 @@ export default function FormManutencao() {
                             setLightbox({ images: imgs, idx: Math.max(idx, 0) })
                           }} />
                       ) : (
-                        <div className="h-16 w-16 flex flex-col items-center justify-center rounded border border-yellow-300 bg-yellow-50 text-yellow-600 gap-1">
+                        <div className="h-16 w-16 flex flex-col items-center justify-center rounded border border-yellow-300 dark:border-yellow-700/50 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-600 dark:text-yellow-400 gap-1">
                           <FileText className="w-5 h-5" />
-                          <span className="text-[9px] text-gray-500 truncate w-14 text-center px-1">{file.name}</span>
+                          <span className="text-[9px] text-gray-500 dark:text-gray-400 truncate w-14 text-center px-1">{file.name}</span>
                         </div>
                       )}
                       <div className="absolute -bottom-1 -left-1 bg-yellow-400 text-white text-[8px] rounded px-0.5 font-bold leading-tight">Pend.</div>
@@ -773,7 +775,7 @@ export default function FormManutencao() {
                     </div>
                   ))}
                   {/* Botão adicionar mais */}
-                  <div className="h-16 w-16 border-2 border-dashed border-gray-300 rounded flex items-center justify-center text-gray-400 hover:border-blue-400 flex-shrink-0">
+                  <div className="h-16 w-16 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded flex items-center justify-center text-gray-400 dark:text-gray-500 hover:border-blue-400 flex-shrink-0">
                     {uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ImagePlus className="w-5 h-5" />}
                   </div>
                 </div>
@@ -800,7 +802,7 @@ export default function FormManutencao() {
         )}
 
         {/* ── BARRA DE AÇÃO ── */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 px-4 py-3 flex items-center justify-end">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center justify-end">
           <div className="flex gap-2">
             {isEdit && (
               <button type="button" onClick={handleDeleteManutencao}
@@ -810,7 +812,7 @@ export default function FormManutencao() {
               </button>
             )}
             <Link to="/manutencoes"
-              className="px-4 py-1.5 text-xs border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-600 font-medium transition-colors">
+              className="px-4 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 font-medium transition-colors">
               Cancelar
             </Link>
             <button type="submit" disabled={saving}
@@ -838,6 +840,12 @@ export default function FormManutencao() {
         <ParteVeiculoModal
           onClose={() => setParteVeiculoModalCb(null)}
           onSelected={(nome) => { parteVeiculoModalCb(nome); setParteVeiculoModalCb(null) }}
+        />
+      )}
+      {oficinaModalCb && (
+        <OficinaPrestadorModal
+          onClose={() => setOficinaModalCb(null)}
+          onSelected={(nome) => { oficinaModalCb(nome); setOficinaModalCb(null) }}
         />
       )}
     </div>

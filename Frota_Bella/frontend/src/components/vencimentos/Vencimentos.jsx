@@ -136,10 +136,10 @@ export default function Vencimentos() {
       </div>
 
       {/* Filtros */}
-      <div className="bg-white rounded shadow-sm border border-gray-200 px-3 py-2 flex flex-wrap items-center gap-3">
+      <div className="bg-white dark:bg-gray-800 rounded shadow-sm border border-gray-200 dark:border-gray-700 px-3 py-2 flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-1.5 flex-1 min-w-40">
           <Search className="w-3.5 h-3.5 text-gray-400" />
-          <input className="flex-1 text-xs outline-none" placeholder="Buscar por veículo, serviço ou parte..."
+          <input className="flex-1 text-xs outline-none dark:text-gray-100 dark:placeholder-gray-400 bg-transparent" placeholder="Buscar por veículo, serviço ou parte..."
             value={search} onChange={e => setSearch(e.target.value)} />
           {search && <button onClick={() => setSearch('')}><X className="w-3 h-3 text-gray-400" /></button>}
         </div>
@@ -162,14 +162,14 @@ export default function Vencimentos() {
             <X className="w-3 h-3" /> Limpar
           </button>
         )}
-        <span className="text-xs text-gray-400 ml-auto">{sorted.length} registro(s)</span>
+        <span className="text-xs text-gray-400 dark:text-gray-500 ml-auto">{sorted.length} registro(s)</span>
       </div>
 
       {/* Tabela */}
-      <div className="bg-white rounded shadow-sm border border-gray-200 overflow-x-auto">
+      <div className="bg-white dark:bg-gray-800 rounded shadow-sm border border-gray-200 dark:border-gray-700 overflow-x-auto">
         <table className="w-full text-xs">
           <thead>
-            <tr className="bg-blue-50 border-b border-blue-100">
+            <tr className="bg-blue-50 dark:bg-blue-900/20 border-b border-blue-100 dark:border-blue-800/40">
               {[
                 ['status', 'Status'],
                 ['veiculo_placa', 'Veículo'],
@@ -182,7 +182,7 @@ export default function Vencimentos() {
                 ['dt_restante_dias', 'Dias Restantes'],
                 ['manutencao_id', 'Manutenção'],
               ].map(([f, l]) => (
-                <th key={f} className="px-3 py-2 text-left text-blue-800 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-blue-100"
+                <th key={f} className="px-3 py-2 text-left text-blue-800 dark:text-blue-300 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-blue-100 dark:hover:bg-blue-900/30"
                   onClick={() => handleSort(f)}>
                   <span className="flex items-center gap-1">{l} <SortIcon field={f} sortField={sortField} sortDir={sortDir} /></span>
                 </th>
@@ -199,15 +199,15 @@ export default function Vencimentos() {
                 Nenhum vencimento encontrado.
               </td></tr>
             ) : sorted.map((item, idx) => {
-              const rowBg = item.status === 'Vencido' ? 'bg-red-50' : item.status === 'Próximo' ? 'bg-orange-50' : idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+              const rowBg = item.status === 'Vencido' ? 'bg-red-50 dark:bg-red-900/20' : item.status === 'Próximo' ? 'bg-orange-50 dark:bg-orange-900/20' : idx % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-700/50'
               return (
-                <tr key={item.servico_id} className={`border-b border-gray-100 hover:brightness-95 transition-all ${rowBg}`}>
+                <tr key={item.servico_id} className={`border-b border-gray-100 dark:border-gray-700 hover:brightness-95 transition-all ${rowBg}`}>
                   <td className="px-3 py-2"><StatusBadge status={item.status} /></td>
                   <td className="px-3 py-2">
-                    <div className="flex items-center gap-1 font-medium text-blue-700">
+                    <div className="flex items-center gap-1 font-medium text-blue-700 dark:text-blue-400">
                       <Car className="w-3 h-3" />{item.veiculo_placa}
                     </div>
-                    {item.veiculo_descricao && <div className="text-gray-400 text-[10px]">{item.veiculo_descricao}</div>}
+                    {item.veiculo_descricao && <div className="text-gray-400 dark:text-gray-500 text-[10px]">{item.veiculo_descricao}</div>}
                   </td>
                   <td className="px-3 py-2 tabular-nums">{fmtKm(item.ultimo_km)}</td>
                   <td className="px-3 py-2">{item.parte_veiculo || '-'}</td>

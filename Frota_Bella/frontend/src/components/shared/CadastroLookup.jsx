@@ -80,28 +80,28 @@ export default function CadastroLookup({ titulo, endpoint, icone: Icone }) {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h1 className="text-base font-semibold text-gray-800 flex items-center gap-2">
+        <h1 className="text-base font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2">
           {Icone && <Icone className="w-4 h-4 text-blue-600" />}
           {titulo}
         </h1>
-        <button onClick={fetch} className="text-gray-500 hover:text-blue-600" title="Atualizar">
+        <button onClick={fetch} className="text-gray-500 dark:text-gray-400 hover:text-blue-600" title="Atualizar">
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
         </button>
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded flex items-center gap-2 text-sm">
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-3 py-2 rounded flex items-center gap-2 text-sm">
           <AlertCircle className="w-4 h-4 flex-shrink-0" />{error}
         </div>
       )}
       {success && (
-        <div className="bg-green-50 border border-green-200 text-green-700 px-3 py-2 rounded flex items-center gap-2 text-sm">
+        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 px-3 py-2 rounded flex items-center gap-2 text-sm">
           <CheckCircle className="w-4 h-4 flex-shrink-0" />{success}
         </div>
       )}
 
       {/* Add form */}
-      <div className="bg-white rounded shadow-sm border border-gray-200">
+      <div className="bg-white dark:bg-gray-800 rounded shadow-sm border border-gray-200 dark:border-gray-700">
         <div className="section-header">Novo Cadastro</div>
         <form onSubmit={handleAdd} className="p-3 flex gap-2">
           <input
@@ -118,10 +118,10 @@ export default function CadastroLookup({ titulo, endpoint, icone: Icone }) {
       </div>
 
       {/* Search */}
-      <div className="bg-white rounded shadow-sm border border-gray-200 px-3 py-2 flex items-center gap-2">
+      <div className="bg-white dark:bg-gray-800 rounded shadow-sm border border-gray-200 dark:border-gray-700 px-3 py-2 flex items-center gap-2">
         <Search className="w-4 h-4 text-gray-400 flex-shrink-0" />
         <input
-          className="flex-1 text-sm outline-none"
+          className="flex-1 text-sm outline-none dark:text-gray-100 dark:placeholder-gray-400 bg-transparent"
           placeholder="Pesquisar..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -134,16 +134,16 @@ export default function CadastroLookup({ titulo, endpoint, icone: Icone }) {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded shadow-sm border border-gray-200">
+      <div className="bg-white dark:bg-gray-800 rounded shadow-sm border border-gray-200 dark:border-gray-700">
         <div className="section-header">{titulo} Cadastrados ({items.length})</div>
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
-              <tr className="bg-blue-50 border-b border-blue-100">
-                <th className="px-3 py-2 text-left text-blue-800 font-semibold">#</th>
-                <th className="px-3 py-2 text-left text-blue-800 font-semibold">Nome</th>
-                <th className="px-3 py-2 text-left text-blue-800 font-semibold">Cadastro</th>
-                <th className="px-3 py-2 text-center text-blue-800 font-semibold">Ações</th>
+              <tr className="bg-blue-50 dark:bg-blue-900/20 border-b border-blue-100 dark:border-blue-800/40">
+                <th className="px-3 py-2 text-left text-blue-800 dark:text-blue-300 font-semibold">#</th>
+                <th className="px-3 py-2 text-left text-blue-800 dark:text-blue-300 font-semibold">Nome</th>
+                <th className="px-3 py-2 text-left text-blue-800 dark:text-blue-300 font-semibold">Cadastro</th>
+                <th className="px-3 py-2 text-center text-blue-800 dark:text-blue-300 font-semibold">Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -155,8 +155,8 @@ export default function CadastroLookup({ titulo, endpoint, icone: Icone }) {
                 <tr><td colSpan={4} className="text-center py-8 text-gray-400">Nenhum registro encontrado.</td></tr>
               ) : (
                 items.map((item, idx) => (
-                  <tr key={item.id} className={`border-b border-gray-100 hover:bg-blue-50 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
-                    <td className="px-3 py-2 text-gray-400">{item.id}</td>
+                  <tr key={item.id} className={`border-b border-gray-100 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/20 ${idx % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-700/50'}`}>
+                    <td className="px-3 py-2 text-gray-400 dark:text-gray-500">{item.id}</td>
                     <td className="px-3 py-2">
                       {editingId === item.id ? (
                         <input
@@ -170,7 +170,7 @@ export default function CadastroLookup({ titulo, endpoint, icone: Icone }) {
                         <span className="font-medium">{item.nome}</span>
                       )}
                     </td>
-                    <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{fmt(item.created_at)}</td>
+                    <td className="px-3 py-2 text-gray-500 dark:text-gray-400 whitespace-nowrap">{fmt(item.created_at)}</td>
                     <td className="px-3 py-2">
                       <div className="flex items-center justify-center gap-1.5">
                         {editingId === item.id ? (

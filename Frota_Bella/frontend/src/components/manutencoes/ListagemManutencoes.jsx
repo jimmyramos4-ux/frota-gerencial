@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import {
@@ -19,6 +19,7 @@ import {
   ChevronRight,
   FileText,
   Download,
+  Search,
 } from 'lucide-react'
 
 function SortIcon({ field, sortField, sortDir }) {
@@ -40,6 +41,18 @@ const prioridadeColor = {
   Alta: 'text-red-600 font-semibold',
   Média: 'text-orange-500 font-semibold',
   Baixa: 'text-green-600 font-semibold',
+}
+
+const emptyRelatorio = {
+  dt_inicio_gte: '', dt_inicio_lte: '',
+  dt_termino_gte: '', dt_termino_lte: '',
+  dt_previsao_gte: '', dt_previsao_lte: '',
+  veiculo: '', resp_manutencao: '',
+  tipo: '', status: '',
+  km_gte: '', km_lte: '',
+  dt_servico_gte: '', dt_servico_lte: '',
+  servicos_solicitados: '', tipo_servico: '',
+  detalhar: 'Todos', ordenacao: 'Dt. Início', formato: 'PDF',
 }
 
 const emptyFilters = {
@@ -85,13 +98,416 @@ function fmtDate(dt) {
   return new Date(dt).toLocaleDateString('pt-BR')
 }
 
-const fi = 'border border-gray-300 rounded px-1.5 py-0 text-xs w-full focus:outline-none focus:border-blue-400 h-5'
-const fs = 'border border-gray-300 rounded px-1 py-0 text-xs bg-white focus:outline-none focus:border-blue-400 w-full h-5'
+const fi = 'border border-gray-300 dark:border-gray-600 rounded px-1.5 py-0 text-xs w-full focus:outline-none focus:border-blue-400 h-5 dark:bg-gray-700 dark:text-gray-100'
+const fs = 'border border-gray-300 dark:border-gray-600 rounded px-1 py-0 text-xs bg-white dark:bg-gray-700 dark:text-gray-100 focus:outline-none focus:border-blue-400 w-full h-5'
 function Lbl({ children, wide }) {
-  return <td className={`px-1.5 py-1 text-right text-xs font-semibold text-blue-900 bg-blue-50 border border-blue-100 whitespace-nowrap ${wide ? 'w-28' : 'w-20'}`}>{children}</td>
+  return <td className={`px-1.5 py-1 text-right text-xs font-semibold text-blue-900 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/40 whitespace-nowrap ${wide ? 'w-28' : 'w-20'}`}>{children}</td>
 }
 function Td({ children, colSpan }) {
-  return <td className="px-1 py-1 border border-gray-100 bg-white" colSpan={colSpan}>{children}</td>
+  return <td className="px-1 py-1 border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800" colSpan={colSpan}>{children}</td>
+}
+
+function gerarPDF(rows, config) {
+  const fmtDt = (dt) => dt ? new Date(dt + (dt.length === 10 ? 'T00:00:00' : '')).toLocaleDateString('pt-BR') : '-'
+  const fmtKm = (km) => km ? Number(km).toLocaleString('pt-BR') + ' km' : '-'
+  const fmtVal = (v) => v != null && v !== '' ? 'R$ ' + Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-'
+  let sorted = [...rows]
+  if (config.ordenacao === 'Veículo') sorted.sort((a, b) => (a.veiculo_placa || '') > (b.veiculo_placa || '') ? 1 : -1)
+  else if (config.ordenacao === 'Status') sorted.sort((a, b) => (a.status || '') > (b.status || '') ? 1 : -1)
+  else if (config.ordenacao === 'Tipo') sorted.sort((a, b) => (a.tipo || '') > (b.tipo || '') ? 1 : -1)
+  else sorted.sort((a, b) => (a.dt_inicio || '') > (b.dt_inicio || '') ? 1 : -1)
+
+  const dataGeracao = new Date().toLocaleString('pt-BR')
+  const detalhar = config.detalhar === 'Todos'
+  const badgeStyle = { 'Em Andamento': 'background:#dbeafe;color:#1e40af', Finalizada: 'background:#dcfce7;color:#15803d', Cancelada: 'background:#fee2e2;color:#dc2626' }
+  const stBadge = { Finalizado: 'background:#dcfce7;color:#15803d', Pendente: 'background:#fef9c3;color:#854d0e', Cancelado: 'background:#fee2e2;color:#dc2626' }
+
+  const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Relatório de Manutenção</title>
+<style>
+  body{font-family:Arial,sans-serif;font-size:10px;margin:16px;color:#222}
+  h1{font-size:14px;text-align:center;color:#1e3a8a;margin-bottom:2px}
+  .sub{text-align:center;font-size:9px;color:#666;margin-bottom:10px}
+  table{width:100%;border-collapse:collapse;margin-bottom:0}
+  .man-head th{background:#1e3a8a;color:#fff;padding:4px 5px;text-align:left;font-size:9px;white-space:nowrap}
+  .man-row td{padding:4px 5px;border-bottom:1px solid #c7d2e7;vertical-align:top;background:#e8eef8;font-weight:bold;font-size:9px}
+  .srv-head th{background:#4b6cb7;color:#fff;padding:2px 5px;font-size:8px;font-weight:normal;white-space:nowrap}
+  .srv-row td{padding:2px 5px 2px 10px;border-bottom:1px solid #e5e7eb;font-size:8.5px;background:#f8faff;vertical-align:top}
+  .srv-row:nth-child(even) td{background:#eff4ff}
+  .no-srv td{padding:3px 5px 3px 14px;font-size:8px;color:#9ca3af;background:#f8faff;border-bottom:1px solid #e5e7eb}
+  .badge{display:inline-block;padding:1px 5px;border-radius:8px;font-size:8px;font-weight:bold}
+  .spacer td{height:6px;background:white;border:none}
+  .footer{margin-top:12px;font-size:8px;color:#9ca3af;text-align:right}
+  @media print{@page{margin:1cm size:landscape}button{display:none}}
+</style></head><body>
+<h1>Relatório de Manutenção de Veículo</h1>
+<div class="sub">Gerado em ${dataGeracao} &nbsp;·&nbsp; ${rows.length} manutenção(ões)</div>
+<table>
+<thead class="man-head"><tr>
+  <th>#</th><th>Veículo</th><th>Oficina / Prestador</th>
+  <th>Km Entrada</th><th>Dt. Início</th><th>Dt. Término</th>
+  <th>Tipo</th><th>Prioridade</th><th>Status</th>
+</tr></thead>
+<tbody>
+${sorted.map(r => {
+  const servicos = r._servicos || []
+  return `
+  <tr class="man-row">
+    <td>#${r.id}</td>
+    <td><strong>${r.veiculo_placa || ''}</strong> <span style="font-weight:normal;color:#555">${r.veiculo_descricao || ''}</span></td>
+    <td>${r.responsavel_manutencao || '-'}</td>
+    <td style="text-align:right">${fmtKm(r.km_entrada)}</td>
+    <td>${fmtDt(r.dt_inicio)}</td>
+    <td>${fmtDt(r.dt_termino)}</td>
+    <td>${r.tipo || '-'}</td>
+    <td>${r.prioridade || '-'}</td>
+    <td><span class="badge" style="${badgeStyle[r.status] || ''}">${r.status || '-'}</span></td>
+  </tr>
+  ${detalhar ? `
+  <tr class="srv-head"><th></th><th>Parte do Veículo</th><th>Serviço</th><th>Tipo</th><th>Status</th><th>Dt. Serviço</th><th>Próx. KM</th><th>Responsável</th><th>Valor</th></tr>
+  ${servicos.length === 0
+    ? `<tr class="no-srv"><td></td><td colspan="8">Nenhum serviço registrado</td></tr>`
+    : servicos.map(s => `
+  <tr class="srv-row">
+    <td></td>
+    <td>${s.parte_veiculo || '-'}</td>
+    <td>${s.servico || '-'}</td>
+    <td>${s.tipo_uso || '-'}</td>
+    <td><span class="badge" style="${stBadge[s.status] || 'background:#f3f4f6;color:#374151'}">${s.status || '-'}</span></td>
+    <td>${fmtDt(s.dt_servico)}</td>
+    <td style="text-align:right">${s.proximo_km_validade ? fmtKm(s.proximo_km_validade) : '-'}</td>
+    <td>${s.pessoa_responsavel || '-'}</td>
+    <td style="text-align:right">${fmtVal(s.valor)}</td>
+  </tr>`).join('')}
+  ` : ''}
+  <tr class="spacer"><td colspan="9"></td></tr>`
+}).join('')}
+</tbody>
+</table>
+<div class="footer">Frota Bello · Sistema de Gestão de Frotas · ${dataGeracao}</div>
+<script>window.onload=()=>setTimeout(()=>window.print(),500)</script>
+</body></html>`
+
+  const w = window.open('', '_blank', 'width=1200,height=800')
+  w.document.write(html)
+  w.document.close()
+}
+
+function gerarXML(rows, _config) {
+  const esc = (v) => String(v || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+  const fmtDt = (dt) => dt ? new Date(dt).toISOString().slice(0, 10) : ''
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<manutencoes gerado_em="${new Date().toISOString()}" total="${rows.length}">
+${rows.map(r => `  <manutencao id="${r.id}">
+    <veiculo_placa>${esc(r.veiculo_placa)}</veiculo_placa>
+    <veiculo_descricao>${esc(r.veiculo_descricao)}</veiculo_descricao>
+    <motorista>${esc(r.motorista_nome)}</motorista>
+    <responsavel_manutencao>${esc(r.responsavel_manutencao)}</responsavel_manutencao>
+    <km_entrada>${r.km_entrada || ''}</km_entrada>
+    <dt_inicio>${fmtDt(r.dt_inicio)}</dt_inicio>
+    <dt_previsao>${fmtDt(r.dt_previsao)}</dt_previsao>
+    <dt_termino>${fmtDt(r.dt_termino)}</dt_termino>
+    <tipo>${esc(r.tipo)}</tipo>
+    <prioridade>${esc(r.prioridade)}</prioridade>
+    <status>${esc(r.status)}</status>
+    <servicos_solicitados>${esc(r.servicos_solicitados)}</servicos_solicitados>
+    <observacoes>${esc(r.observacoes)}</observacoes>
+  </manutencao>`).join('\n')}
+</manutencoes>`
+  const blob = new Blob([xml], { type: 'application/xml;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `manutencoes_${new Date().toISOString().slice(0, 10)}.xml`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+function AutocompleteInput({ value, onChange, fetchUrl, getLabel, getValue, getKey, placeholder, className, extraButton }) {
+  const [open, setOpen] = useState(false)
+  const [items, setItems] = useState([])
+  const [loading, setLoading] = useState(false)
+  const timerRef = useRef(null)
+
+  const doFetch = async (q = '') => {
+    setLoading(true)
+    try {
+      const res = await axios.get(fetchUrl, { params: q ? { search: q } : {} })
+      const data = res.data.items || res.data || []
+      setItems(Array.isArray(data) ? data.slice(0, 15) : [])
+    } catch {}
+    finally { setLoading(false) }
+  }
+
+  const handleChange = (e) => {
+    onChange(e.target.value)
+    setOpen(true)
+    clearTimeout(timerRef.current)
+    timerRef.current = setTimeout(() => doFetch(e.target.value), 220)
+  }
+
+  const handleFocus = () => { setOpen(true); doFetch(value) }
+  const handleBlur = () => setTimeout(() => setOpen(false), 180)
+
+  return (
+    <div className="relative flex-1">
+      <div className="flex gap-1">
+        <input className={className + ' flex-1'} value={value} onChange={handleChange} onFocus={handleFocus} onBlur={handleBlur} placeholder={placeholder} autoComplete="off" />
+        {extraButton}
+      </div>
+      {open && (
+        <div className="absolute left-0 right-0 top-full z-[300] bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded shadow-lg max-h-44 overflow-y-auto">
+          {loading ? (
+            <div className="px-3 py-2 text-xs text-gray-400 dark:text-gray-500">Carregando...</div>
+          ) : items.length === 0 ? (
+            <div className="px-3 py-2 text-xs text-gray-400 dark:text-gray-500">Nenhum resultado.</div>
+          ) : items.map((item, i) => (
+            <div key={getKey ? getKey(item) : (item.id || i)}
+              className="px-3 py-1.5 text-xs cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30 dark:text-gray-100"
+              onMouseDown={(e) => { e.preventDefault(); onChange(getValue ? getValue(item) : getLabel(item)); setOpen(false) }}
+            >
+              {getLabel(item)}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ConsultaTipoServicoModal({ onSelect, onClose }) {
+  const [items, setItems] = useState([])
+  const [total, setTotal] = useState(0)
+  const [page, setPage] = useState(1)
+  const [loading, setLoading] = useState(false)
+  const [filters, setFilters] = useState({ nome: '', uso: '' })
+  const [applied, setApplied] = useState({})
+  const perPage = 10
+
+  useEffect(() => {
+    const fetch = async () => {
+      setLoading(true)
+      try {
+        const res = await axios.get(`${API}/tipos-servico`, {
+          params: { page, per_page: perPage, ...(applied.nome && { search: applied.nome }), ...(applied.uso && { uso: applied.uso }) }
+        })
+        setItems(res.data.items || [])
+        setTotal(res.data.total || 0)
+      } catch {}
+      finally { setLoading(false) }
+    }
+    fetch()
+  }, [page, applied])
+
+  const totalPages = Math.max(1, Math.ceil(total / perPage))
+  const from = total > 0 ? (page - 1) * perPage + 1 : 0
+  const to = Math.min(page * perPage, total)
+  const th = 'px-2 py-1.5 text-left text-blue-900 dark:text-blue-200 font-semibold border border-blue-200 dark:border-blue-800 text-xs whitespace-nowrap bg-blue-100 dark:bg-blue-900/40'
+  const td = 'px-2 py-1 border border-gray-200 dark:border-gray-600 text-xs'
+  const btn = 'px-2 py-0.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-600 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 disabled:opacity-30 text-xs'
+
+  return (
+    <div className="fixed inset-0 z-[200] bg-black/60 flex items-center justify-center p-4">
+      <div className="bg-white dark:bg-gray-800 rounded shadow-2xl w-full max-w-4xl overflow-hidden">
+        <div className="text-center py-2 border-b border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700">
+          <span className="text-blue-600 dark:text-blue-400 font-bold text-sm">Consulta de Tipo de Serviço</span>
+        </div>
+        {/* Paginação */}
+        <div className="flex items-center justify-between px-4 py-1.5 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
+          <div className="flex items-center gap-0.5">
+            <button className={btn} onClick={() => setPage(1)} disabled={page <= 1}>«</button>
+            <button className={btn} onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}>‹</button>
+            <span className="px-2.5 py-0.5 bg-blue-600 text-white border border-blue-600 rounded text-xs">{page}</span>
+            {page < totalPages && <span className={btn}>{page + 1}</span>}
+            <button className={btn} onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages}>›</button>
+            <button className={btn} onClick={() => setPage(totalPages)} disabled={page >= totalPages}>»</button>
+          </div>
+          <span className="text-xs text-gray-500 dark:text-gray-400">{from} à {to} de {total}</span>
+        </div>
+        {/* Tabela */}
+        <div className="overflow-x-auto overflow-y-auto max-h-72">
+          <table className="w-full border-collapse">
+            <thead className="sticky top-0">
+              <tr>
+                <th className={th}>Tipo de Serviço</th>
+                <th className={th}>Parte do Veículo</th>
+                <th className={th + ' text-center'}>Dias Val.</th>
+                <th className={th + ' text-center'}>Dias Not.</th>
+                <th className={th + ' text-right'}>Hodômetro Val. (Km)</th>
+                <th className={th + ' text-right'}>Hodômetro Not. (Km)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan={6} className="text-center py-6 text-gray-400 text-xs">Carregando...</td></tr>
+              ) : items.length === 0 ? (
+                <tr><td colSpan={6} className="text-center py-6 text-gray-400 text-xs">Nenhum resultado.</td></tr>
+              ) : items.map((item, i) => (
+                <tr key={item.id}
+                  className={`cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20 ${i % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-700/50'}`}
+                  onClick={() => { onSelect(item.nome); onClose() }}
+                >
+                  <td className={td}>{item.nome}</td>
+                  <td className={td}>{item.parte_veiculo || '-'}</td>
+                  <td className={td + ' text-center'}>{item.nr_dias_validade || ''}</td>
+                  <td className={td + ' text-center'}>{item.nr_dias_notificacao || ''}</td>
+                  <td className={td + ' text-right'}>{item.hodometro_km_validade ? item.hodometro_km_validade.toLocaleString('pt-BR') : ''}</td>
+                  <td className={td + ' text-right'}>{item.hodometro_km_notificacao ? item.hodometro_km_notificacao.toLocaleString('pt-BR') : ''}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {/* Filtro */}
+        <div className="border-t border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 p-3 text-xs">
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex items-center gap-2">
+              <label className="font-semibold text-blue-900 dark:text-blue-200 whitespace-nowrap">Tipo de Serviço</label>
+              <input className="border border-gray-300 dark:border-gray-600 rounded px-1.5 py-0.5 w-48 bg-white dark:bg-gray-700 dark:text-gray-100" value={filters.nome} onChange={e => setFilters(f => ({ ...f, nome: e.target.value }))} onKeyDown={e => e.key === 'Enter' && (setApplied({ ...filters }), setPage(1))} />
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="font-semibold text-blue-900 dark:text-blue-200">Uso</label>
+              <select className="border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 bg-white dark:bg-gray-700 dark:text-gray-100" value={filters.uso} onChange={e => setFilters(f => ({ ...f, uso: e.target.value }))}>
+                <option value="">Todos</option><option>Veículo</option><option>Equipamento</option>
+              </select>
+            </div>
+          </div>
+          <div className="flex justify-center gap-3 mt-2">
+            <button onClick={() => { setApplied({ ...filters }); setPage(1) }} className="px-6 py-0.5 bg-white dark:bg-gray-600 dark:text-gray-100 border border-gray-400 dark:border-gray-500 rounded hover:bg-gray-50 dark:hover:bg-gray-500">Filtrar</button>
+            <button onClick={() => { setFilters({ nome: '', uso: '' }); setApplied({}); setPage(1) }} className="px-6 py-0.5 bg-white dark:bg-gray-600 dark:text-gray-100 border border-gray-400 dark:border-gray-500 rounded hover:bg-gray-50 dark:hover:bg-gray-500">Limpar</button>
+          </div>
+        </div>
+        {/* Rodapé */}
+        <div className="text-center py-2 border-t border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-xs">
+          <button onClick={onClose} className="text-blue-600 dark:text-blue-400 hover:underline">Fechar Janela</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function RelatorioModal({ relatorio, setRelatorio, onGerar, onClose, gerando }) {
+  const [showConsulta, setShowConsulta] = useState(false)
+  const setR = (key) => (e) => setRelatorio(r => ({ ...r, [key]: e.target.value }))
+  const lbl = 'bg-blue-100 dark:bg-blue-900/40 border border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-200 text-xs font-semibold text-right px-2 py-1 whitespace-nowrap'
+  const cel = 'p-0.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600'
+  const inp = 'border border-gray-300 dark:border-gray-600 text-xs px-1.5 py-0.5 w-full focus:outline-none focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100'
+  const sel = 'border border-gray-300 dark:border-gray-600 text-xs px-1 py-0.5 w-full focus:outline-none focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100'
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+      <div className="bg-white dark:bg-gray-800 rounded shadow-2xl w-full max-w-2xl overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-2 bg-blue-700 text-white">
+          <span className="font-bold text-sm">Relatório de Manutenção de Veículo</span>
+          <button onClick={onClose}><X className="w-4 h-4" /></button>
+        </div>
+        <div className="overflow-y-auto max-h-[80vh]">
+          <table className="w-full border-collapse text-xs">
+            <tbody>
+              <tr>
+                <td className={lbl}>Dt. Início &gt;=</td><td className={cel}><input type="date" className={inp} value={relatorio.dt_inicio_gte} onChange={setR('dt_inicio_gte')} /></td>
+                <td className={lbl}>Dt. Início &lt;=</td><td className={cel}><input type="date" className={inp} value={relatorio.dt_inicio_lte} onChange={setR('dt_inicio_lte')} /></td>
+              </tr>
+              <tr>
+                <td className={lbl}>Dt. Término &gt;=</td><td className={cel}><input type="date" className={inp} value={relatorio.dt_termino_gte} onChange={setR('dt_termino_gte')} /></td>
+                <td className={lbl}>Dt. Término &lt;=</td><td className={cel}><input type="date" className={inp} value={relatorio.dt_termino_lte} onChange={setR('dt_termino_lte')} /></td>
+              </tr>
+              <tr>
+                <td className={lbl}>Data Previsão &gt;=</td><td className={cel}><input type="date" className={inp} value={relatorio.dt_previsao_gte} onChange={setR('dt_previsao_gte')} /></td>
+                <td className={lbl}>Data Previsão &lt;=</td><td className={cel}><input type="date" className={inp} value={relatorio.dt_previsao_lte} onChange={setR('dt_previsao_lte')} /></td>
+              </tr>
+              <tr>
+                <td className={lbl}>Veículo</td>
+                <td className={cel} colSpan={3}>
+                  <AutocompleteInput
+                    value={relatorio.veiculo}
+                    onChange={(v) => setRelatorio(r => ({ ...r, veiculo: v }))}
+                    fetchUrl={`${API}/veiculos`}
+                    getLabel={(item) => `${item.placa} — ${item.descricao || ''}`}
+                    getValue={(item) => item.placa}
+                    getKey={(item) => item.id}
+                    placeholder="Placa ou descrição"
+                    className={inp}
+                  />
+                </td>
+              </tr>
+              <tr>
+                <td className={lbl}>Oficina / Prestador</td>
+                <td className={cel} colSpan={3}><input className={inp} value={relatorio.resp_manutencao} onChange={setR('resp_manutencao')} /></td>
+              </tr>
+              <tr>
+                <td className={lbl}>Tipo de Manutenção</td>
+                <td className={cel}><select className={sel} value={relatorio.tipo} onChange={setR('tipo')}><option value=""></option><option>Corretiva</option><option>Preventiva</option></select></td>
+                <td className={lbl}>Status</td>
+                <td className={cel}><select className={sel} value={relatorio.status} onChange={setR('status')}><option value=""></option><option>Em Andamento</option><option>Finalizada</option><option>Cancelada</option></select></td>
+              </tr>
+              <tr>
+                <td className={lbl}>Km. Entrada &gt;=</td><td className={cel}><input type="number" className={inp} value={relatorio.km_gte} onChange={setR('km_gte')} /></td>
+                <td className={lbl}>Km. Entrada &lt;=</td><td className={cel}><input type="number" className={inp} value={relatorio.km_lte} onChange={setR('km_lte')} /></td>
+              </tr>
+              <tr><td colSpan={4} className="bg-blue-200 dark:bg-blue-900/50 text-blue-900 dark:text-blue-200 font-bold text-xs px-2 py-1 text-center border border-blue-300 dark:border-blue-700">Serviços</td></tr>
+              <tr>
+                <td className={lbl}>Data Serviço &gt;=</td><td className={cel}><input type="date" className={inp} value={relatorio.dt_servico_gte} onChange={setR('dt_servico_gte')} /></td>
+                <td className={lbl}>Data Serviço &lt;=</td><td className={cel}><input type="date" className={inp} value={relatorio.dt_servico_lte} onChange={setR('dt_servico_lte')} /></td>
+              </tr>
+              <tr>
+                <td className={lbl}>Serviços Solicitados</td>
+                <td className={cel} colSpan={3}><input className={inp} value={relatorio.servicos_solicitados} onChange={setR('servicos_solicitados')} /></td>
+              </tr>
+              <tr>
+                <td className={lbl}>Tipo de Serviço</td>
+                <td className={cel} colSpan={3}>
+                  <AutocompleteInput
+                    value={relatorio.tipo_servico}
+                    onChange={(v) => setRelatorio(r => ({ ...r, tipo_servico: v }))}
+                    fetchUrl={`${API}/tipos-servico/lookup`}
+                    getLabel={(item) => item.nome}
+                    getKey={(item) => item.id}
+                    placeholder="Digite para filtrar..."
+                    className={inp}
+                    extraButton={
+                      <button type="button" onClick={() => setShowConsulta(true)}
+                        className="border border-gray-300 dark:border-gray-600 rounded px-1.5 bg-white dark:bg-gray-700 hover:bg-blue-50 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400 hover:text-blue-600 transition-colors"
+                        title="Pesquisar tipo de serviço">
+                        <Search className="w-3 h-3" />
+                      </button>
+                    }
+                  />
+                </td>
+              </tr>
+              {showConsulta && (
+                <ConsultaTipoServicoModal
+                  onSelect={(nome) => setRelatorio(r => ({ ...r, tipo_servico: nome }))}
+                  onClose={() => setShowConsulta(false)}
+                />
+              )}
+              <tr>
+                <td className={lbl}>Detalhar Serviços</td>
+                <td className={cel}><select className={sel} value={relatorio.detalhar} onChange={setR('detalhar')}><option>Todos</option><option>Nenhum</option></select></td>
+                <td className={lbl}>Ordenação</td>
+                <td className={cel}><select className={sel} value={relatorio.ordenacao} onChange={setR('ordenacao')}><option>Dt. Início</option><option>Veículo</option><option>Status</option><option>Tipo</option></select></td>
+              </tr>
+              <tr>
+                <td className={lbl}>Formato</td>
+                <td className={cel} colSpan={3}>
+                  <select className={sel} style={{ width: 'auto' }} value={relatorio.formato} onChange={setR('formato')}>
+                    <option>PDF</option><option>XML</option>
+                  </select>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <div className="flex justify-center gap-4 py-3 bg-gray-50 dark:bg-gray-700 border-t border-gray-200 dark:border-gray-600">
+            <button onClick={onGerar} disabled={gerando} className="px-8 py-1 text-xs bg-white dark:bg-gray-600 dark:text-gray-100 border border-gray-400 dark:border-gray-500 rounded hover:bg-gray-100 dark:hover:bg-gray-500 shadow-sm font-medium disabled:opacity-50">
+              {gerando ? 'Gerando...' : 'Gerar'}
+            </button>
+            <button onClick={() => setRelatorio(emptyRelatorio)} className="px-8 py-1 text-xs bg-white dark:bg-gray-600 dark:text-gray-100 border border-gray-400 dark:border-gray-500 rounded hover:bg-gray-100 dark:hover:bg-gray-500 shadow-sm">
+              Limpar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export default function ListagemManutencoes() {
@@ -183,7 +599,55 @@ export default function ListagemManutencoes() {
     setDeleteModal(null)
   }
 
+
   const setF = (key) => (e) => setFilters((f) => ({ ...f, [key]: e.target.value }))
+
+  // ── Relatório ──────────────────────────────────────────────────────────────
+  const [relatorioModal, setRelatorioModal] = useState(false)
+  const [relatorio, setRelatorio] = useState(emptyRelatorio)
+  const [gerando, setGerando] = useState(false)
+
+  const handleGerarRelatorio = async () => {
+    setGerando(true)
+    try {
+      const r = relatorio
+      const params = {
+        page: 1, per_page: 10000,
+        ...(r.status               && { status: r.status }),
+        ...(r.tipo                 && { tipo: r.tipo }),
+        ...(r.veiculo              && { veiculo: r.veiculo }),
+        ...(r.resp_manutencao      && { resp_manutencao: r.resp_manutencao }),
+        ...(r.servicos_solicitados && { servicos_solicitados: r.servicos_solicitados }),
+        ...(r.km_gte               && { km_gte: r.km_gte }),
+        ...(r.km_lte               && { km_lte: r.km_lte }),
+        ...(r.dt_inicio_gte        && { dt_inicio_gte: r.dt_inicio_gte }),
+        ...(r.dt_inicio_lte        && { dt_inicio_lte: r.dt_inicio_lte }),
+        ...(r.dt_termino_gte       && { dt_termino_gte: r.dt_termino_gte }),
+        ...(r.dt_termino_lte       && { dt_termino_lte: r.dt_termino_lte }),
+        ...(r.dt_previsao_gte      && { dt_previsao_gte: r.dt_previsao_gte }),
+        ...(r.dt_previsao_lte      && { dt_previsao_lte: r.dt_previsao_lte }),
+        ...(r.dt_servico_gte       && { dt_servico_gte: r.dt_servico_gte }),
+        ...(r.dt_servico_lte       && { dt_servico_lte: r.dt_servico_lte }),
+        ...(r.tipo_servico         && { tipo_servico: r.tipo_servico }),
+      }
+      const res = await axios.get(`${API}/manutencoes`, { params })
+      const rows = res.data.items || []
+
+      // Busca serviços detalhados se solicitado
+      if (r.detalhar === 'Todos' && rows.length > 0) {
+        const detalhes = await Promise.all(rows.map(row => axios.get(`${API}/manutencoes/${row.id}`).catch(() => ({ data: { servicos: [] } }))))
+        rows.forEach((row, i) => { row._servicos = detalhes[i].data.servicos || [] })
+      }
+
+      if (r.formato === 'PDF') gerarPDF(rows, r)
+      else gerarXML(rows, r)
+      setRelatorioModal(false)
+    } catch {
+      alert('Erro ao gerar relatório')
+    } finally {
+      setGerando(false)
+    }
+  }
 
   const from = data.total === 0 ? 0 : (page - 1) * perPage + 1
   const to = Math.min(page * perPage, data.total)
@@ -201,29 +665,38 @@ export default function ListagemManutencoes() {
             <p className="text-blue-200 text-xs">Gerencie e acompanhe as manutenções da frota</p>
           </div>
         </div>
-        <button
-          onClick={fetchData}
-          className="text-blue-200 hover:text-white transition-colors"
-          title="Atualizar"
-        >
-          <RefreshCw className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setRelatorioModal(true)}
+            className="flex items-center gap-1.5 bg-white text-blue-700 font-medium text-xs px-3 py-1.5 rounded-lg hover:bg-blue-50 transition-colors shadow-sm"
+          >
+            <FileText className="w-3.5 h-3.5" />
+            Relatório
+          </button>
+          <button
+            onClick={fetchData}
+            className="text-blue-200 hover:text-white transition-colors"
+            title="Atualizar"
+          >
+            <RefreshCw className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* Table card */}
-      <div className="bg-white rounded shadow-sm border border-gray-200">
+      <div className="bg-white dark:bg-gray-800 rounded shadow-sm border border-gray-200 dark:border-gray-700">
         {/* Pagination bar TOP */}
-        <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200 bg-gray-50">
+        <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700">
           <div className="flex items-center gap-2">
             <Pagination page={page} totalPages={data.total_pages} onPageChange={setPage} />
-            <span className="text-xs text-gray-500 ml-2">
+            <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
               {data.total === 0 ? '0 registros' : `${from} à ${to} de ${data.total}`}
             </span>
           </div>
           <div className="flex items-center gap-1.5">
-            <label className="text-xs text-gray-500">Por página:</label>
+            <label className="text-xs text-gray-500 dark:text-gray-400">Por página:</label>
             <select
-              className="border border-gray-300 rounded px-1.5 py-0.5 text-xs bg-white"
+              className="border border-gray-300 dark:border-gray-600 rounded px-1.5 py-0.5 text-xs bg-white dark:bg-gray-700 dark:text-gray-100"
               value={perPage}
               onChange={(e) => { setPerPage(Number(e.target.value)); setPage(1) }}
             >
@@ -238,13 +711,13 @@ export default function ListagemManutencoes() {
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
-              <tr className="bg-blue-50 border-b border-blue-100">
+              <tr className="bg-blue-50 dark:bg-blue-900/20 border-b border-blue-100 dark:border-blue-800/40">
                 {[['id','Man.'],['veiculo_placa','Veículo'],['motorista_nome','Motorista'],['responsavel_manutencao','Responsável Man.'],['km_entrada','Km Entrada'],['dt_inicio','Dt. Início'],['dt_previsao','Dt. Previsão'],['dt_termino','Dt. Término'],['prioridade','Prioridade'],['tipo','Tipo'],['status','Status']].map(([f,l]) => (
-                  <th key={f} className="px-2 py-2 text-left text-blue-800 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-blue-100" onClick={() => handleSort(f)}>
+                  <th key={f} className="px-2 py-2 text-left text-blue-800 dark:text-blue-300 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-blue-100 dark:hover:bg-blue-900/30" onClick={() => handleSort(f)}>
                     <span className="flex items-center gap-1">{l} <SortIcon field={f} sortField={sortField} sortDir={sortDir} /></span>
                   </th>
                 ))}
-                <th className="px-2 py-2 text-center text-blue-800 font-semibold whitespace-nowrap">Ações</th>
+                <th className="px-2 py-2 text-center text-blue-800 dark:text-blue-300 font-semibold whitespace-nowrap">Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -268,14 +741,14 @@ export default function ListagemManutencoes() {
                 }) : data.items).map((item, idx) => (
                   <tr
                     key={item.id}
-                    className={`border-b border-gray-100 hover:bg-blue-50 transition-colors ${
-                      idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                    className={`border-b border-gray-100 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors ${
+                      idx % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-700/50'
                     }`}
                   >
                     <td className="px-2 py-1.5 font-medium text-blue-700">#{item.id}</td>
                     <td className="px-2 py-1.5">
                       <div className="font-medium">{item.veiculo_placa}</div>
-                      <div className="text-gray-400 text-xs leading-none">{item.veiculo_descricao}</div>
+                      <div className="text-gray-400 dark:text-gray-500 text-xs leading-none">{item.veiculo_descricao}</div>
                     </td>
                     <td className="px-2 py-1.5">{item.motorista_nome || '-'}</td>
                     <td className="px-2 py-1.5">{item.responsavel_manutencao || '-'}</td>
@@ -351,18 +824,18 @@ export default function ListagemManutencoes() {
         </div>
 
         {/* Status bar */}
-        <div className="px-3 py-1.5 bg-gray-50 border-t border-gray-200 text-xs text-gray-500 flex items-center justify-between">
+        <div className="px-3 py-1.5 bg-gray-50 dark:bg-gray-700 border-t border-gray-200 dark:border-gray-600 text-xs text-gray-500 dark:text-gray-400 flex items-center justify-between">
           <span>Total: {data.total} manutenção(ões)</span>
           <span>Página {page} de {data.total_pages}</span>
         </div>
       </div>
 
       {/* Filter Form — compacto */}
-      <div className="bg-white rounded shadow-sm border border-gray-200">
+      <div className="bg-white dark:bg-gray-800 rounded shadow-sm border border-gray-200 dark:border-gray-700">
         <button
           type="button"
           onClick={() => setShowFilters(f => !f)}
-          className="w-full flex items-center justify-between px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-colors"
+          className="w-full flex items-center justify-between px-4 py-2 text-xs font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
         >
           <span className="flex items-center gap-2"><Filter className="w-3.5 h-3.5" /> Filtros</span>
           <ChevronDown className={`w-4 h-4 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
@@ -398,7 +871,7 @@ export default function ListagemManutencoes() {
                 <Td><input className={fi} type="number" value={filters.km_gte} onChange={setF('km_gte')} /></Td>
                 <Lbl>Km Entrada &lt;=</Lbl>
                 <Td><input className={fi} type="number" value={filters.km_lte} onChange={setF('km_lte')} /></Td>
-                <Lbl wide>Resp. Manutenção</Lbl>
+                <Lbl wide>Oficina / Prestador</Lbl>
                 <Td colSpan={3}><input className={fi} value={filters.resp_manutencao} onChange={setF('resp_manutencao')} /></Td>
               </tr>
               {/* Linha 4 */}
@@ -448,9 +921,9 @@ export default function ListagemManutencoes() {
           </table>
           </div>
           {/* Botões */}
-          <div className="bg-blue-50 border-t border-gray-200 py-1.5 flex justify-center gap-3">
-            <button type="submit" className="px-5 py-0.5 text-xs bg-white border border-gray-400 rounded hover:bg-gray-50 shadow-sm">Filtrar</button>
-            <button type="button" className="px-5 py-0.5 text-xs bg-white border border-gray-400 rounded hover:bg-gray-50 shadow-sm" onClick={handleClear}>Limpar</button>
+          <div className="bg-blue-50 dark:bg-blue-900/20 border-t border-gray-200 dark:border-gray-600 py-1.5 flex justify-center gap-3">
+            <button type="submit" className="px-5 py-0.5 text-xs bg-white dark:bg-gray-700 border border-gray-400 dark:border-gray-500 dark:text-gray-200 rounded hover:bg-gray-50 dark:hover:bg-gray-600 shadow-sm">Filtrar</button>
+            <button type="button" className="px-5 py-0.5 text-xs bg-white dark:bg-gray-700 border border-gray-400 dark:border-gray-500 dark:text-gray-200 rounded hover:bg-gray-50 dark:hover:bg-gray-600 shadow-sm" onClick={handleClear}>Limpar</button>
           </div>
         </form>}
       </div>
@@ -476,6 +949,15 @@ export default function ListagemManutencoes() {
           message={`Tem certeza que deseja excluir a manutenção #${deleteModal}?`}
           onConfirm={() => handleDelete(deleteModal)}
           onClose={() => setDeleteModal(null)}
+        />
+      )}
+      {relatorioModal && (
+        <RelatorioModal
+          relatorio={relatorio}
+          setRelatorio={setRelatorio}
+          onGerar={handleGerarRelatorio}
+          onClose={() => setRelatorioModal(false)}
+          gerando={gerando}
         />
       )}
 

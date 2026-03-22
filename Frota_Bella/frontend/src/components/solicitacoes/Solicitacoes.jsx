@@ -34,6 +34,8 @@ const statusBadge = {
 
 const priorOrder = { Crítico: 0, Alta: 1, Média: 2, Baixa: 3 }
 
+const todayISO = () => new Date().toISOString().split('T')[0]
+
 const emptyForm = {
   veiculo_id: '',
   solicitante: '',
@@ -41,10 +43,11 @@ const emptyForm = {
   prioridade: 'Média',
   status: 'Aberta',
   observacao: '',
+  dt_solicitacao: todayISO(),
 }
 
-const inp = 'border border-gray-300 rounded px-2 py-1.5 text-xs w-full focus:outline-none focus:border-blue-400 bg-white'
-const sel = 'border border-gray-300 rounded px-2 py-1.5 text-xs w-full focus:outline-none focus:border-blue-400 bg-white'
+const inp = 'border border-gray-300 dark:border-gray-600 rounded px-2 py-1.5 text-xs w-full focus:outline-none focus:border-blue-400 bg-white dark:bg-gray-700 dark:text-gray-100'
+const sel = 'border border-gray-300 dark:border-gray-600 rounded px-2 py-1.5 text-xs w-full focus:outline-none focus:border-blue-400 bg-white dark:bg-gray-700 dark:text-gray-100'
 
 function fmtDate(dt) {
   if (!dt) return '-'
@@ -59,9 +62,9 @@ export default function Solicitacoes() {
   const [editForm, setEditForm] = useState({})
   const [filterStatus, setFilterStatus] = useState('')
   const [filterPrior, setFilterPrior] = useState('')
-  const [filterVeiculo, setFilterVeiculo] = useState('')
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
+  const [showResumo, setShowResumo] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [formImages, setFormImages] = useState([])
@@ -99,7 +102,7 @@ export default function Solicitacoes() {
     }
     setSaving(true); setError('')
     try {
-      const payload = { ...form, veiculo_id: form.veiculo_id ? Number(form.veiculo_id) : null, imagens: formImages.length ? JSON.stringify(formImages) : null }
+      const payload = { ...form, veiculo_id: form.veiculo_id ? Number(form.veiculo_id) : null, imagens: formImages.length ? JSON.stringify(formImages) : null, dt_solicitacao: form.dt_solicitacao ? form.dt_solicitacao + 'T00:00:00' : null }
       const r = await axios.post(`${API}/solicitacoes`, payload)
       setItems(prev => [r.data, ...prev])
       setForm(emptyForm)
@@ -108,6 +111,13 @@ export default function Solicitacoes() {
     } catch (err) {
       setError(err.response?.data?.detail || 'Erro ao salvar')
     } finally { setSaving(false) }
+  }
+
+  const diasAberto = (dt) => {
+    if (!dt) return null
+    const today = new Date(); today.setHours(0, 0, 0, 0)
+    const d = new Date(dt.includes('T') ? dt : dt + 'T00:00:00'); d.setHours(0, 0, 0, 0)
+    return Math.floor((today - d) / 86400000)
   }
 
   const startEdit = (s) => {
@@ -119,6 +129,7 @@ export default function Solicitacoes() {
       prioridade: s.prioridade || 'Média',
       status: s.status || 'Aberta',
       observacao: s.observacao || '',
+      dt_solicitacao: s.dt_solicitacao ? s.dt_solicitacao.split('T')[0] : todayISO(),
     })
     setEditImages(s.imagens ? JSON.parse(s.imagens) : [])
   }
@@ -127,7 +138,7 @@ export default function Solicitacoes() {
 
   const handleSaveEdit = async (id) => {
     try {
-      const payload = { ...editForm, veiculo_id: editForm.veiculo_id ? Number(editForm.veiculo_id) : null, imagens: editImages.length ? JSON.stringify(editImages) : null }
+      const payload = { ...editForm, veiculo_id: editForm.veiculo_id ? Number(editForm.veiculo_id) : null, imagens: editImages.length ? JSON.stringify(editImages) : null, dt_solicitacao: editForm.dt_solicitacao ? editForm.dt_solicitacao + 'T00:00:00' : null }
       const r = await axios.put(`${API}/solicitacoes/${id}`, payload)
       setItems(prev => prev.map(x => x.id === id ? r.data : x))
       cancelEdit()
@@ -160,8 +171,11 @@ export default function Solicitacoes() {
   const filtered = items
     .filter(s => !filterStatus || s.status === filterStatus)
     .filter(s => !filterPrior || s.prioridade === filterPrior)
-    .filter(s => !filterVeiculo || String(s.veiculo_id) === filterVeiculo)
-    .filter(s => !search || s.descricao.toLowerCase().includes(search.toLowerCase()) || s.solicitante.toLowerCase().includes(search.toLowerCase()))
+    .filter(s => !search ||
+      s.descricao.toLowerCase().includes(search.toLowerCase()) ||
+      s.solicitante.toLowerCase().includes(search.toLowerCase()) ||
+      (s.veiculo?.placa || '').toLowerCase().includes(search.toLowerCase())
+    )
     .sort((a, b) => (priorOrder[a.prioridade] ?? 9) - (priorOrder[b.prioridade] ?? 9))
 
   const displayItems = sortField
@@ -202,14 +216,14 @@ export default function Solicitacoes() {
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-300 text-red-700 px-4 py-2 rounded-lg flex items-center gap-2 text-xs">
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-300 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-2 rounded-lg flex items-center gap-2 text-xs">
           <AlertTriangle className="w-4 h-4" /> {error}
           <button onClick={() => setError('')} className="ml-auto"><X className="w-3.5 h-3.5" /></button>
         </div>
       )}
 
       {/* ── FORMULÁRIO ── */}
-      <div className="rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+      <div className="rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
         <button
           type="button"
           onClick={() => setShowForm(f => !f)}
@@ -222,10 +236,10 @@ export default function Solicitacoes() {
         </button>
 
         {showForm && (
-          <form onSubmit={handleSave} className="p-4 bg-white space-y-3">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          <form onSubmit={handleSave} className="p-4 bg-white dark:bg-gray-800 space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-blue-800 mb-1">Veículo <span className="text-red-500">*</span></label>
+                <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Veículo <span className="text-red-500">*</span></label>
                 <select className={sel} value={form.veiculo_id} onChange={setF('veiculo_id')}>
                   <option value="">— Selecione —</option>
                   {veiculos.map(v => (
@@ -234,11 +248,11 @@ export default function Solicitacoes() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-blue-800 mb-1">Solicitante</label>
+                <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Solicitante</label>
                 <input className={inp} placeholder="Nome do solicitante" value={form.solicitante} onChange={setF('solicitante')} />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-blue-800 mb-1">Prioridade</label>
+                <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Prioridade</label>
                 <select className={sel} value={form.prioridade} onChange={setF('prioridade')}>
                   {PRIORIDADES.map(p => <option key={p}>{p}</option>)}
                 </select>
@@ -246,23 +260,27 @@ export default function Solicitacoes() {
                   <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold ${priorBadge[form.prioridade]}`}>{form.prioridade}</span>
                 </div>
               </div>
+              <div>
+                <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Data da Solicitação</label>
+                <input type="date" className={inp} value={form.dt_solicitacao} onChange={setF('dt_solicitacao')} />
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-blue-800 mb-1">Descrição do Problema / Serviço Solicitado <span className="text-red-500">*</span></label>
+                <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Descrição do Problema / Serviço Solicitado <span className="text-red-500">*</span></label>
                 <textarea className={`${inp} resize-none`} rows={3} placeholder="Descreva o problema ou serviço necessário..." value={form.descricao} onChange={setF('descricao')} />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-blue-800 mb-1">Observações</label>
+                <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Observações</label>
                 <textarea className={`${inp} resize-none`} rows={3} placeholder="Observações adicionais..." value={form.observacao} onChange={setF('observacao')} />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-blue-800 mb-1">Imagens</label>
+              <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Imagens</label>
               <div
-                className="border-2 border-dashed border-gray-300 rounded-lg p-3 bg-gray-50 hover:border-blue-400 transition-colors cursor-pointer min-h-[72px]"
+                className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-3 bg-gray-50 dark:bg-gray-700/50 hover:border-blue-400 transition-colors cursor-pointer min-h-[72px]"
                 onPaste={e => addImages(Array.from(e.clipboardData.items).filter(i => i.type.startsWith('image/')).map(i => i.getAsFile()), setFormImages)}
                 onClick={() => fileInputRef.current?.click()}
                 tabIndex={0}
@@ -272,7 +290,7 @@ export default function Solicitacoes() {
                   onChange={e => { addImages(e.target.files, setFormImages); e.target.value = '' }}
                 />
                 {formImages.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center gap-1 text-gray-400 py-2">
+                  <div className="flex flex-col items-center justify-center gap-1 text-gray-400 dark:text-gray-500 py-2">
                     <ImagePlus className="w-5 h-5" />
                     <span className="text-xs">Cole (Ctrl+V) ou clique para adicionar imagens</span>
                   </div>
@@ -306,37 +324,95 @@ export default function Solicitacoes() {
         )}
       </div>
 
+      {/* ── RESUMO POR VEÍCULO ── */}
+      {items.length > 0 && (() => {
+        const byVeiculo = {}
+        items.forEach(s => {
+          const placa = s.veiculo?.placa || '—'
+          const desc = s.veiculo?.descricao || ''
+          if (!byVeiculo[placa]) byVeiculo[placa] = { placa, desc, total: 0, abertas: 0, criticos: 0, altaPrior: '' }
+          byVeiculo[placa].total++
+          if (['Aberta', 'Em Análise'].includes(s.status)) byVeiculo[placa].abertas++
+          if (s.prioridade === 'Crítico' && ['Aberta', 'Em Análise'].includes(s.status)) byVeiculo[placa].criticos++
+          const order = { Crítico: 0, Alta: 1, Média: 2, Baixa: 3 }
+          if (!byVeiculo[placa].altaPrior || (order[s.prioridade] ?? 99) < (order[byVeiculo[placa].altaPrior] ?? 99))
+            byVeiculo[placa].altaPrior = s.prioridade
+        })
+        const grupos = Object.values(byVeiculo).filter(g => g.abertas > 0).sort((a, b) => a.placa.localeCompare(b.placa))
+        const priorColor = { Crítico: 'bg-red-500', Alta: 'bg-orange-400', Média: 'bg-yellow-400', Baixa: 'bg-green-400' }
+        if (!grupos.length) return null
+        return (
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div className="bg-blue-50 dark:bg-blue-900/20 border-b border-blue-100 dark:border-blue-800/40 px-4 py-2 flex items-center justify-between">
+              <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">Resumo por Veículo</span>
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-gray-400">{grupos.length} veículo(s) com solicitações em aberto</span>
+                <button onClick={() => setShowResumo(v => !v)}
+                  className="text-xs text-blue-500 hover:text-blue-700 dark:text-blue-400 font-medium">
+                  {showResumo ? 'Ocultar ▲' : 'Mostrar ▼'}
+                </button>
+              </div>
+            </div>
+            {showResumo && <div className="flex overflow-x-auto gap-2 p-3">
+              {grupos.map(g => (
+                <div key={g.placa}
+                  onClick={() => setSearch(g.placa)}
+                  className="flex-shrink-0 w-40 border border-gray-200 dark:border-gray-700 rounded-lg p-2.5 cursor-pointer hover:border-blue-400 hover:shadow-md transition-all bg-gray-50 dark:bg-gray-700/50 hover:bg-blue-50 dark:hover:bg-blue-900/20">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="font-bold text-xs text-blue-700 dark:text-blue-300">{g.placa}</span>
+                    {g.altaPrior && <span className={`w-2 h-2 rounded-full ${priorColor[g.altaPrior] || 'bg-gray-300'}`} title={g.altaPrior} />}
+                  </div>
+                  {g.desc && <p className="text-[10px] text-gray-400 dark:text-gray-500 truncate mb-1.5">{g.desc}</p>}
+                  <div className="flex gap-1 text-[10px]">
+                    <span className="flex-1 text-center bg-gray-200 dark:bg-gray-600 rounded py-0.5">
+                      <span className="block font-bold text-gray-700 dark:text-gray-200">{g.total}</span>
+                      <span className="text-gray-500 dark:text-gray-400">Total</span>
+                    </span>
+                    <span className="flex-1 text-center bg-orange-100 dark:bg-orange-900/30 rounded py-0.5">
+                      <span className={`block font-bold ${g.abertas > 0 ? 'text-orange-600 dark:text-orange-400' : 'text-gray-400'}`}>{g.abertas}</span>
+                      <span className="text-gray-500 dark:text-gray-400">Abertas</span>
+                    </span>
+                    {g.criticos > 0 && (
+                      <span className="flex-1 text-center bg-red-100 dark:bg-red-900/30 rounded py-0.5">
+                        <span className="block font-bold text-red-600 dark:text-red-400">{g.criticos}</span>
+                        <span className="text-gray-500 dark:text-gray-400">Crítico</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>}
+          </div>
+        )
+      })()}
+
       {/* ── FILTROS ── */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 px-4 py-2.5 flex flex-wrap gap-3 items-center">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 px-4 py-2.5 flex flex-wrap gap-3 items-center">
         <div className="flex items-center gap-1.5 flex-1 min-w-40">
           <Search className="w-3.5 h-3.5 text-gray-400" />
-          <input className="flex-1 text-xs outline-none" placeholder="Buscar por descrição ou solicitante..." value={search} onChange={e => setSearch(e.target.value)} />
+          <input className="flex-1 text-xs outline-none bg-transparent dark:text-gray-100 dark:placeholder-gray-400" placeholder="Buscar por descrição, solicitante ou placa..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <select className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none" value={filterVeiculo} onChange={e => setFilterVeiculo(e.target.value)}>
-          <option value="">Todos os veículos</option>
-          {veiculos.map(v => <option key={v.id} value={String(v.id)}>{v.placa}</option>)}
-        </select>
-        <select className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+        <select className="border border-gray-200 dark:border-gray-600 rounded px-2 py-1 text-xs focus:outline-none bg-white dark:bg-gray-700 dark:text-gray-100" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
           <option value="">Todos os status</option>
           {STATUS_LIST.map(s => <option key={s}>{s}</option>)}
         </select>
-        <select className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none" value={filterPrior} onChange={e => setFilterPrior(e.target.value)}>
+        <select className="border border-gray-200 dark:border-gray-600 rounded px-2 py-1 text-xs focus:outline-none bg-white dark:bg-gray-700 dark:text-gray-100" value={filterPrior} onChange={e => setFilterPrior(e.target.value)}>
           <option value="">Todas as prioridades</option>
           {PRIORIDADES.map(p => <option key={p}>{p}</option>)}
         </select>
-        {(filterStatus || filterPrior || filterVeiculo || search) && (
-          <button onClick={() => { setFilterStatus(''); setFilterPrior(''); setFilterVeiculo(''); setSearch('') }}
+        {(filterStatus || filterPrior || search) && (
+          <button onClick={() => { setFilterStatus(''); setFilterPrior(''); setSearch('') }}
             className="text-xs text-red-500 hover:text-red-700 flex items-center gap-1">
             <X className="w-3 h-3" /> Limpar
           </button>
         )}
-        <span className="text-xs text-gray-400 ml-auto">{filtered.length} registro(s)</span>
+        <span className="text-xs text-gray-400 dark:text-gray-500 ml-auto">{filtered.length} registro(s)</span>
       </div>
 
       {/* ── LISTA ── */}
-      <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
         {/* Cabeçalho */}
-        <div className="bg-blue-50 border-b border-blue-100 px-3 py-2 flex items-center gap-2 text-xs font-semibold text-blue-800 select-none">
+        <div className="bg-blue-50 dark:bg-blue-900/20 border-b border-blue-100 dark:border-blue-800/40 px-3 py-2 flex items-center gap-2 text-xs font-semibold text-blue-800 dark:text-blue-300 select-none">
           <span className="w-8 flex-shrink-0 cursor-pointer hover:text-blue-600" onClick={() => handleSort('id')}><span className="flex items-center gap-0.5"># <SortIcon field="id" sortField={sortField} sortDir={sortDir} /></span></span>
           <span className="w-24 flex-shrink-0 cursor-pointer hover:text-blue-600" onClick={() => handleSort('veiculo_id')}><span className="flex items-center gap-0.5">Veículo <SortIcon field="veiculo_id" sortField={sortField} sortDir={sortDir} /></span></span>
           <span className="w-32 flex-shrink-0 cursor-pointer hover:text-blue-600" onClick={() => handleSort('solicitante')}><span className="flex items-center gap-0.5">Solicitante <SortIcon field="solicitante" sortField={sortField} sortDir={sortDir} /></span></span>
@@ -350,65 +426,69 @@ export default function Solicitacoes() {
         </div>
 
         {filtered.length === 0 ? (
-          <div className="p-8 text-center text-gray-400 text-sm">
+          <div className="p-8 text-center text-gray-400 dark:text-gray-500 text-sm">
             Nenhuma solicitação encontrada.
           </div>
         ) : displayItems.map((s, idx) => (
-          <div key={s.id} className={`border-b border-gray-100 last:border-b-0 ${
+          <div key={s.id} className={`border-b border-gray-100 dark:border-gray-700 last:border-b-0 ${
             s.prioridade === 'Crítico' ? 'border-l-4 border-l-red-500' :
             s.prioridade === 'Alta'    ? 'border-l-4 border-l-orange-400' :
             s.prioridade === 'Média'   ? 'border-l-4 border-l-yellow-400' :
                                          'border-l-4 border-l-green-400'
-          } ${idx % 2 === 1 ? 'bg-gray-50' : 'bg-white'}`}>
+          } ${idx % 2 === 1 ? 'bg-gray-50 dark:bg-gray-700/50' : 'bg-white dark:bg-gray-800'}`}>
             {editingId === s.id ? (
               /* ── MODO EDIÇÃO ── */
-              <div className="p-4 bg-blue-50 space-y-3">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="p-4 bg-blue-50 dark:bg-blue-900/20 space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                   <div>
-                    <label className="block text-xs font-semibold text-blue-800 mb-1">Solicitante</label>
+                    <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Solicitante</label>
                     <input className={inp} value={editForm.solicitante} onChange={setEf('solicitante')} />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-blue-800 mb-1">Veículo</label>
+                    <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Veículo</label>
                     <select className={sel} value={editForm.veiculo_id} onChange={setEf('veiculo_id')}>
                       <option value="">— Selecione —</option>
                       {veiculos.map(v => <option key={v.id} value={v.id}>{v.placa} — {v.descricao}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-blue-800 mb-1">Prioridade</label>
+                    <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Prioridade</label>
                     <select className={sel} value={editForm.prioridade} onChange={setEf('prioridade')}>
                       {PRIORIDADES.map(p => <option key={p}>{p}</option>)}
                     </select>
                   </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Data da Solicitação</label>
+                    <input type="date" className={inp} value={editForm.dt_solicitacao || ''} onChange={setEf('dt_solicitacao')} />
+                  </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-semibold text-blue-800 mb-1">Status</label>
+                    <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Status</label>
                     <select className={sel} value={editForm.status} onChange={setEf('status')}>
                       {STATUS_LIST.map(st => <option key={st}>{st}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-blue-800 mb-1">Observação</label>
+                    <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Observação</label>
                     <input className={inp} value={editForm.observacao} onChange={setEf('observacao')} />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-blue-800 mb-1">Descrição</label>
+                  <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Descrição</label>
                   <textarea className={`${inp} resize-none`} rows={2} value={editForm.descricao} onChange={setEf('descricao')} />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-blue-800 mb-1">Imagens</label>
+                  <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Imagens</label>
                   <div
-                    className="border-2 border-dashed border-gray-300 rounded-lg p-3 bg-white hover:border-blue-400 transition-colors cursor-pointer min-h-[60px]"
+                    className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-3 bg-white dark:bg-gray-700/50 hover:border-blue-400 transition-colors cursor-pointer min-h-[60px]"
                     onPaste={e => { const items = Array.from(e.clipboardData.items); items.forEach(item => { if (item.type.startsWith('image/')) { const file = item.getAsFile(); const reader = new FileReader(); reader.onload = ev => setEditImages(imgs => [...imgs, ev.target.result]); reader.readAsDataURL(file) } }) }}
                     onClick={() => editFileInputRef.current?.click()}
                   >
                     <input ref={editFileInputRef} type="file" accept="image/*" multiple className="hidden"
                       onChange={e => { addImages(e.target.files, setEditImages); e.target.value = '' }} />
                     {editImages.length === 0 ? (
-                      <div className="flex items-center gap-2 text-gray-400 text-xs">
+                      <div className="flex items-center gap-2 text-gray-400 dark:text-gray-500 text-xs">
                         <ImagePlus className="w-4 h-4" /> Cole (Ctrl+V) ou clique para adicionar imagens
                       </div>
                     ) : (
@@ -431,7 +511,7 @@ export default function Solicitacoes() {
                   </div>
                 </div>
                 <div className="flex gap-2 justify-end">
-                  <button type="button" onClick={cancelEdit} className="px-3 py-1.5 text-xs border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-600 font-medium">Cancelar</button>
+                  <button type="button" onClick={cancelEdit} className="px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 font-medium">Cancelar</button>
                   <button type="button" onClick={() => handleSaveEdit(s.id)} className="px-4 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold flex items-center gap-1.5">
                     <Check className="w-3.5 h-3.5" /> Salvar
                   </button>
@@ -440,31 +520,31 @@ export default function Solicitacoes() {
             ) : (
               /* ── MODO LEITURA ── */
               <div className="px-3 py-2 flex items-center gap-2 min-w-0">
-                <span className="w-8 flex-shrink-0 text-xs text-gray-400 font-medium">#{s.id}</span>
+                <span className="w-8 flex-shrink-0 text-xs text-gray-400 dark:text-gray-500 font-medium">#{s.id}</span>
                 <span className="w-24 flex-shrink-0">
                   {s.veiculo ? (
-                    <span className="flex items-center gap-1 text-xs text-blue-600 font-medium whitespace-nowrap">
+                    <span className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 font-medium whitespace-nowrap">
                       <Car className="w-3 h-3" /> {s.veiculo.placa}
                     </span>
-                  ) : <span className="text-xs text-gray-300">—</span>}
+                  ) : <span className="text-xs text-gray-300 dark:text-gray-600">—</span>}
                 </span>
-                <span className="w-32 flex-shrink-0 text-xs text-gray-700 truncate">{s.solicitante}</span>
-                <span className="flex-1 min-w-0 text-xs font-medium text-gray-800 truncate">{s.descricao}</span>
+                <span className="w-32 flex-shrink-0 text-xs text-gray-700 dark:text-gray-300 truncate">{s.solicitante}</span>
+                <span className="flex-1 min-w-0 text-xs font-medium text-gray-800 dark:text-gray-200 truncate">{s.descricao}</span>
                 <span className={`w-20 flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold whitespace-nowrap ${priorBadge[s.prioridade]}`}>
                   {s.prioridade === 'Crítico' && <AlertTriangle className="w-3 h-3" />}
                   {s.prioridade}
                 </span>
-                <span className="w-24 flex-shrink-0 text-center text-xs font-semibold text-gray-600">
-                  {Math.floor((Date.now() - new Date(s.dt_solicitacao)) / 86400000)} dias
+                <span className="w-24 flex-shrink-0 text-center text-xs font-semibold text-gray-600 dark:text-gray-400">
+                  {(() => { const d = diasAberto(s.dt_solicitacao); return d === null ? '-' : `${d} dia${d !== 1 ? 's' : ''}` })()}
                 </span>
                 <span className={`w-24 flex-shrink-0 inline-block px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap ${statusBadge[s.status] || ''}`}>{s.status}</span>
                 <span className="w-24 flex-shrink-0">
                   {s.manutencao_id ? (
                     <Link to={`/manutencoes/${s.manutencao_id}/editar`}
-                      className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium whitespace-nowrap">
+                      className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 font-medium whitespace-nowrap">
                       <Wrench className="w-3 h-3" /> #{s.manutencao_id}
                     </Link>
-                  ) : <span className="text-xs text-gray-300">—</span>}
+                  ) : <span className="text-xs text-gray-300 dark:text-gray-600">—</span>}
                 </span>
                 <div className="w-10 flex-shrink-0 flex items-center justify-center">
                   {s.imagens && JSON.parse(s.imagens).length > 0 ? (

@@ -35,6 +35,15 @@ _add_column_if_missing(engine, "veiculos", ("ultimo_km_data", "DATETIME"))
 _add_column_if_missing(engine, "veiculos", ("capacidade", "VARCHAR(100)"))
 _add_column_if_missing(engine, "veiculos", ("vinculo", "VARCHAR(50)"))
 
+# Cria tabela oficinas_prestadores se não existir (nova funcionalidade)
+try:
+    from sqlalchemy import text as _text, inspect as _inspect
+    _insp = _inspect(engine)
+    if "oficinas_prestadores" not in _insp.get_table_names():
+        models.OficinaPrestador.__table__.create(bind=engine)
+except Exception:
+    pass
+
 app = FastAPI(title="Frota Bello API", version="1.0.0")
 
 app.add_middleware(
@@ -275,6 +284,88 @@ def delete_parte_veiculo(item_id: int, db: Session = Depends(get_db)):
     db.commit()
 
 
+# ── Oficinas / Prestadores ────────────────────────────────────────────────────
+
+@app.get("/api/oficinas-prestadores", response_model=schemas.PaginatedOficinasPrestadores)
+def list_oficinas_prestadores(
+    page: int = Query(1, ge=1),
+    per_page: int = Query(10, ge=1, le=200),
+    search: Optional[str] = None,
+    cidade: Optional[str] = None,
+    especialidade: Optional[str] = None,
+    ativo: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    query = db.query(models.OficinaPrestador)
+    if search:
+        query = query.filter(
+            or_(
+                models.OficinaPrestador.nome.ilike(f"%{search}%"),
+                models.OficinaPrestador.cnpj_cpf.ilike(f"%{search}%"),
+                models.OficinaPrestador.telefone.ilike(f"%{search}%"),
+            )
+        )
+    if cidade:
+        query = query.filter(models.OficinaPrestador.cidade.ilike(f"%{cidade}%"))
+    if especialidade:
+        query = query.filter(models.OficinaPrestador.especialidade.ilike(f"%{especialidade}%"))
+    if ativo is not None:
+        query = query.filter(models.OficinaPrestador.ativo == (ativo.lower() == 'true'))
+    total = query.count()
+    total_pages = max(1, math.ceil(total / per_page))
+    items = query.order_by(models.OficinaPrestador.nome).offset((page - 1) * per_page).limit(per_page).all()
+    return {"items": items, "total": total, "page": page, "per_page": per_page, "total_pages": total_pages}
+
+
+@app.get("/api/oficinas-prestadores/lookup", response_model=list[schemas.OficinaPrestadorOut])
+def lookup_oficinas_prestadores(search: Optional[str] = None, db: Session = Depends(get_db)):
+    query = db.query(models.OficinaPrestador).filter(models.OficinaPrestador.ativo == True)
+    if search:
+        query = query.filter(models.OficinaPrestador.nome.ilike(f"%{search}%"))
+    return query.order_by(models.OficinaPrestador.nome).limit(50).all()
+
+
+@app.post("/api/oficinas-prestadores", response_model=schemas.OficinaPrestadorOut, status_code=201)
+def create_oficina_prestador(data: schemas.OficinaPrestadorCreate, db: Session = Depends(get_db)):
+    existing = db.query(models.OficinaPrestador).filter(models.OficinaPrestador.nome == data.nome).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Oficina/Prestador já cadastrado com esse nome")
+    item = models.OficinaPrestador(**data.model_dump())
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@app.get("/api/oficinas-prestadores/{item_id}", response_model=schemas.OficinaPrestadorOut)
+def get_oficina_prestador(item_id: int, db: Session = Depends(get_db)):
+    item = db.query(models.OficinaPrestador).filter(models.OficinaPrestador.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Não encontrado")
+    return item
+
+
+@app.put("/api/oficinas-prestadores/{item_id}", response_model=schemas.OficinaPrestadorOut)
+def update_oficina_prestador(item_id: int, data: schemas.OficinaPrestadorUpdate, db: Session = Depends(get_db)):
+    item = db.query(models.OficinaPrestador).filter(models.OficinaPrestador.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Não encontrado")
+    for field, value in data.model_dump(exclude_unset=True).items():
+        setattr(item, field, value)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@app.delete("/api/oficinas-prestadores/{item_id}", status_code=204)
+def delete_oficina_prestador(item_id: int, db: Session = Depends(get_db)):
+    item = db.query(models.OficinaPrestador).filter(models.OficinaPrestador.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Não encontrado")
+    db.delete(item)
+    db.commit()
+
+
 # ── Tipos Servico ─────────────────────────────────────────────────────────────
 
 @app.get("/api/tipos-servico", response_model=schemas.PaginatedTiposServico)
@@ -310,10 +401,12 @@ def list_tipos_servico(
     return {"items": items, "total": total, "page": page, "per_page": per_page, "total_pages": total_pages}
 
 @app.get("/api/tipos-servico/lookup", response_model=list[schemas.TipoServicoCadOut])
-def lookup_tipos_servico(search: Optional[str] = None, db: Session = Depends(get_db)):
+def lookup_tipos_servico(search: Optional[str] = None, parte_veiculo: Optional[str] = None, db: Session = Depends(get_db)):
     query = db.query(models.TipoServicoCad).filter(models.TipoServicoCad.ativo == True)
     if search:
         query = query.filter(models.TipoServicoCad.nome.ilike(f"%{search}%"))
+    if parte_veiculo:
+        query = query.filter(models.TipoServicoCad.parte_veiculo.ilike(f"%{parte_veiculo}%"))
     return query.order_by(models.TipoServicoCad.nome).limit(50).all()
 
 @app.post("/api/tipos-servico", response_model=schemas.TipoServicoCadOut, status_code=201)
@@ -651,7 +744,7 @@ def delete_motorista(motorista_id: int, db: Session = Depends(get_db)):
 @app.get("/api/manutencoes", response_model=schemas.PaginatedManutencoes)
 def list_manutencoes(
     page: int = Query(1, ge=1),
-    per_page: int = Query(10, ge=1, le=100),
+    per_page: int = Query(10, ge=1, le=10000),
     status: Optional[str] = None,
     tipo: Optional[str] = None,
     prioridade: Optional[str] = None,
@@ -973,6 +1066,93 @@ def delete_arquivo(arquivo_id: int, db: Session = Depends(get_db)):
     db.commit()
 
 
+# ── Dashboard Stats ───────────────────────────────────────────────────────────
+
+@app.get("/api/dashboard-stats")
+def dashboard_stats(db: Session = Depends(get_db)):
+    from datetime import date as dt_date
+    from sqlalchemy import text
+
+    today = dt_date.today()
+
+    # 1. Manutenções por mês — últimos 12 meses (Corretiva vs Preventiva)
+    meses_raw = db.execute(text("""
+        SELECT strftime('%Y-%m', dt_inicio) as mes, tipo, COUNT(*) as total
+        FROM manutencoes
+        WHERE dt_inicio >= date('now', '-12 months') AND dt_inicio IS NOT NULL
+        GROUP BY strftime('%Y-%m', dt_inicio), tipo
+        ORDER BY mes
+    """)).fetchall()
+
+    meses_dict: dict = {}
+    for mes, tipo, total in meses_raw:
+        if mes not in meses_dict:
+            meses_dict[mes] = {"corretiva": 0, "preventiva": 0, "outros": 0}
+        if tipo == "Corretiva":
+            meses_dict[mes]["corretiva"] = total
+        elif tipo == "Preventiva":
+            meses_dict[mes]["preventiva"] = total
+        else:
+            meses_dict[mes]["outros"] += total
+
+    MESES_PT = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"]
+    manutencoes_por_mes = []
+    for i in range(11, -1, -1):
+        month = (today.month - 1 - i) % 12 + 1
+        year = today.year + (today.month - 1 - i) // 12
+        mes_key = f"{year:04d}-{month:02d}"
+        label = f"{MESES_PT[month-1]}/{str(year)[2:]}"
+        d = meses_dict.get(mes_key, {"corretiva": 0, "preventiva": 0, "outros": 0})
+        manutencoes_por_mes.append({
+            "mes": mes_key,
+            "label": label,
+            "corretiva": d["corretiva"],
+            "preventiva": d["preventiva"],
+            "total": d["corretiva"] + d["preventiva"] + d["outros"],
+        })
+
+    # 2. Custo total por veículo (top 10 por custo)
+    custo_raw = db.execute(text("""
+        SELECT v.id, v.placa, v.descricao,
+               COUNT(DISTINCT m.id) as total_manutencoes,
+               COALESCE(SUM(CAST(sv.valor AS REAL)), 0) as total_custo
+        FROM veiculos v
+        LEFT JOIN manutencoes m ON m.veiculo_id = v.id
+        LEFT JOIN servicos_veiculo sv ON sv.manutencao_id = m.id AND sv.valor IS NOT NULL
+        GROUP BY v.id, v.placa, v.descricao
+        HAVING total_manutencoes > 0
+        ORDER BY total_custo DESC
+        LIMIT 10
+    """)).fetchall()
+
+    custo_por_veiculo = [
+        {"veiculo_id": r[0], "placa": r[1], "descricao": r[2],
+         "total_manutencoes": r[3], "total_custo": float(r[4])}
+        for r in custo_raw
+    ]
+
+    # 3. Ranking de veículos com mais manutenções (top 10)
+    ranking_raw = db.execute(text("""
+        SELECT v.id, v.placa, v.descricao, COUNT(m.id) as total
+        FROM veiculos v
+        JOIN manutencoes m ON m.veiculo_id = v.id
+        GROUP BY v.id, v.placa, v.descricao
+        ORDER BY total DESC
+        LIMIT 10
+    """)).fetchall()
+
+    ranking_manutencoes = [
+        {"veiculo_id": r[0], "placa": r[1], "descricao": r[2], "total": r[3]}
+        for r in ranking_raw
+    ]
+
+    return {
+        "manutencoes_por_mes": manutencoes_por_mes,
+        "custo_por_veiculo": custo_por_veiculo,
+        "ranking_manutencoes": ranking_manutencoes,
+    }
+
+
 # ── Stats ─────────────────────────────────────────────────────────────────────
 
 @app.get("/api/stats")
@@ -1114,6 +1294,59 @@ def delete_solicitacao(sol_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Solicitação não encontrada")
     db.delete(sol)
     db.commit()
+
+
+# ── Backup ────────────────────────────────────────────────────────────────────
+
+DB_PATH = Path(__file__).parent / "frota_bello.db"
+BACKUP_LOCAL = Path(__file__).parent.parent.parent / "backups_frota"
+BACKUP_ONEDRIVE = Path(r"C:\Users\jimmy.ramos\OneDrive - Bello Alimentos LTDA\Bello\backups_frota")
+
+
+@app.post("/api/backup")
+def fazer_backup():
+    if not DB_PATH.exists():
+        raise HTTPException(status_code=404, detail="Banco de dados não encontrado")
+
+    ts = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+    nome = f"frota_bello_{ts}.db"
+    destinos = []
+    erros = []
+
+    for pasta in [BACKUP_LOCAL, BACKUP_ONEDRIVE]:
+        try:
+            pasta.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(str(DB_PATH), str(pasta / nome))
+            destinos.append(str(pasta / nome))
+        except Exception as e:
+            erros.append(f"{pasta.name}: {e}")
+
+    if not destinos:
+        raise HTTPException(status_code=500, detail="Falha ao salvar backup: " + "; ".join(erros))
+
+    return {
+        "arquivo": nome,
+        "destinos": destinos,
+        "avisos": erros,
+        "tamanho_kb": round(DB_PATH.stat().st_size / 1024, 1),
+        "timestamp": ts,
+    }
+
+
+@app.get("/api/backups")
+def listar_backups():
+    resultado = []
+    for pasta in [BACKUP_LOCAL, BACKUP_ONEDRIVE]:
+        if pasta.exists():
+            for f in sorted(pasta.glob("frota_bello_*.db"), reverse=True)[:20]:
+                resultado.append({
+                    "nome": f.name,
+                    "pasta": str(pasta),
+                    "tamanho_kb": round(f.stat().st_size / 1024, 1),
+                    "data": f.stat().st_mtime,
+                })
+    resultado.sort(key=lambda x: x["data"], reverse=True)
+    return resultado
 
 
 # ── Serve React frontend (deve ficar por último) ───────────────────────────────

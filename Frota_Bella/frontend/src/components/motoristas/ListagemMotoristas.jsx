@@ -65,7 +65,7 @@ function MotoristaModal({ motorista, onClose, onSaved }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded shadow-xl w-full max-w-sm mx-4">
+      <div className="bg-white dark:bg-gray-800 rounded shadow-xl w-full max-w-sm mx-4">
         <div className="flex items-center justify-between bg-blue-700 text-white px-4 py-2 rounded-t">
           <div className="flex items-center gap-2">
             <Users className="w-4 h-4" />
@@ -79,7 +79,7 @@ function MotoristaModal({ motorista, onClose, onSaved }) {
         </div>
         <form onSubmit={handleSubmit} className="p-5 space-y-3">
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded flex items-center gap-2 text-sm">
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-3 py-2 rounded flex items-center gap-2 text-sm">
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
               {error}
             </div>
@@ -175,7 +175,7 @@ export default function ListagemMotoristas() {
     <div className="space-y-3">
       {/* Title */}
       <div className="flex items-center justify-between">
-        <h1 className="text-base font-semibold text-gray-800">Motoristas</h1>
+        <h1 className="text-base font-semibold text-gray-800 dark:text-gray-100">Motoristas</h1>
         <div className="flex items-center gap-2">
           <button
             onClick={fetchMotoristas}
@@ -195,17 +195,17 @@ export default function ListagemMotoristas() {
       </div>
 
       {success && (
-        <div className="bg-green-50 border border-green-200 text-green-700 px-3 py-2 rounded flex items-center gap-2 text-sm">
+        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 px-3 py-2 rounded flex items-center gap-2 text-sm">
           <CheckCircle className="w-4 h-4 flex-shrink-0" />
           {success}
         </div>
       )}
 
       {/* Search */}
-      <div className="bg-white rounded shadow-sm border border-gray-200 px-3 py-2 flex items-center gap-2">
+      <div className="bg-white dark:bg-gray-800 rounded shadow-sm border border-gray-200 dark:border-gray-700 px-3 py-2 flex items-center gap-2">
         <Search className="w-4 h-4 text-gray-400 flex-shrink-0" />
         <input
-          className="flex-1 text-sm outline-none"
+          className="flex-1 text-sm outline-none dark:text-gray-100 dark:placeholder-gray-400 bg-transparent"
           placeholder="Pesquisar por código ou nome..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -218,20 +218,20 @@ export default function ListagemMotoristas() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded shadow-sm border border-gray-200">
+      <div className="bg-white dark:bg-gray-800 rounded shadow-sm border border-gray-200 dark:border-gray-700">
         <div className="section-header">
           Motoristas Cadastrados ({motoristas.length})
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
-              <tr className="bg-blue-50 border-b border-blue-100">
+              <tr className="bg-blue-50 dark:bg-blue-900/20 border-b border-blue-100 dark:border-blue-800/40">
                 {[['codigo','Código'],['nome','Nome'],['created_at','Cadastro']].map(([f,l]) => (
-                  <th key={f} className="px-3 py-2 text-left text-blue-800 font-semibold cursor-pointer select-none hover:bg-blue-100 whitespace-nowrap" onClick={() => handleSort(f)}>
+                  <th key={f} className="px-3 py-2 text-left text-blue-800 dark:text-blue-300 font-semibold cursor-pointer select-none hover:bg-blue-100 dark:hover:bg-blue-900/30 whitespace-nowrap" onClick={() => handleSort(f)}>
                     <span className="flex items-center gap-1">{l} <SortIcon field={f} sortField={sortField} sortDir={sortDir} /></span>
                   </th>
                 ))}
-                <th className="px-3 py-2 text-center text-blue-800 font-semibold">Ações</th>
+                <th className="px-3 py-2 text-center text-blue-800 dark:text-blue-300 font-semibold">Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -255,11 +255,11 @@ export default function ListagemMotoristas() {
                 }) : motoristas).map((m, idx) => (
                   <tr
                     key={m.id}
-                    className={`border-b border-gray-100 hover:bg-blue-50 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}
+                    className={`border-b border-gray-100 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors ${idx % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-700/50'}`}
                   >
-                    <td className="px-3 py-2 font-medium text-blue-700">{m.codigo}</td>
-                    <td className="px-3 py-2">{m.nome}</td>
-                    <td className="px-3 py-2 whitespace-nowrap text-gray-500">{fmt(m.created_at)}</td>
+                    <td className="px-3 py-2 font-medium text-blue-700 dark:text-blue-400">{m.codigo}</td>
+                    <td className="px-3 py-2 dark:text-gray-200">{m.nome}</td>
+                    <td className="px-3 py-2 whitespace-nowrap text-gray-500 dark:text-gray-400">{fmt(m.created_at)}</td>
                     <td className="px-3 py-2">
                       <div className="flex items-center justify-center gap-1.5">
                         <button

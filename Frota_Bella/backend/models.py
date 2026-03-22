@@ -163,6 +163,22 @@ class TipoServicoCad(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class OficinaPrestador(Base):
+    __tablename__ = "oficinas_prestadores"
+
+    id = Column(Integer, primary_key=True, index=True)
+    nome = Column(String(200), unique=True, nullable=False)
+    cnpj_cpf = Column(String(20), nullable=True)
+    telefone = Column(String(50), nullable=True)
+    email = Column(String(200), nullable=True)
+    endereco = Column(String(300), nullable=True)
+    cidade = Column(String(100), nullable=True)
+    especialidade = Column(String(200), nullable=True)
+    observacao = Column(Text, nullable=True)
+    ativo = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class Solicitacao(Base):
     __tablename__ = "solicitacoes"
 

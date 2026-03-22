@@ -19,7 +19,7 @@ export function EmailModal({ manutencaoId, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded shadow-xl w-full max-w-md mx-4">
+      <div className="bg-white dark:bg-gray-800 rounded shadow-xl w-full max-w-md mx-4">
         {/* Header */}
         <div className="flex items-center justify-between bg-blue-700 text-white px-4 py-2 rounded-t">
           <div className="flex items-center gap-2">
@@ -88,7 +88,7 @@ export function EmailModal({ manutencaoId, onClose }) {
 export function ConfirmModal({ title, message, onConfirm, onClose }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded shadow-xl w-full max-w-sm mx-4">
+      <div className="bg-white dark:bg-gray-800 rounded shadow-xl w-full max-w-sm mx-4">
         <div className="flex items-center justify-between bg-red-600 text-white px-4 py-2 rounded-t">
           <span className="font-semibold text-sm">{title || 'Confirmar'}</span>
           <button onClick={onClose} className="hover:text-red-200">
@@ -96,7 +96,7 @@ export function ConfirmModal({ title, message, onConfirm, onClose }) {
           </button>
         </div>
         <div className="p-5">
-          <p className="text-gray-700 mb-4">{message || 'Tem certeza?'}</p>
+          <p className="text-gray-700 dark:text-gray-200 mb-4">{message || 'Tem certeza?'}</p>
           <div className="flex gap-2 justify-end">
             <button className="btn-secondary btn-sm px-4 py-1.5" onClick={onClose}>
               Cancelar

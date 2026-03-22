@@ -123,47 +123,47 @@ export default function ArquivosManutencao() {
         <Link to="/manutencoes" className="text-gray-500 hover:text-blue-600">
           <ChevronLeft className="w-5 h-5" />
         </Link>
-        <h1 className="text-base font-semibold text-gray-800">
+        <h1 className="text-base font-semibold text-gray-800 dark:text-gray-100">
           Manutenção de Arquivos da Manutenção de Veículos
         </h1>
       </div>
 
       {/* Manutencao info */}
       {man && (
-        <div className="bg-blue-50 border border-blue-200 rounded px-4 py-2 text-sm flex items-center gap-6">
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/40 rounded px-4 py-2 text-sm flex items-center gap-6">
           <div>
             <span className="form-label">Código</span>
-            <span className="font-semibold text-blue-800 ml-1">#{man.id}</span>
+            <span className="font-semibold text-blue-800 dark:text-blue-300 ml-1">#{man.id}</span>
           </div>
           <div>
             <span className="form-label">Veículo</span>
-            <span className="font-semibold text-blue-800 ml-1">
+            <span className="font-semibold text-blue-800 dark:text-blue-300 ml-1">
               {man.veiculo?.placa} — {man.veiculo?.descricao}
             </span>
           </div>
           <div>
             <span className="form-label">Status</span>
-            <span className="ml-1 font-medium text-gray-700">{man.status}</span>
+            <span className="ml-1 font-medium text-gray-700 dark:text-gray-300">{man.status}</span>
           </div>
         </div>
       )}
 
       {/* Alerts */}
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded flex items-center gap-2 text-sm">
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-3 py-2 rounded flex items-center gap-2 text-sm">
           <AlertCircle className="w-4 h-4 flex-shrink-0" />
           {error}
         </div>
       )}
       {success && (
-        <div className="bg-green-50 border border-green-200 text-green-700 px-3 py-2 rounded flex items-center gap-2 text-sm">
+        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 px-3 py-2 rounded flex items-center gap-2 text-sm">
           <CheckCircle className="w-4 h-4 flex-shrink-0" />
           {success}
         </div>
       )}
 
       {/* Upload card */}
-      <div className="bg-white rounded shadow-sm border border-gray-200">
+      <div className="bg-white dark:bg-gray-800 rounded shadow-sm border border-gray-200 dark:border-gray-700">
         <div className="section-header flex items-center gap-2">
           <Upload className="w-3.5 h-3.5" />
           Adicionar Arquivo
@@ -177,29 +177,29 @@ export default function ArquivosManutencao() {
             onDrop={handleDrop}
             className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors cursor-pointer ${
               dragOver
-                ? 'border-blue-400 bg-blue-50'
+                ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20'
                 : selectedFile
-                ? 'border-green-400 bg-green-50'
-                : 'border-gray-300 hover:border-blue-300 hover:bg-blue-50'
+                ? 'border-green-400 bg-green-50 dark:bg-green-900/20'
+                : 'border-gray-300 dark:border-gray-600 hover:border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20'
             }`}
             onClick={() => fileRef.current?.click()}
           >
             {selectedFile ? (
-              <div className="flex items-center justify-center gap-2 text-green-700">
+              <div className="flex items-center justify-center gap-2 text-green-700 dark:text-green-400">
                 <Paperclip className="w-5 h-5" />
                 <span className="font-medium">{selectedFile.name}</span>
-                <span className="text-xs text-green-600">
+                <span className="text-xs text-green-600 dark:text-green-500">
                   ({(selectedFile.size / 1024).toFixed(1)} KB)
                 </span>
               </div>
             ) : (
               <>
-                <Camera className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                <p className="text-sm text-gray-500">
+                <Camera className="w-8 h-8 text-gray-400 dark:text-gray-500 mx-auto mb-2" />
+                <p className="text-sm text-gray-500 dark:text-gray-400">
                   Arraste um arquivo aqui ou{' '}
-                  <span className="text-blue-600 font-medium">clique para selecionar</span>
+                  <span className="text-blue-600 dark:text-blue-400 font-medium">clique para selecionar</span>
                 </p>
-                <p className="text-xs text-gray-400 mt-1">
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
                   Suporta: PDF, imagens, documentos (máx. 10MB)
                 </p>
               </>
@@ -251,43 +251,43 @@ export default function ArquivosManutencao() {
       </div>
 
       {/* Arquivos list */}
-      <div className="bg-white rounded shadow-sm border border-gray-200">
+      <div className="bg-white dark:bg-gray-800 rounded shadow-sm border border-gray-200 dark:border-gray-700">
         <div className="section-header">
           Arquivos Anexados ({arquivos.length})
         </div>
         {arquivos.length === 0 ? (
-          <div className="p-8 text-center text-gray-400 text-sm">
+          <div className="p-8 text-center text-gray-400 dark:text-gray-500 text-sm">
             Nenhum arquivo anexado ainda.
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
-                <tr className="bg-blue-50 border-b border-blue-100">
-                  <th className="px-3 py-1.5 text-left text-blue-800 font-semibold">Arquivo</th>
-                  <th className="px-3 py-1.5 text-left text-blue-800 font-semibold">Descrição</th>
-                  <th className="px-3 py-1.5 text-left text-blue-800 font-semibold">Usuário</th>
-                  <th className="px-3 py-1.5 text-left text-blue-800 font-semibold">Data</th>
-                  <th className="px-3 py-1.5 text-center text-blue-800 font-semibold">Ações</th>
+                <tr className="bg-blue-50 dark:bg-blue-900/20 border-b border-blue-100 dark:border-blue-800/40">
+                  <th className="px-3 py-1.5 text-left text-blue-800 dark:text-blue-300 font-semibold">Arquivo</th>
+                  <th className="px-3 py-1.5 text-left text-blue-800 dark:text-blue-300 font-semibold">Descrição</th>
+                  <th className="px-3 py-1.5 text-left text-blue-800 dark:text-blue-300 font-semibold">Usuário</th>
+                  <th className="px-3 py-1.5 text-left text-blue-800 dark:text-blue-300 font-semibold">Data</th>
+                  <th className="px-3 py-1.5 text-center text-blue-800 dark:text-blue-300 font-semibold">Ações</th>
                 </tr>
               </thead>
               <tbody>
                 {arquivos.map((a, idx) => (
-                  <tr key={a.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                  <tr key={a.id} className={`border-b border-gray-100 dark:border-gray-700 ${idx % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-700/50'}`}>
                     <td className="px-3 py-2">
                       <a
                         href={`http://localhost:8000/api/uploads/${a.caminho}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="flex items-center gap-1.5 text-blue-600 hover:text-blue-800 hover:underline"
+                        className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400 hover:text-blue-800 hover:underline"
                       >
                         <Paperclip className="w-3 h-3 flex-shrink-0" />
                         {a.nome_arquivo}
                       </a>
                     </td>
-                    <td className="px-3 py-2 text-gray-600">{a.descricao || '-'}</td>
-                    <td className="px-3 py-2 text-gray-600">{a.usuario || '-'}</td>
-                    <td className="px-3 py-2 whitespace-nowrap text-gray-500">{fmt(a.created_at)}</td>
+                    <td className="px-3 py-2 text-gray-600 dark:text-gray-400">{a.descricao || '-'}</td>
+                    <td className="px-3 py-2 text-gray-600 dark:text-gray-400">{a.usuario || '-'}</td>
+                    <td className="px-3 py-2 whitespace-nowrap text-gray-500 dark:text-gray-400">{fmt(a.created_at)}</td>
                     <td className="px-3 py-2">
                       <div className="flex items-center justify-center gap-1.5">
                         <a

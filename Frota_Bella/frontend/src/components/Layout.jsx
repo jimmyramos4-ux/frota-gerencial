@@ -14,13 +14,20 @@ import {
   ClipboardList,
   RefreshCw,
   Bell,
+  Moon,
+  Sun,
+  Store,
+  DatabaseBackup,
+  CheckCircle,
+  AlertTriangle,
+  Loader2,
 } from 'lucide-react'
 import novalogo from '../assets/novalogo.png'
 
 const API = 'http://localhost:8000/api'
 
 const navItems = [
-  { label: 'Status da Frota', icon: LayoutDashboard, to: '/dashboard' },
+  { label: 'Dashboard', icon: LayoutDashboard, to: '/dashboard' },
   { label: 'Solicitações', icon: ClipboardList, to: '/solicitacoes' },
   { label: 'Manutenções', icon: Wrench, to: '/manutencoes' },
   { label: 'Vencimentos', icon: Bell, to: '/vencimentos' },
@@ -29,6 +36,7 @@ const navItems = [
   { label: 'Motoristas', icon: Users, to: '/motoristas' },
   { label: 'Partes do Veículo', icon: Layers, to: '/partes-veiculo' },
   { label: 'Tipos de Serviço', icon: Cog, to: '/tipos-servico' },
+  { label: 'Oficinas / Prestadores', icon: Store, to: '/oficinas-prestadores' },
 ]
 
 function fmtSync(dt) {
@@ -40,7 +48,20 @@ function fmtSync(dt) {
 export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [syncInfo, setSyncInfo] = useState(null)
+  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light')
+  const [vencBadge, setVencBadge] = useState({ vencido: 0, proximo: 0 })
+  const [toast, setToast] = useState(null) // { vencido, proximo }
+  const [backupState, setBackupState] = useState(null) // null | 'loading' | { ok, msg }
   const location = useLocation()
+
+  useEffect(() => {
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark')
+    } else {
+      document.documentElement.classList.remove('dark')
+    }
+    localStorage.setItem('theme', theme)
+  }, [theme])
 
   useEffect(() => {
     axios.get(`${API}/veiculos/ultimo-sync`)
@@ -48,19 +69,31 @@ export default function Layout() {
       .catch(() => {})
   }, [location.pathname])
 
+  // Busca vencimentos para badge e toast
+  useEffect(() => {
+    axios.get(`${API}/vencimentos`)
+      .then(r => {
+        const items = r.data || []
+        const vencido = items.filter(i => i.status === 'Vencido').length
+        const proximo = items.filter(i => i.status === 'Próximo').length
+        setVencBadge({ vencido, proximo })
+        // Toast apenas uma vez por sessão e só se houver vencidos
+        if (vencido > 0 && !sessionStorage.getItem('toast_venc_shown')) {
+          setTimeout(() => setToast({ vencido, proximo }), 800)
+          sessionStorage.setItem('toast_venc_shown', '1')
+        }
+      })
+      .catch(() => {})
+  }, [])
+
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-100">
+    <div className="flex h-screen overflow-hidden bg-gray-100 dark:bg-gray-900">
       {/* Sidebar */}
       <aside
         className={`${
           sidebarOpen ? 'w-56' : 'w-0 overflow-hidden'
         } bg-blue-900 text-white flex-shrink-0 transition-all duration-200 flex flex-col`}
       >
-        {/* Brand */}
-        <div className="flex items-center justify-center px-4 py-3 bg-blue-800 border-b border-blue-700">
-          <img src={novalogo} alt="Logo" className="h-10 object-contain" />
-        </div>
-
         {/* Nav */}
         <nav className="flex-1 py-2 overflow-y-auto">
           {navItems.map((item, i) => {
@@ -73,6 +106,8 @@ export default function Layout() {
             }
             const Icon = item.icon
             const active = location.pathname.startsWith(item.to)
+            const isVenc = item.to === '/vencimentos'
+            const badgeCount = isVenc ? vencBadge.vencido + vencBadge.proximo : 0
             return (
               <Link
                 key={item.to}
@@ -84,7 +119,15 @@ export default function Layout() {
                     : 'text-blue-200 hover:bg-blue-800 hover:text-white'
                 }`}
               >
-                <Icon className="w-4 h-4 flex-shrink-0" />
+                <div className="relative flex-shrink-0">
+                  <Icon className="w-4 h-4" />
+                  {badgeCount > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 min-w-[14px] h-[14px] px-0.5 flex items-center justify-center rounded-full text-[9px] font-bold leading-none"
+                      style={{ background: vencBadge.vencido > 0 ? '#ef4444' : '#f97316', color: '#fff' }}>
+                      {badgeCount}
+                    </span>
+                  )}
+                </div>
                 <span>{item.label}</span>
                 {active && <ChevronRight className="w-3 h-3 ml-auto" />}
               </Link>
@@ -110,17 +153,52 @@ export default function Layout() {
               )}
             </div>
           )}
-          <div className="text-xs text-blue-400">v1.0.0</div>
+
+          {/* Botão de Backup */}
+          <button
+            onClick={async () => {
+              setBackupState('loading')
+              try {
+                const r = await axios.post(`${API}/backup`)
+                const destinos = r.data.destinos || []
+                const local = destinos.find(d => !d.includes('OneDrive')) ? '✓ Local' : ''
+                const od = destinos.find(d => d.includes('OneDrive')) ? '✓ OneDrive' : ''
+                const aviso = r.data.avisos?.length ? ' (OneDrive indisponível)' : ''
+                setBackupState({ ok: true, msg: `${r.data.arquivo} · ${r.data.tamanho_kb} KB\n${[local, od].filter(Boolean).join(' · ')}${aviso}` })
+              } catch (e) {
+                setBackupState({ ok: false, msg: e.response?.data?.detail || 'Erro ao fazer backup' })
+              }
+              setTimeout(() => setBackupState(null), 6000)
+            }}
+            disabled={backupState === 'loading'}
+            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-blue-800 hover:bg-blue-700 text-blue-200 hover:text-white text-xs transition-colors disabled:opacity-60"
+          >
+            {backupState === 'loading'
+              ? <Loader2 className="w-3.5 h-3.5 animate-spin flex-shrink-0" />
+              : backupState?.ok === true
+              ? <CheckCircle className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />
+              : backupState?.ok === false
+              ? <AlertTriangle className="w-3.5 h-3.5 text-red-400 flex-shrink-0" />
+              : <DatabaseBackup className="w-3.5 h-3.5 flex-shrink-0" />}
+            <span className="leading-tight">
+              {backupState === 'loading' ? 'Fazendo backup...'
+                : backupState?.ok === true ? <span className="text-green-300 whitespace-pre-wrap">{backupState.msg}</span>
+                : backupState?.ok === false ? <span className="text-red-300">{backupState.msg}</span>
+                : 'Fazer Backup'}
+            </span>
+          </button>
+
+          <div className="text-xs text-blue-400">v1.1.0 · by Jimmy Ricardo</div>
         </div>
       </aside>
 
       {/* Main area */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top navbar */}
-        <header className="bg-white border-b border-gray-200 px-4 py-2 flex items-center gap-3 shadow-sm flex-shrink-0">
+        <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-2 flex items-center gap-3 shadow-sm flex-shrink-0">
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="text-gray-500 hover:text-gray-800 transition-colors"
+            className="text-gray-500 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white transition-colors"
             title="Toggle sidebar"
           >
             {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -129,9 +207,16 @@ export default function Layout() {
             <img src={novalogo} alt="Logo" className="h-8 object-contain" />
             <span className="text-gray-400 text-xs ml-1">| Gestão de Frotas</span>
           </div>
-          <div className="ml-auto flex items-center gap-3 text-xs text-gray-500">
-            <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded font-medium">Online</span>
-            <span>Sistema de Manutenção</span>
+          <div className="ml-auto flex items-center gap-3 text-xs text-gray-500 dark:text-gray-300">
+            <button
+              onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
+              className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              title={theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
+            >
+              {theme === 'dark' ? <Sun className="w-4 h-4 text-yellow-400" /> : <Moon className="w-4 h-4 text-gray-500" />}
+            </button>
+            <span className="bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-400 px-2 py-0.5 rounded font-medium">Online</span>
+            <span className="dark:text-gray-400">Sistema de Manutenção</span>
           </div>
         </header>
 
@@ -140,6 +225,38 @@ export default function Layout() {
           <Outlet />
         </main>
       </div>
+
+      {/* Toast de vencimentos críticos */}
+      {toast && (
+        <div className="fixed bottom-5 right-5 z-50 flex flex-col gap-1 animate-slide-up">
+          <div className="bg-white dark:bg-gray-800 border border-red-200 dark:border-red-700 rounded-xl shadow-xl p-4 w-80 flex gap-3">
+            <div className="flex-shrink-0 w-9 h-9 rounded-full bg-red-100 dark:bg-red-900/40 flex items-center justify-center">
+              <Bell className="w-5 h-5 text-red-500" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">Atenção — Serviços Vencidos</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                {toast.vencido > 0 && <span className="text-red-500 font-medium">{toast.vencido} vencido{toast.vencido > 1 ? 's' : ''}</span>}
+                {toast.vencido > 0 && toast.proximo > 0 && ' · '}
+                {toast.proximo > 0 && <span className="text-orange-500 font-medium">{toast.proximo} a vencer</span>}
+              </p>
+              <Link
+                to="/vencimentos"
+                onClick={() => setToast(null)}
+                className="text-xs text-blue-600 dark:text-blue-400 hover:underline mt-1 inline-block"
+              >
+                Ver vencimentos →
+              </Link>
+            </div>
+            <button
+              onClick={() => setToast(null)}
+              className="flex-shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 self-start"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
