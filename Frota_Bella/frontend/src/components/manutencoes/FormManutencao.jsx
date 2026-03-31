@@ -11,11 +11,12 @@ import LookupField from '../shared/LookupField.jsx'
 import { TipoServicoModal } from '../tiposservico/CadastroTipoServico.jsx'
 import { ParteVeiculoModal } from '../partesveiculo/CadastroParteVeiculo.jsx'
 import { OficinaPrestadorModal } from '../oficinasprestadores/CadastroOficinaPrestador.jsx'
+import { AtivoModal } from '../ativos/CadastroAtivos.jsx'
 
 const API = 'http://localhost:8000/api'
 
 const emptyForm = {
-  veiculo_id: '', motorista_id: '',
+  veiculo_id: '', ativo_id: '', motorista_id: '',
   km_entrada: '', horimetro_entrada: '',
   dt_inicio: '', dt_previsao: '', dt_termino: '',
   responsavel_manutencao: '', requisitante: '',
@@ -48,6 +49,37 @@ function dtToInput(dt) {
 function fmtMoney(v) {
   if (v == null || v === '') return ''
   return Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2 })
+}
+
+function CurrencyInput({ value, onChange, className }) {
+  const [editing, setEditing] = React.useState(false)
+  const [raw, setRaw] = React.useState('')
+  const fmt = (v) => {
+    const n = parseFloat(v)
+    if (!v || isNaN(n)) return ''
+    return 'R$ ' + n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  }
+  const handleFocus = (e) => {
+    const n = parseFloat(value)
+    setRaw(!value || isNaN(n) ? '' : n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }))
+    setEditing(true)
+    setTimeout(() => e.target.select(), 0)
+  }
+  const handleBlur = () => {
+    setEditing(false)
+    const clean = raw.replace(/R\$\s*/g, '').replace(/\./g, '').replace(',', '.').trim()
+    const n = parseFloat(clean)
+    onChange(isNaN(n) ? '' : String(n))
+  }
+  return (
+    <input type="text" className={className}
+      value={editing ? raw : fmt(value)}
+      onChange={e => setRaw(e.target.value)}
+      onFocus={handleFocus}
+      onBlur={handleBlur}
+      placeholder="R$ 0,00"
+    />
+  )
 }
 
 const inp = "border border-gray-300 dark:border-gray-600 rounded px-2 py-1.5 text-xs w-full focus:outline-none focus:border-blue-400 bg-white dark:bg-gray-700 dark:text-gray-100"
@@ -86,14 +118,20 @@ export default function FormManutencao() {
   const isEdit = Boolean(id)
 
   const [form, setForm] = useState(emptyForm)
+  const [tipoEntidade, setTipoEntidade] = useState('veiculo') // 'veiculo' | 'ativo'
   const [veiculos, setVeiculos] = useState([])
+  const [ativos, setAtivos] = useState([])
   const [motoristas, setMotoristas] = useState([])
   const [veiculoDesc, setVeiculoDesc] = useState('')
+  const [ativoDesc, setAtivoDesc] = useState('')
   const [motoristaDesc, setMotoristaDesc] = useState('')
   const [veiculoSearch, setVeiculoSearch] = useState('')
+  const [ativoSearch, setAtivoSearch] = useState('')
   const [motoristaSearch, setMotoristaSearch] = useState('')
   const [showVeiculoDrop, setShowVeiculoDrop] = useState(false)
+  const [showAtivoDrop, setShowAtivoDrop] = useState(false)
   const [showMotoristaDrop, setShowMotoristaDrop] = useState(false)
+  const [ativoModalOpen, setAtivoModalOpen] = useState(false)
   const [servicos, setServicos] = useState([])
   const [newServico, setNewServico] = useState(emptyServico)
   const [editingId, setEditingId] = useState(null)
@@ -113,9 +151,12 @@ export default function FormManutencao() {
   const [lightbox, setLightbox] = useState(null) // { images: [], idx: 0 }
   const fileInputRef = useRef()
 
+  const loadAtivos = () => axios.get(`${API}/ativos`, { params: { per_page: 200 } }).then(r => setAtivos(r.data.items))
+
   useEffect(() => {
     axios.get(`${API}/veiculos`).then(r => setVeiculos(r.data))
     axios.get(`${API}/motoristas`).then(r => setMotoristas(r.data))
+    loadAtivos()
   }, [])
 
   useEffect(() => {
@@ -124,8 +165,14 @@ export default function FormManutencao() {
     axios.get(`${API}/manutencoes/${id}`)
       .then(r => {
         const m = r.data
+        if (m.ativo_id && !m.veiculo_id) {
+          setTipoEntidade('ativo')
+          setAtivoSearch(m.ativo?.nome || '')
+          setAtivoDesc(m.ativo?.tipo || '')
+        }
         setForm({
           veiculo_id: m.veiculo_id || '',
+          ativo_id: m.ativo_id || '',
           motorista_id: m.motorista_id || '',
           km_entrada: m.km_entrada || '',
           horimetro_entrada: m.horimetro_entrada || '',
@@ -147,6 +194,11 @@ export default function FormManutencao() {
             .then(r => setSolicitacoesVeiculo(r.data.items))
             .catch(() => {})
         }
+        if (m.ativo) {
+          axios.get(`${API}/solicitacoes`, { params: { manutencao_id: Number(id), per_page: 100 } })
+            .then(r => setSolicitacoesVeiculo(r.data.items))
+            .catch(() => {})
+        }
         if (m.motorista) { setMotoristaSearch(m.motorista.codigo); setMotoristaDesc(m.motorista.nome) }
         setServicos(m.servicos || [])
         setArquivos(m.arquivos || [])
@@ -157,7 +209,11 @@ export default function FormManutencao() {
 
   const filteredVeiculos = veiculos.filter(v =>
     v.placa.toLowerCase().includes(veiculoSearch.toLowerCase()) ||
-    v.descricao.toLowerCase().includes(veiculoSearch.toLowerCase())
+    (v.descricao || '').toLowerCase().includes(veiculoSearch.toLowerCase())
+  )
+  const filteredAtivos = ativos.filter(a =>
+    a.nome.toLowerCase().includes(ativoSearch.toLowerCase()) ||
+    (a.codigo || '').toLowerCase().includes(ativoSearch.toLowerCase())
   )
   const filteredMotoristas = motoristas.filter(m =>
     m.codigo.toLowerCase().includes(motoristaSearch.toLowerCase()) ||
@@ -171,6 +227,17 @@ export default function FormManutencao() {
     setShowVeiculoDrop(false)
     setSolicitacoesRemovidas([])
     axios.get(`${API}/solicitacoes`, { params: { veiculo_id: v.id, status: 'Aberta', per_page: 100 } })
+      .then(r => setSolicitacoesVeiculo(r.data.items))
+      .catch(() => setSolicitacoesVeiculo([]))
+  }
+
+  const selectAtivo = (a) => {
+    setForm(f => ({ ...f, ativo_id: a.id, veiculo_id: '' }))
+    setAtivoSearch(a.nome)
+    setAtivoDesc(a.tipo || '')
+    setShowAtivoDrop(false)
+    setSolicitacoesRemovidas([])
+    axios.get(`${API}/solicitacoes`, { params: { ativo_id: a.id, status: 'Aberta', per_page: 100 } })
       .then(r => setSolicitacoesVeiculo(r.data.items))
       .catch(() => setSolicitacoesVeiculo([]))
   }
@@ -242,11 +309,11 @@ export default function FormManutencao() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!form.veiculo_id) { setError('Selecione um veículo'); return }
+    if (!form.veiculo_id && !form.ativo_id) { setError('Selecione um Veículo ou Ativo'); return }
     if (servicos.length === 0) { setError('Adicione ao menos um Serviço Veículo antes de confirmar'); return }
     setSaving(true); setError(''); setSuccess('')
     try {
-      const payload = { ...form, veiculo_id: Number(form.veiculo_id), motorista_id: form.motorista_id ? Number(form.motorista_id) : null, km_entrada: form.km_entrada ? Number(form.km_entrada) : null, horimetro_entrada: form.horimetro_entrada || null, dt_inicio: form.dt_inicio || null, dt_previsao: form.dt_previsao || null, dt_termino: form.dt_termino || null, prioridade: form.prioridade || null, tipo: form.tipo || null }
+      const payload = { ...form, veiculo_id: form.veiculo_id ? Number(form.veiculo_id) : null, ativo_id: form.ativo_id ? Number(form.ativo_id) : null, motorista_id: form.motorista_id ? Number(form.motorista_id) : null, km_entrada: form.km_entrada ? Number(form.km_entrada) : null, horimetro_entrada: form.horimetro_entrada || null, dt_inicio: form.dt_inicio || null, dt_previsao: form.dt_previsao || null, dt_termino: form.dt_termino || null, prioridade: form.prioridade || null, tipo: form.tipo || null }
       let res
       if (isEdit) {
         res = await axios.put(`${API}/manutencoes/${id}`, payload)
@@ -401,39 +468,92 @@ export default function FormManutencao() {
 
           <div className="p-4 space-y-4 bg-white dark:bg-gray-800">
 
-            {/* Veículo + Motorista */}
+            {/* Veículo / Ativo + Motorista */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Veículo */}
-              <div className="relative">
-                <Lbl><span className="text-red-500 mr-0.5">*</span> Veículo</Lbl>
-                <div className="flex gap-1">
-                  <input className={inp} placeholder="Placa ou descrição..." value={veiculoSearch}
-                    onChange={e => { setVeiculoSearch(e.target.value); setShowVeiculoDrop(true) }}
-                    onFocus={() => setShowVeiculoDrop(true)}
-                    onBlur={() => setTimeout(() => setShowVeiculoDrop(false), 200)} />
-                  <button type="button" onClick={() => setShowVeiculoDrop(!showVeiculoDrop)}
-                    className="border border-gray-300 dark:border-gray-600 rounded px-2 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 transition-colors">
-                    <Search className="w-3.5 h-3.5" />
-                  </button>
+              {/* Toggle + Seletor */}
+              <div className="relative pb-4">
+                <div className="h-6 flex items-center gap-2 mb-1">
+                  <span className="text-xs font-semibold text-blue-800 dark:text-blue-300">
+                    <span className="text-red-500 mr-0.5">*</span> Veículo / Ativo
+                  </span>
+                  <span className="inline-flex rounded overflow-hidden border border-gray-300 dark:border-gray-600">
+                    <button type="button"
+                      onClick={() => { setTipoEntidade('veiculo'); setForm(f => ({ ...f, ativo_id: '' })); setAtivoSearch(''); setAtivoDesc('') }}
+                      className={`px-2 py-0 text-[10px] font-semibold transition-colors leading-5 ${tipoEntidade === 'veiculo' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-blue-50'}`}>
+                      Veículo
+                    </button>
+                    <button type="button"
+                      onClick={() => { setTipoEntidade('ativo'); setForm(f => ({ ...f, veiculo_id: '' })); setVeiculoSearch(''); setVeiculoDesc(''); setSolicitacoesVeiculo([]) }}
+                      className={`px-2 py-0 text-[10px] font-semibold transition-colors leading-5 ${tipoEntidade === 'ativo' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-blue-50'}`}>
+                      Ativo
+                    </button>
+                  </span>
                 </div>
-                {veiculoDesc && <p className="text-xs text-blue-600 dark:text-blue-400 mt-0.5 pl-1 font-medium">{veiculoDesc}</p>}
-                {showVeiculoDrop && filteredVeiculos.length > 0 && (
-                  <ul className="absolute z-30 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg mt-0.5 w-full max-h-40 overflow-y-auto text-xs">
-                    {filteredVeiculos.map(v => (
-                      <li key={v.id} className="px-3 py-2 hover:bg-blue-50 dark:hover:bg-blue-900/30 cursor-pointer border-b border-gray-50 dark:border-gray-700 last:border-0 flex items-center gap-2"
-                        onMouseDown={() => selectVeiculo(v)}>
-                        <Car className="w-3 h-3 text-blue-400" />
-                        <span className="font-semibold dark:text-gray-200">{v.placa}</span>
-                        <span className="text-gray-400 dark:text-gray-500">{v.descricao}</span>
-                      </li>
-                    ))}
-                  </ul>
+
+                {tipoEntidade === 'veiculo' ? (
+                  <>
+                    <div className="flex gap-1">
+                      <input className={inp} placeholder="Placa ou descrição..." value={veiculoSearch}
+                        onChange={e => { setVeiculoSearch(e.target.value); setShowVeiculoDrop(true) }}
+                        onFocus={() => setShowVeiculoDrop(true)}
+                        onBlur={() => setTimeout(() => setShowVeiculoDrop(false), 200)} />
+                      <button type="button" onClick={() => setShowVeiculoDrop(!showVeiculoDrop)}
+                        className="border border-gray-300 dark:border-gray-600 rounded px-2 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 transition-colors">
+                        <Search className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    {veiculoDesc && <p className="absolute left-1 bottom-0 text-xs text-blue-600 dark:text-blue-400 font-medium">{veiculoDesc}</p>}
+                    {showVeiculoDrop && filteredVeiculos.length > 0 && (
+                      <ul className="absolute z-30 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg mt-0.5 w-full max-h-40 overflow-y-auto text-xs">
+                        {filteredVeiculos.map(v => (
+                          <li key={v.id} className="px-3 py-2 hover:bg-blue-50 dark:hover:bg-blue-900/30 cursor-pointer border-b border-gray-50 dark:border-gray-700 last:border-0 flex items-center gap-2"
+                            onMouseDown={() => selectVeiculo(v)}>
+                            <Car className="w-3 h-3 text-blue-400" />
+                            <span className="font-semibold dark:text-gray-200">{v.placa}</span>
+                            <span className="text-gray-400 dark:text-gray-500">{v.descricao}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <div className="flex gap-1">
+                      <input className={inp} placeholder="Nome ou código do ativo..." value={ativoSearch}
+                        onChange={e => { setAtivoSearch(e.target.value); setShowAtivoDrop(true) }}
+                        onFocus={() => setShowAtivoDrop(true)}
+                        onBlur={() => setTimeout(() => setShowAtivoDrop(false), 200)} />
+                      <button type="button" onClick={() => setShowAtivoDrop(!showAtivoDrop)}
+                        className="border border-gray-300 dark:border-gray-600 rounded px-2 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 transition-colors">
+                        <Search className="w-3.5 h-3.5" />
+                      </button>
+                      <button type="button" onClick={() => setAtivoModalOpen(true)}
+                        className="border border-gray-300 dark:border-gray-600 rounded px-2 bg-green-50 dark:bg-green-900/20 hover:bg-green-100 text-green-700 dark:text-green-400 transition-colors text-[10px] font-bold whitespace-nowrap">
+                        + Novo
+                      </button>
+                    </div>
+                    {ativoDesc && <p className="absolute left-1 bottom-0 text-xs text-blue-600 dark:text-blue-400 font-medium">{ativoDesc}</p>}
+                    {showAtivoDrop && filteredAtivos.length > 0 && (
+                      <ul className="absolute z-30 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg mt-0.5 w-full max-h-40 overflow-y-auto text-xs">
+                        {filteredAtivos.map(a => (
+                          <li key={a.id} className="px-3 py-2 hover:bg-blue-50 dark:hover:bg-blue-900/30 cursor-pointer border-b border-gray-50 dark:border-gray-700 last:border-0 flex items-center gap-2"
+                            onMouseDown={() => selectAtivo(a)}>
+                            <Car className="w-3 h-3 text-purple-400" />
+                            <span className="font-semibold dark:text-gray-200">{a.nome}</span>
+                            {a.tipo && <span className="text-gray-400 dark:text-gray-500">{a.tipo}</span>}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </>
                 )}
               </div>
 
               {/* Motorista */}
-              <div className="relative">
-                <Lbl>Motorista</Lbl>
+              <div className="relative pb-4">
+                <div className="h-6 flex items-center mb-1">
+                  <label className="text-xs font-semibold text-blue-800 dark:text-blue-300">Motorista</label>
+                </div>
                 <div className="flex gap-1">
                   <input className={inp} placeholder="Código ou nome..." value={motoristaSearch}
                     onChange={e => { setMotoristaSearch(e.target.value); setShowMotoristaDrop(true) }}
@@ -444,7 +564,7 @@ export default function FormManutencao() {
                     <Search className="w-3.5 h-3.5" />
                   </button>
                 </div>
-                {motoristaDesc && <p className="text-xs text-blue-600 dark:text-blue-400 mt-0.5 pl-1 font-medium">{motoristaDesc}</p>}
+                {motoristaDesc && <p className="absolute left-1 bottom-0 text-xs text-blue-600 dark:text-blue-400 font-medium">{motoristaDesc}</p>}
                 {showMotoristaDrop && filteredMotoristas.length > 0 && (
                   <ul className="absolute z-30 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg mt-0.5 w-full max-h-40 overflow-y-auto text-xs">
                     {filteredMotoristas.map(m => (
@@ -613,7 +733,7 @@ export default function FormManutencao() {
                       <td className="px-1 py-1.5"><input className={`${miniInp} w-20 text-right`} type="number" value={editForm.proximo_km_validade} onChange={setEf('proximo_km_validade')} /></td>
                       <td className="px-1 py-1.5"><input className={miniInp} value={editForm.pessoa_responsavel} onChange={setEf('pessoa_responsavel')} placeholder="Resp." /></td>
                       <td className="px-1 py-1.5"><input className={miniInp} value={editForm.descricao} onChange={setEf('descricao')} placeholder="Desc." /></td>
-                      <td className="px-1 py-1.5"><input className={`${miniInp} w-20 text-right`} type="number" step="0.01" value={editForm.valor} onChange={setEf('valor')} /></td>
+                      <td className="px-1 py-1.5"><CurrencyInput className={`${miniInp} w-28 text-right`} value={editForm.valor} onChange={v => setEditForm(f => ({ ...f, valor: v }))} /></td>
                       <td className="px-1 py-1.5"><input className={`${miniInp} w-16`} value={editForm.horas_trabalhadas} onChange={setEf('horas_trabalhadas')} placeholder="h:mm" /></td>
                       <td className="px-1 py-1.5 text-center">
                         <div className="flex items-center justify-center gap-1">
@@ -680,7 +800,7 @@ export default function FormManutencao() {
                   <td className="px-1 py-1.5"><input className="border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 text-xs w-20 text-right dark:bg-gray-700 dark:text-gray-100" type="number" value={newServico.proximo_km_validade} onChange={setSf('proximo_km_validade')} /></td>
                   <td className="px-1 py-1.5"><input className="border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 text-xs w-full dark:bg-gray-700 dark:text-gray-100" value={newServico.pessoa_responsavel} onChange={setSf('pessoa_responsavel')} placeholder="Resp." /></td>
                   <td className="px-1 py-1.5"><input className="border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 text-xs w-full dark:bg-gray-700 dark:text-gray-100" value={newServico.descricao} onChange={setSf('descricao')} placeholder="Desc." /></td>
-                  <td className="px-1 py-1.5"><input className="border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 text-xs w-20 text-right dark:bg-gray-700 dark:text-gray-100" type="number" step="0.01" value={newServico.valor} onChange={setSf('valor')} placeholder="0,00" /></td>
+                  <td className="px-1 py-1.5"><CurrencyInput className="border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 text-xs w-28 text-right dark:bg-gray-700 dark:text-gray-100" value={newServico.valor} onChange={v => setNewServico(s => ({ ...s, valor: v }))} /></td>
                   <td className="px-1 py-1.5"><input className="border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 text-xs w-16 dark:bg-gray-700 dark:text-gray-100" value={newServico.horas_trabalhadas} onChange={setSf('horas_trabalhadas')} placeholder="h:mm" /></td>
                   <td className="px-1 py-1.5 text-center">
                     <button type="button" onClick={handleAddServico} title="Adicionar serviço"
@@ -846,6 +966,12 @@ export default function FormManutencao() {
         <OficinaPrestadorModal
           onClose={() => setOficinaModalCb(null)}
           onSelected={(nome) => { oficinaModalCb(nome); setOficinaModalCb(null) }}
+        />
+      )}
+      {ativoModalOpen && (
+        <AtivoModal
+          onClose={() => setAtivoModalOpen(false)}
+          onSaved={() => { loadAtivos(); setAtivoModalOpen(false) }}
         />
       )}
     </div>

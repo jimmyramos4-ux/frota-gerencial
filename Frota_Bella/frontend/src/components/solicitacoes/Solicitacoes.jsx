@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import axios from 'axios'
 import {
   ClipboardList, Plus, Trash2, Pencil, Check, X,
-  AlertTriangle, ChevronDown, Search, Car, Wrench, ImagePlus, Paperclip, ChevronLeft, ChevronRight,
+  AlertTriangle, ChevronDown, Search, Car, Package, Wrench, ImagePlus, Paperclip, ChevronLeft, ChevronRight,
   ArrowUp, ArrowDown, ArrowUpDown,
 } from 'lucide-react'
 
@@ -38,6 +38,7 @@ const todayISO = () => new Date().toISOString().split('T')[0]
 
 const emptyForm = {
   veiculo_id: '',
+  ativo_id: '',
   solicitante: '',
   descricao: '',
   prioridade: 'Média',
@@ -57,14 +58,17 @@ function fmtDate(dt) {
 export default function Solicitacoes() {
   const [items, setItems] = useState([])
   const [veiculos, setVeiculos] = useState([])
+  const [ativos, setAtivos] = useState([])
+  const [formTipoEntidade, setFormTipoEntidade] = useState('veiculo') // 'veiculo' | 'ativo'
+  const [editTipoEntidade, setEditTipoEntidade] = useState('veiculo')
   const [form, setForm] = useState(emptyForm)
   const [editingId, setEditingId] = useState(null)
   const [editForm, setEditForm] = useState({})
-  const [filterStatus, setFilterStatus] = useState('')
+  const [filterStatus, setFilterStatus] = useState('Aberta')
   const [filterPrior, setFilterPrior] = useState('')
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
-  const [showResumo, setShowResumo] = useState(true)
+  const [showResumo, setShowResumo] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [formImages, setFormImages] = useState([])
@@ -83,6 +87,7 @@ export default function Solicitacoes() {
   useEffect(() => {
     load()
     axios.get(`${API}/veiculos`).then(r => setVeiculos(r.data)).catch(() => {})
+    axios.get(`${API}/ativos`, { params: { per_page: 200, ativo: 'true' } }).then(r => setAtivos(r.data.items)).catch(() => {})
   }, [])
 
   const load = async () => {
@@ -97,12 +102,12 @@ export default function Solicitacoes() {
 
   const handleSave = async (e) => {
     e.preventDefault()
-    if (!form.veiculo_id || !form.descricao.trim()) {
-      setError('Veículo e Descrição são obrigatórios'); return
+    if (!form.veiculo_id && !form.ativo_id || !form.descricao.trim()) {
+      setError('Selecione um Veículo ou Ativo e preencha a Descrição'); return
     }
     setSaving(true); setError('')
     try {
-      const payload = { ...form, veiculo_id: form.veiculo_id ? Number(form.veiculo_id) : null, imagens: formImages.length ? JSON.stringify(formImages) : null, dt_solicitacao: form.dt_solicitacao ? form.dt_solicitacao + 'T00:00:00' : null }
+      const payload = { ...form, veiculo_id: form.veiculo_id ? Number(form.veiculo_id) : null, ativo_id: form.ativo_id ? Number(form.ativo_id) : null, imagens: formImages.length ? JSON.stringify(formImages) : null, dt_solicitacao: form.dt_solicitacao ? form.dt_solicitacao + 'T00:00:00' : null }
       const r = await axios.post(`${API}/solicitacoes`, payload)
       setItems(prev => [r.data, ...prev])
       setForm(emptyForm)
@@ -122,8 +127,10 @@ export default function Solicitacoes() {
 
   const startEdit = (s) => {
     setEditingId(s.id)
+    setEditTipoEntidade(s.ativo_id && !s.veiculo_id ? 'ativo' : 'veiculo')
     setEditForm({
       veiculo_id: s.veiculo_id || '',
+      ativo_id: s.ativo_id || '',
       solicitante: s.solicitante || '',
       descricao: s.descricao || '',
       prioridade: s.prioridade || 'Média',
@@ -138,7 +145,7 @@ export default function Solicitacoes() {
 
   const handleSaveEdit = async (id) => {
     try {
-      const payload = { ...editForm, veiculo_id: editForm.veiculo_id ? Number(editForm.veiculo_id) : null, imagens: editImages.length ? JSON.stringify(editImages) : null, dt_solicitacao: editForm.dt_solicitacao ? editForm.dt_solicitacao + 'T00:00:00' : null }
+      const payload = { ...editForm, veiculo_id: editForm.veiculo_id ? Number(editForm.veiculo_id) : null, ativo_id: editForm.ativo_id ? Number(editForm.ativo_id) : null, imagens: editImages.length ? JSON.stringify(editImages) : null, dt_solicitacao: editForm.dt_solicitacao ? editForm.dt_solicitacao + 'T00:00:00' : null }
       const r = await axios.put(`${API}/solicitacoes/${id}`, payload)
       setItems(prev => prev.map(x => x.id === id ? r.data : x))
       cancelEdit()
@@ -174,7 +181,8 @@ export default function Solicitacoes() {
     .filter(s => !search ||
       s.descricao.toLowerCase().includes(search.toLowerCase()) ||
       s.solicitante.toLowerCase().includes(search.toLowerCase()) ||
-      (s.veiculo?.placa || '').toLowerCase().includes(search.toLowerCase())
+      (s.veiculo?.placa || '').toLowerCase().includes(search.toLowerCase()) ||
+      (s.ativo?.nome || '').toLowerCase().includes(search.toLowerCase())
     )
     .sort((a, b) => (priorOrder[a.prioridade] ?? 9) - (priorOrder[b.prioridade] ?? 9))
 
@@ -237,28 +245,47 @@ export default function Solicitacoes() {
 
         {showForm && (
           <form onSubmit={handleSave} className="p-4 bg-white dark:bg-gray-800 space-y-3">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
               <div>
-                <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Veículo <span className="text-red-500">*</span></label>
-                <select className={sel} value={form.veiculo_id} onChange={setF('veiculo_id')}>
-                  <option value="">— Selecione —</option>
-                  {veiculos.map(v => (
-                    <option key={v.id} value={v.id}>{v.placa} — {v.descricao}</option>
-                  ))}
-                </select>
+                <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">
+                  Veículo / Ativo <span className="text-red-500">*</span>
+                  <span className="ml-2 inline-flex rounded overflow-hidden border border-gray-300 dark:border-gray-600 align-middle">
+                    <button type="button"
+                      onClick={() => { setFormTipoEntidade('veiculo'); setForm(f => ({ ...f, ativo_id: '' })) }}
+                      className={`px-2 py-0 text-[10px] font-semibold transition-colors leading-5 ${formTipoEntidade === 'veiculo' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300'}`}>
+                      Veículo
+                    </button>
+                    <button type="button"
+                      onClick={() => { setFormTipoEntidade('ativo'); setForm(f => ({ ...f, veiculo_id: '' })) }}
+                      className={`px-2 py-0 text-[10px] font-semibold transition-colors leading-5 ${formTipoEntidade === 'ativo' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300'}`}>
+                      Ativo
+                    </button>
+                  </span>
+                </label>
+                {formTipoEntidade === 'veiculo' ? (
+                  <select className={sel} value={form.veiculo_id} onChange={setF('veiculo_id')}>
+                    <option value="">— Selecione —</option>
+                    {veiculos.map(v => <option key={v.id} value={v.id}>{v.placa} — {v.descricao}</option>)}
+                  </select>
+                ) : (
+                  <select className={sel} value={form.ativo_id} onChange={setF('ativo_id')}>
+                    <option value="">— Selecione —</option>
+                    {ativos.map(a => <option key={a.id} value={a.id}>{a.nome}{a.tipo ? ` — ${a.tipo}` : ''}</option>)}
+                  </select>
+                )}
               </div>
               <div>
                 <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Solicitante</label>
                 <input className={inp} placeholder="Nome do solicitante" value={form.solicitante} onChange={setF('solicitante')} />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Prioridade</label>
+                <label className="flex items-center gap-2 text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">
+                  Prioridade
+                  <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold ${priorBadge[form.prioridade]}`}>{form.prioridade}</span>
+                </label>
                 <select className={sel} value={form.prioridade} onChange={setF('prioridade')}>
                   {PRIORIDADES.map(p => <option key={p}>{p}</option>)}
                 </select>
-                <div className="mt-1">
-                  <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold ${priorBadge[form.prioridade]}`}>{form.prioridade}</span>
-                </div>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Data da Solicitação</label>
@@ -324,29 +351,33 @@ export default function Solicitacoes() {
         )}
       </div>
 
-      {/* ── RESUMO POR VEÍCULO ── */}
+      {/* ── RESUMO POR VEÍCULO / ATIVO ── */}
       {items.length > 0 && (() => {
-        const byVeiculo = {}
+        const byEntidade = {}
         items.forEach(s => {
-          const placa = s.veiculo?.placa || '—'
-          const desc = s.veiculo?.descricao || ''
-          if (!byVeiculo[placa]) byVeiculo[placa] = { placa, desc, total: 0, abertas: 0, criticos: 0, altaPrior: '' }
-          byVeiculo[placa].total++
-          if (['Aberta', 'Em Análise'].includes(s.status)) byVeiculo[placa].abertas++
-          if (s.prioridade === 'Crítico' && ['Aberta', 'Em Análise'].includes(s.status)) byVeiculo[placa].criticos++
+          const key = s.veiculo?.placa || s.ativo?.nome || '—'
+          const desc = s.veiculo?.descricao || s.ativo?.tipo || ''
+          const isAtivo = !s.veiculo && !!s.ativo
+          if (!byEntidade[key]) byEntidade[key] = { key, desc, isAtivo, total: 0, abertas: 0, criticos: 0, altaPrior: '' }
+          byEntidade[key].total++
+          if (['Aberta', 'Em Análise'].includes(s.status)) byEntidade[key].abertas++
+          if (s.prioridade === 'Crítico' && ['Aberta', 'Em Análise'].includes(s.status)) byEntidade[key].criticos++
           const order = { Crítico: 0, Alta: 1, Média: 2, Baixa: 3 }
-          if (!byVeiculo[placa].altaPrior || (order[s.prioridade] ?? 99) < (order[byVeiculo[placa].altaPrior] ?? 99))
-            byVeiculo[placa].altaPrior = s.prioridade
+          if (!byEntidade[key].altaPrior || (order[s.prioridade] ?? 99) < (order[byEntidade[key].altaPrior] ?? 99))
+            byEntidade[key].altaPrior = s.prioridade
         })
-        const grupos = Object.values(byVeiculo).filter(g => g.abertas > 0).sort((a, b) => a.placa.localeCompare(b.placa))
+        const grupos = Object.values(byEntidade).filter(g => g.abertas > 0).sort((a, b) => {
+          if (a.isAtivo !== b.isAtivo) return a.isAtivo ? -1 : 1
+          return a.key.localeCompare(b.key)
+        })
         const priorColor = { Crítico: 'bg-red-500', Alta: 'bg-orange-400', Média: 'bg-yellow-400', Baixa: 'bg-green-400' }
         if (!grupos.length) return null
         return (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
             <div className="bg-blue-50 dark:bg-blue-900/20 border-b border-blue-100 dark:border-blue-800/40 px-4 py-2 flex items-center justify-between">
-              <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">Resumo por Veículo</span>
+              <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">Resumo de Solicitações Abertas</span>
               <div className="flex items-center gap-3">
-                <span className="text-xs text-gray-400">{grupos.length} veículo(s) com solicitações em aberto</span>
+                <span className="text-xs text-gray-400">{grupos.length} item(s) com solicitações em aberto</span>
                 <button onClick={() => setShowResumo(v => !v)}
                   className="text-xs text-blue-500 hover:text-blue-700 dark:text-blue-400 font-medium">
                   {showResumo ? 'Ocultar ▲' : 'Mostrar ▼'}
@@ -355,12 +386,12 @@ export default function Solicitacoes() {
             </div>
             {showResumo && <div className="flex overflow-x-auto gap-2 p-3">
               {grupos.map(g => (
-                <div key={g.placa}
-                  onClick={() => setSearch(g.placa)}
-                  className="flex-shrink-0 w-40 border border-gray-200 dark:border-gray-700 rounded-lg p-2.5 cursor-pointer hover:border-blue-400 hover:shadow-md transition-all bg-gray-50 dark:bg-gray-700/50 hover:bg-blue-50 dark:hover:bg-blue-900/20">
+                <div key={g.key}
+                  onClick={() => { setSearch(g.key); setFilterStatus('') }}
+                  className={`flex-shrink-0 w-40 border rounded-lg p-2.5 cursor-pointer hover:shadow-md transition-all ${g.isAtivo ? 'border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20 hover:border-purple-400' : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20'}`}>
                   <div className="flex items-center justify-between mb-1.5">
-                    <span className="font-bold text-xs text-blue-700 dark:text-blue-300">{g.placa}</span>
-                    {g.altaPrior && <span className={`w-2 h-2 rounded-full ${priorColor[g.altaPrior] || 'bg-gray-300'}`} title={g.altaPrior} />}
+                    <span className={`font-bold text-xs truncate ${g.isAtivo ? 'text-purple-700 dark:text-purple-300' : 'text-blue-700 dark:text-blue-300'}`}>{g.key}</span>
+                    {g.altaPrior && <span className={`w-2 h-2 flex-shrink-0 rounded-full ${priorColor[g.altaPrior] || 'bg-gray-300'}`} title={g.altaPrior} />}
                   </div>
                   {g.desc && <p className="text-[10px] text-gray-400 dark:text-gray-500 truncate mb-1.5">{g.desc}</p>}
                   <div className="flex gap-1 text-[10px]">
@@ -445,11 +476,32 @@ export default function Solicitacoes() {
                     <input className={inp} value={editForm.solicitante} onChange={setEf('solicitante')} />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Veículo</label>
-                    <select className={sel} value={editForm.veiculo_id} onChange={setEf('veiculo_id')}>
-                      <option value="">— Selecione —</option>
-                      {veiculos.map(v => <option key={v.id} value={v.id}>{v.placa} — {v.descricao}</option>)}
-                    </select>
+                    <div className="flex items-center gap-1 mb-1">
+                      <label className="text-xs font-semibold text-blue-800 dark:text-blue-300">Veículo / Ativo</label>
+                      <div className="ml-1 flex rounded overflow-hidden border border-gray-300 dark:border-gray-600 text-[10px]">
+                        <button type="button"
+                          onClick={() => { setEditTipoEntidade('veiculo'); setEditForm(f => ({ ...f, ativo_id: '' })) }}
+                          className={`px-2 py-0.5 font-semibold transition-colors ${editTipoEntidade === 'veiculo' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300'}`}>
+                          Veículo
+                        </button>
+                        <button type="button"
+                          onClick={() => { setEditTipoEntidade('ativo'); setEditForm(f => ({ ...f, veiculo_id: '' })) }}
+                          className={`px-2 py-0.5 font-semibold transition-colors ${editTipoEntidade === 'ativo' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300'}`}>
+                          Ativo
+                        </button>
+                      </div>
+                    </div>
+                    {editTipoEntidade === 'veiculo' ? (
+                      <select className={sel} value={editForm.veiculo_id} onChange={setEf('veiculo_id')}>
+                        <option value="">— Selecione —</option>
+                        {veiculos.map(v => <option key={v.id} value={v.id}>{v.placa} — {v.descricao}</option>)}
+                      </select>
+                    ) : (
+                      <select className={sel} value={editForm.ativo_id} onChange={setEf('ativo_id')}>
+                        <option value="">— Selecione —</option>
+                        {ativos.map(a => <option key={a.id} value={a.id}>{a.nome}{a.tipo ? ` — ${a.tipo}` : ''}</option>)}
+                      </select>
+                    )}
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Prioridade</label>
@@ -525,6 +577,10 @@ export default function Solicitacoes() {
                   {s.veiculo ? (
                     <span className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 font-medium whitespace-nowrap">
                       <Car className="w-3 h-3" /> {s.veiculo.placa}
+                    </span>
+                  ) : s.ativo ? (
+                    <span className="flex items-center gap-1 text-xs text-purple-600 dark:text-purple-400 font-medium whitespace-nowrap">
+                      <Package className="w-3 h-3" /> {s.ativo.nome}
                     </span>
                   ) : <span className="text-xs text-gray-300 dark:text-gray-600">—</span>}
                 </span>

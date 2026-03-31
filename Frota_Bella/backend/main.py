@@ -1,9 +1,18 @@
 import os
 import shutil
 import math
+import smtplib
+import io
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.application import MIMEApplication
 from pathlib import Path
 from datetime import datetime
 from typing import Optional
+
+# ── Configuração de E-mail ────────────────────────────────────────────────────
+EMAIL_REMETENTE = "jimmyramos4@gmail.com"
+EMAIL_SENHA_APP = "gvyvopdn pizufsqb".replace(" ", "")
 
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -43,6 +52,44 @@ try:
         models.OficinaPrestador.__table__.create(bind=engine)
 except Exception:
     pass
+
+# Migração: cria tabela ativos e adiciona ativo_id em manutencoes (+ torna veiculo_id nullable)
+def _migrate_ativos(engine):
+    from sqlalchemy import text, inspect
+    insp = inspect(engine)
+    tables = insp.get_table_names()
+
+    if "ativos" not in tables:
+        models.Ativo.__table__.create(bind=engine)
+
+    cols = [c["name"] for c in insp.get_columns("manutencoes")]
+    if "ativo_id" not in cols:
+        # Recria manutencoes com veiculo_id nullable e ativo_id
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE manutencoes RENAME TO manutencoes_old"))
+            conn.commit()
+        models.Manutencao.__table__.create(bind=engine)
+        with engine.connect() as conn:
+            conn.execute(text("""
+                INSERT INTO manutencoes
+                    (id, veiculo_id, ativo_id, motorista_id, km_entrada, horimetro_entrada,
+                     dt_inicio, dt_previsao, dt_termino, responsavel_manutencao, requisitante,
+                     status, prioridade, tipo, servicos_solicitados, observacao, created_at, updated_at)
+                SELECT id, veiculo_id, NULL, motorista_id, km_entrada, horimetro_entrada,
+                     dt_inicio, dt_previsao, dt_termino, responsavel_manutencao, requisitante,
+                     status, prioridade, tipo, servicos_solicitados, observacao, created_at, updated_at
+                FROM manutencoes_old
+            """))
+            conn.commit()
+            conn.execute(text("DROP TABLE manutencoes_old"))
+            conn.commit()
+
+try:
+    _migrate_ativos(engine)
+except Exception as _e:
+    print(f"[migration] ativos: {_e}")
+
+_add_column_if_missing(engine, "solicitacoes", ("ativo_id", "INTEGER REFERENCES ativos(id)"))
 
 app = FastAPI(title="Frota Bello API", version="1.0.0")
 
@@ -572,6 +619,139 @@ def delete_veiculo(veiculo_id: int, db: Session = Depends(get_db)):
     db.commit()
 
 
+@app.get("/api/veiculos/{veiculo_id}/historico")
+def historico_veiculo(veiculo_id: int, db: Session = Depends(get_db)):
+    from sqlalchemy.orm import joinedload as jl
+    from collections import defaultdict
+
+    veiculo = db.query(models.Veiculo).filter(models.Veiculo.id == veiculo_id).first()
+    if not veiculo:
+        raise HTTPException(status_code=404, detail="Veículo não encontrado")
+
+    manutencoes = (
+        db.query(models.Manutencao)
+        .options(jl(models.Manutencao.servicos), jl(models.Manutencao.motorista), jl(models.Manutencao.arquivos))
+        .filter(models.Manutencao.veiculo_id == veiculo_id)
+        .order_by(models.Manutencao.dt_inicio.desc())
+        .all()
+    )
+
+    def ev(v):
+        return v.value if hasattr(v, "value") else (str(v) if v else None)
+
+    def fmt_val(v):
+        try:
+            return float(v) if v is not None else 0.0
+        except Exception:
+            return 0.0
+
+    # KPIs
+    total_custo = 0.0
+    total_servicos = 0
+    custo_por_tipo = defaultdict(float)   # Corretiva / Preventiva
+    custo_por_parte = defaultdict(float)  # parte_veiculo
+    custo_por_mes = defaultdict(float)    # "YYYY-MM"
+    status_count = defaultdict(int)
+
+    for m in manutencoes:
+        status_count[ev(m.status) or "Sem status"] += 1
+        for s in m.servicos:
+            v = fmt_val(s.valor)
+            total_custo += v
+            total_servicos += 1
+            tipo = ev(s.tipo_uso) or "Sem tipo"
+            custo_por_tipo[tipo] += v
+            parte = s.parte_veiculo or "Outros"
+            custo_por_parte[parte] += v
+            ref_dt = s.dt_servico or (m.dt_inicio.date() if m.dt_inicio else None)
+            if ref_dt:
+                mes = ref_dt.strftime("%Y-%m")
+                custo_por_mes[mes] += v
+
+    # Últimos 12 meses ordenados
+    from datetime import date as dt_date
+    hoje = dt_date.today()
+    meses = []
+    for i in range(11, -1, -1):
+        ano = hoje.year - ((hoje.month - 1 - i) // 12 + (1 if (hoje.month - 1 - i) < 0 else 0))
+        mes_num = ((hoje.month - 1 - i) % 12) + 1
+        key = f"{ano}-{mes_num:02d}"
+        label = f"{mes_num:02d}/{ano}"
+        meses.append({"key": key, "label": label, "valor": round(custo_por_mes.get(key, 0.0), 2)})
+
+    # Top 5 partes por custo
+    top_partes = sorted(
+        [{"parte": k, "valor": round(v, 2)} for k, v in custo_por_parte.items()],
+        key=lambda x: x["valor"], reverse=True
+    )[:5]
+
+    # Serializa manutenções
+    mans_out = []
+    for m in manutencoes:
+        mans_out.append({
+            "id": m.id,
+            "status": ev(m.status),
+            "tipo": ev(m.tipo),
+            "prioridade": ev(m.prioridade),
+            "km_entrada": m.km_entrada,
+            "dt_inicio": m.dt_inicio.isoformat() if m.dt_inicio else None,
+            "dt_previsao": m.dt_previsao.isoformat() if m.dt_previsao else None,
+            "dt_termino": m.dt_termino.isoformat() if m.dt_termino else None,
+            "responsavel_manutencao": m.responsavel_manutencao,
+            "requisitante": m.requisitante,
+            "servicos_solicitados": m.servicos_solicitados,
+            "observacao": m.observacao,
+            "motorista_nome": m.motorista.nome if m.motorista else None,
+            "arquivos_count": len(m.arquivos),
+            "total_custo": round(sum(fmt_val(s.valor) for s in m.servicos), 2),
+            "servicos": [
+                {
+                    "id": s.id,
+                    "status": ev(s.status),
+                    "parte_veiculo": s.parte_veiculo,
+                    "servico": s.servico,
+                    "tipo_uso": ev(s.tipo_uso),
+                    "dt_servico": s.dt_servico.isoformat() if s.dt_servico else None,
+                    "proxima_dt_validade": s.proxima_dt_validade.isoformat() if s.proxima_dt_validade else None,
+                    "proximo_km_validade": s.proximo_km_validade,
+                    "pessoa_responsavel": s.pessoa_responsavel,
+                    "descricao": s.descricao,
+                    "valor": fmt_val(s.valor),
+                    "horas_trabalhadas": s.horas_trabalhadas,
+                }
+                for s in m.servicos
+            ],
+        })
+
+    return {
+        "veiculo": {
+            "id": veiculo.id,
+            "placa": veiculo.placa,
+            "marca": veiculo.marca,
+            "modelo": veiculo.modelo,
+            "descricao": veiculo.descricao,
+            "tipo": veiculo.tipo,
+            "grupo": veiculo.grupo,
+            "ano": veiculo.ano,
+            "chassi": veiculo.chassi,
+            "capacidade": veiculo.capacidade,
+            "vinculo": veiculo.vinculo,
+            "ultimo_km": veiculo.ultimo_km,
+            "ultimo_km_data": veiculo.ultimo_km_data.isoformat() if veiculo.ultimo_km_data else None,
+        },
+        "kpis": {
+            "total_manutencoes": len(manutencoes),
+            "total_custo": round(total_custo, 2),
+            "total_servicos": total_servicos,
+            "status_count": dict(status_count),
+            "custo_por_tipo": {k: round(v, 2) for k, v in custo_por_tipo.items()},
+        },
+        "custo_por_mes": meses,
+        "top_partes": top_partes,
+        "manutencoes": mans_out,
+    }
+
+
 # ── Vencimentos ───────────────────────────────────────────────────────────────
 
 @app.get("/api/vencimentos")
@@ -739,6 +919,81 @@ def delete_motorista(motorista_id: int, db: Session = Depends(get_db)):
     db.commit()
 
 
+# ── Ativos ───────────────────────────────────────────────────────────────────
+
+@app.get("/api/ativos/lookup")
+def lookup_ativos(q: Optional[str] = None, db: Session = Depends(get_db)):
+    query = db.query(models.Ativo).filter(models.Ativo.ativo == True)
+    if q:
+        query = query.filter(
+            or_(models.Ativo.nome.ilike(f"%{q}%"), models.Ativo.codigo.ilike(f"%{q}%"))
+        )
+    items = query.order_by(models.Ativo.nome).limit(30).all()
+    return [{"id": a.id, "label": a.nome, "sublabel": a.tipo or ""} for a in items]
+
+
+@app.get("/api/ativos", response_model=schemas.PaginatedAtivos)
+def list_ativos(
+    page: int = Query(1, ge=1),
+    per_page: int = Query(10, ge=1, le=200),
+    search: Optional[str] = None,
+    ativo: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    query = db.query(models.Ativo)
+    if search:
+        query = query.filter(
+            or_(models.Ativo.nome.ilike(f"%{search}%"), models.Ativo.codigo.ilike(f"%{search}%"),
+                models.Ativo.localizacao.ilike(f"%{search}%"))
+        )
+    if ativo == "true":
+        query = query.filter(models.Ativo.ativo == True)
+    elif ativo == "false":
+        query = query.filter(models.Ativo.ativo == False)
+    total = query.count()
+    total_pages = max(1, math.ceil(total / per_page))
+    items = query.order_by(models.Ativo.nome).offset((page - 1) * per_page).limit(per_page).all()
+    return schemas.PaginatedAtivos(items=items, total=total, page=page, per_page=per_page, total_pages=total_pages)
+
+
+@app.post("/api/ativos", response_model=schemas.AtivoOut, status_code=201)
+def create_ativo(data: schemas.AtivoCreate, db: Session = Depends(get_db)):
+    ativo = models.Ativo(**data.model_dump())
+    db.add(ativo)
+    db.commit()
+    db.refresh(ativo)
+    return ativo
+
+
+@app.get("/api/ativos/{ativo_id}", response_model=schemas.AtivoOut)
+def get_ativo(ativo_id: int, db: Session = Depends(get_db)):
+    a = db.query(models.Ativo).filter(models.Ativo.id == ativo_id).first()
+    if not a:
+        raise HTTPException(status_code=404, detail="Ativo não encontrado")
+    return a
+
+
+@app.put("/api/ativos/{ativo_id}", response_model=schemas.AtivoOut)
+def update_ativo(ativo_id: int, data: schemas.AtivoUpdate, db: Session = Depends(get_db)):
+    a = db.query(models.Ativo).filter(models.Ativo.id == ativo_id).first()
+    if not a:
+        raise HTTPException(status_code=404, detail="Ativo não encontrado")
+    for field, value in data.model_dump(exclude_unset=True).items():
+        setattr(a, field, value)
+    db.commit()
+    db.refresh(a)
+    return a
+
+
+@app.delete("/api/ativos/{ativo_id}", status_code=204)
+def delete_ativo(ativo_id: int, db: Session = Depends(get_db)):
+    a = db.query(models.Ativo).filter(models.Ativo.id == ativo_id).first()
+    if not a:
+        raise HTTPException(status_code=404, detail="Ativo não encontrado")
+    db.delete(a)
+    db.commit()
+
+
 # ── Manutencoes ───────────────────────────────────────────────────────────────
 
 @app.get("/api/manutencoes", response_model=schemas.PaginatedManutencoes)
@@ -768,7 +1023,11 @@ def list_manutencoes(
 ):
     query = (
         db.query(models.Manutencao)
-        .options(joinedload(models.Manutencao.veiculo), joinedload(models.Manutencao.motorista))
+        .options(
+            joinedload(models.Manutencao.veiculo),
+            joinedload(models.Manutencao.motorista),
+            joinedload(models.Manutencao.ativo),
+        )
     )
 
     if status:
@@ -879,6 +1138,8 @@ def list_manutencoes(
                 id=m.id,
                 veiculo_placa=m.veiculo.placa if m.veiculo else None,
                 veiculo_descricao=m.veiculo.descricao if m.veiculo else None,
+                ativo_nome=m.ativo.nome if m.ativo else None,
+                ativo_tipo=m.ativo.tipo if m.ativo else None,
                 motorista_nome=m.motorista.nome if m.motorista else None,
                 motorista_codigo=m.motorista.codigo if m.motorista else None,
                 responsavel_manutencao=m.responsavel_manutencao,
@@ -905,15 +1166,21 @@ def list_manutencoes(
 
 @app.post("/api/manutencoes", response_model=schemas.ManutencaoOut, status_code=201)
 def create_manutencao(data: schemas.ManutencaoCreate, db: Session = Depends(get_db)):
-    veiculo = db.query(models.Veiculo).filter(models.Veiculo.id == data.veiculo_id).first()
-    if not veiculo:
-        raise HTTPException(status_code=404, detail="Veículo não encontrado")
+    if not data.veiculo_id and not data.ativo_id:
+        raise HTTPException(status_code=400, detail="Informe um Veículo ou Ativo")
+    if data.veiculo_id:
+        if not db.query(models.Veiculo).filter(models.Veiculo.id == data.veiculo_id).first():
+            raise HTTPException(status_code=404, detail="Veículo não encontrado")
+    if data.ativo_id:
+        if not db.query(models.Ativo).filter(models.Ativo.id == data.ativo_id).first():
+            raise HTTPException(status_code=404, detail="Ativo não encontrado")
     man = models.Manutencao(**data.model_dump())
     db.add(man)
     db.commit()
     db.refresh(man)
     return db.query(models.Manutencao).options(
         joinedload(models.Manutencao.veiculo),
+        joinedload(models.Manutencao.ativo),
         joinedload(models.Manutencao.motorista),
         joinedload(models.Manutencao.servicos),
         joinedload(models.Manutencao.arquivos),
@@ -922,6 +1189,29 @@ def create_manutencao(data: schemas.ManutencaoCreate, db: Session = Depends(get_
 
 @app.get("/api/manutencoes/{manutencao_id}", response_model=schemas.ManutencaoOut)
 def get_manutencao(manutencao_id: int, db: Session = Depends(get_db)):
+    man = (
+        db.query(models.Manutencao)
+        .options(
+            joinedload(models.Manutencao.veiculo),
+            joinedload(models.Manutencao.ativo),
+            joinedload(models.Manutencao.motorista),
+            joinedload(models.Manutencao.servicos),
+            joinedload(models.Manutencao.arquivos),
+        )
+        .filter(models.Manutencao.id == manutencao_id)
+        .first()
+    )
+    if not man:
+        raise HTTPException(status_code=404, detail="Manutenção não encontrada")
+    return man
+
+
+@app.post("/api/manutencoes/{manutencao_id}/enviar-email")
+def enviar_email_manutencao(manutencao_id: int, payload: dict, db: Session = Depends(get_db)):
+    destinatario = (payload.get("email") or "").strip()
+    if not destinatario:
+        raise HTTPException(status_code=400, detail="E-mail destino é obrigatório")
+
     man = (
         db.query(models.Manutencao)
         .options(
@@ -935,7 +1225,225 @@ def get_manutencao(manutencao_id: int, db: Session = Depends(get_db)):
     )
     if not man:
         raise HTTPException(status_code=404, detail="Manutenção não encontrada")
-    return man
+
+    def fmt_dt(dt):
+        if not dt: return "-"
+        try: return dt.strftime("%d/%m/%Y %H:%M")
+        except: return str(dt)
+
+    def fmt_val(v):
+        if not v: return "-"
+        return f"R$ {float(v):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+    def ev(v):
+        """Extrai o valor legível de um enum ou string."""
+        if v is None: return "-"
+        return v.value if hasattr(v, 'value') else str(v)
+
+    # Monta HTML do e-mail
+    servicos_rows = ""
+    total_valor = 0.0
+    for s in man.servicos:
+        total_valor += float(s.valor or 0)
+        servicos_rows += f"""
+        <tr>
+          <td>{s.parte_veiculo or '-'}</td>
+          <td>{s.servico or '-'}</td>
+          <td>{ev(s.tipo_uso)}</td>
+          <td>{s.pessoa_responsavel or '-'}</td>
+          <td>{s.descricao or '-'}</td>
+          <td>{ev(s.status)}</td>
+          <td style="text-align:right">{fmt_val(s.valor)}</td>
+        </tr>"""
+
+    placa = man.veiculo.placa if man.veiculo else (man.ativo.nome if man.ativo else "-")
+    veiculo_desc = man.veiculo.descricao if man.veiculo else (man.ativo.tipo or "" if man.ativo else "-")
+    motorista = man.motorista.nome if man.motorista else "-"
+    status_str = ev(man.status)
+    tipo_str = ev(man.tipo)
+    prior_str = ev(man.prioridade)
+
+    html = f"""
+    <html><body style="font-family:Arial,sans-serif;font-size:13px;color:#222">
+    <div style="background:#1e40af;color:white;padding:16px 20px;border-radius:8px 8px 0 0">
+      <h2 style="margin:0;font-size:16px">Manutenção #{man.id} — {placa}</h2>
+      <p style="margin:4px 0 0;opacity:.8;font-size:12px">{veiculo_desc}</p>
+    </div>
+    <div style="border:1px solid #ddd;border-top:none;padding:16px 20px;border-radius:0 0 8px 8px">
+      <table style="width:100%;border-collapse:collapse;margin-bottom:16px">
+        <tr><td style="padding:4px 8px;color:#666;width:140px">Status</td><td style="padding:4px 8px;font-weight:bold">{status_str}</td>
+            <td style="padding:4px 8px;color:#666;width:140px">Tipo</td><td style="padding:4px 8px">{tipo_str}</td></tr>
+        <tr><td style="padding:4px 8px;color:#666">Oficina/Prestador</td><td style="padding:4px 8px">{man.responsavel_manutencao or '-'}</td>
+            <td style="padding:4px 8px;color:#666">Motorista</td><td style="padding:4px 8px">{motorista}</td></tr>
+        <tr><td style="padding:4px 8px;color:#666">Dt. Início</td><td style="padding:4px 8px">{fmt_dt(man.dt_inicio)}</td>
+            <td style="padding:4px 8px;color:#666">Dt. Término</td><td style="padding:4px 8px">{fmt_dt(man.dt_termino)}</td></tr>
+        <tr><td style="padding:4px 8px;color:#666">KM Entrada</td><td style="padding:4px 8px">{f"{man.km_entrada:,}".replace(",",".") if man.km_entrada else '-'}</td>
+            <td style="padding:4px 8px;color:#666">Prioridade</td><td style="padding:4px 8px">{prior_str}</td></tr>
+        {"<tr><td style='padding:4px 8px;color:#666'>Observação</td><td colspan='3' style='padding:4px 8px'>" + (man.observacao or '') + "</td></tr>" if man.observacao else ""}
+      </table>
+
+      <h3 style="font-size:13px;margin:0 0 8px;color:#1e40af">Serviços Realizados</h3>
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead>
+          <tr style="background:#eff6ff;color:#1e40af">
+            <th style="padding:6px 8px;text-align:left;border:1px solid #bfdbfe">Parte do Veículo</th>
+            <th style="padding:6px 8px;text-align:left;border:1px solid #bfdbfe">Serviço</th>
+            <th style="padding:6px 8px;text-align:left;border:1px solid #bfdbfe">Tipo</th>
+            <th style="padding:6px 8px;text-align:left;border:1px solid #bfdbfe">Responsável</th>
+            <th style="padding:6px 8px;text-align:left;border:1px solid #bfdbfe">Descrição</th>
+            <th style="padding:6px 8px;text-align:left;border:1px solid #bfdbfe">Status</th>
+            <th style="padding:6px 8px;text-align:right;border:1px solid #bfdbfe">Valor</th>
+          </tr>
+        </thead>
+        <tbody>{servicos_rows if servicos_rows else '<tr><td colspan="7" style="padding:8px;text-align:center;color:#999">Nenhum serviço registrado</td></tr>'}</tbody>
+        {"<tfoot><tr style='background:#eff6ff;font-weight:bold'><td colspan='6' style='padding:6px 8px;text-align:right;border:1px solid #bfdbfe'>Total:</td><td style='padding:6px 8px;text-align:right;border:1px solid #bfdbfe'>" + fmt_val(total_valor) + "</td></tr></tfoot>" if man.servicos else ""}
+      </table>
+
+      <p style="margin-top:20px;font-size:11px;color:#999">
+        Enviado pelo sistema Frota Bello · {datetime.now().strftime("%d/%m/%Y %H:%M")}
+      </p>
+    </div>
+    </body></html>"""
+
+    # Gera PDF com reportlab
+    def gerar_pdf():
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib import colors
+        from reportlab.lib.units import mm
+        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.enums import TA_CENTER, TA_RIGHT
+
+        buf = io.BytesIO()
+        doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=15*mm, rightMargin=15*mm, topMargin=15*mm, bottomMargin=15*mm)
+        styles = getSampleStyleSheet()
+        azul = colors.HexColor("#1e40af")
+        azul_claro = colors.HexColor("#eff6ff")
+        cinza = colors.HexColor("#6b7280")
+        verde = colors.HexColor("#16a34a")
+        vermelho = colors.HexColor("#dc2626")
+
+        titulo_style = ParagraphStyle("titulo", parent=styles["Heading1"], fontSize=14, textColor=colors.white, spaceAfter=2)
+        sub_style = ParagraphStyle("sub", parent=styles["Normal"], fontSize=9, textColor=colors.white)
+        label_style = ParagraphStyle("lbl", parent=styles["Normal"], fontSize=8, textColor=cinza)
+        valor_style = ParagraphStyle("val", parent=styles["Normal"], fontSize=9, textColor=colors.black)
+        rodape_style = ParagraphStyle("rod", parent=styles["Normal"], fontSize=7, textColor=cinza, alignment=TA_CENTER)
+
+        elements = []
+
+        # Cabeçalho azul
+        header_data = [[
+            Paragraph(f"<b>Manutenção #{man.id} — {placa}</b>", titulo_style),
+            Paragraph(f"<b>Status: {status_str}</b>", ParagraphStyle("st", parent=styles["Normal"], fontSize=10, textColor=colors.white, alignment=TA_RIGHT)),
+        ]]
+        header_tbl = Table(header_data, colWidths=["70%", "30%"])
+        header_tbl.setStyle(TableStyle([
+            ("BACKGROUND", (0,0), (-1,-1), azul),
+            ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
+            ("TOPPADDING", (0,0), (-1,-1), 8),
+            ("BOTTOMPADDING", (0,0), (-1,-1), 4),
+            ("LEFTPADDING", (0,0), (0,-1), 8),
+            ("RIGHTPADDING", (-1,0), (-1,-1), 8),
+            ("ROWBACKGROUNDS", (0,0), (-1,-1), [azul]),
+        ]))
+        elements.append(header_tbl)
+        if veiculo_desc and veiculo_desc != "-":
+            sub_tbl = Table([[Paragraph(veiculo_desc, sub_style)]])
+            sub_tbl.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,-1),azul),("TOPPADDING",(0,0),(-1,-1),0),("BOTTOMPADDING",(0,0),(-1,-1),6),("LEFTPADDING",(0,0),(-1,-1),8)]))
+            elements.append(sub_tbl)
+        elements.append(Spacer(1, 4*mm))
+
+        # Dados da manutenção
+        def cell(lbl, val):
+            return [Paragraph(lbl, label_style), Paragraph(str(val), valor_style)]
+
+        km_str = f"{man.km_entrada:,}".replace(",", ".") if man.km_entrada else "-"
+        info = [
+            cell("Tipo", tipo_str) + cell("Prioridade", prior_str),
+            cell("Oficina / Prestador", man.responsavel_manutencao or "-") + cell("Motorista", motorista),
+            cell("Dt. Início", fmt_dt(man.dt_inicio)) + cell("Dt. Término", fmt_dt(man.dt_termino)),
+            cell("KM Entrada", km_str) + cell("Requisitante", man.requisitante or "-"),
+        ]
+        if man.observacao:
+            info.append(cell("Observação", man.observacao) + ["", ""])
+
+        info_tbl = Table(info, colWidths=["18%", "32%", "18%", "32%"])
+        info_tbl.setStyle(TableStyle([
+            ("GRID", (0,0), (-1,-1), 0.3, colors.HexColor("#e5e7eb")),
+            ("BACKGROUND", (0,0), (0,-1), azul_claro),
+            ("BACKGROUND", (2,0), (2,-1), azul_claro),
+            ("TOPPADDING", (0,0), (-1,-1), 3), ("BOTTOMPADDING", (0,0), (-1,-1), 3),
+            ("LEFTPADDING", (0,0), (-1,-1), 5), ("RIGHTPADDING", (0,0), (-1,-1), 5),
+        ]))
+        elements.append(info_tbl)
+        elements.append(Spacer(1, 4*mm))
+
+        # Tabela de serviços
+        elements.append(Paragraph("<b>Serviços Realizados</b>", ParagraphStyle("h2", parent=styles["Normal"], fontSize=10, textColor=azul, spaceAfter=3)))
+        srv_header = ["Parte do Veículo", "Serviço", "Tipo", "Responsável", "Status", "Valor R$"]
+        srv_rows = [srv_header]
+        for s in man.servicos:
+            srv_rows.append([
+                s.parte_veiculo or "-", s.servico or "-", ev(s.tipo_uso),
+                s.pessoa_responsavel or "-", ev(s.status),
+                fmt_val(s.valor) if s.valor else "-",
+            ])
+
+        if len(srv_rows) == 1:
+            srv_rows.append(["Nenhum serviço registrado", "", "", "", "", ""])
+
+        # Linha de total
+        srv_rows.append(["", "", "", "", "Total:", fmt_val(total_valor)])
+
+        srv_tbl = Table(srv_rows, colWidths=["18%", "22%", "12%", "18%", "14%", "16%"])
+        srv_style = TableStyle([
+            ("BACKGROUND", (0,0), (-1,0), azul), ("TEXTCOLOR", (0,0), (-1,0), colors.white),
+            ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"), ("FONTSIZE", (0,0), (-1,-1), 8),
+            ("GRID", (0,0), (-1,-2), 0.3, colors.HexColor("#bfdbfe")),
+            ("ROWBACKGROUNDS", (0,1), (-1,-2), [colors.white, azul_claro]),
+            ("ALIGN", (-1,0), (-1,-1), "RIGHT"),
+            ("FONTNAME", (0,-1), (-1,-1), "Helvetica-Bold"),
+            ("BACKGROUND", (0,-1), (-1,-1), azul_claro),
+            ("LINEABOVE", (0,-1), (-1,-1), 0.8, azul),
+            ("TOPPADDING", (0,0), (-1,-1), 3), ("BOTTOMPADDING", (0,0), (-1,-1), 3),
+            ("LEFTPADDING", (0,0), (-1,-1), 4), ("RIGHTPADDING", (0,0), (-1,-1), 4),
+        ])
+        srv_tbl.setStyle(srv_style)
+        elements.append(srv_tbl)
+        elements.append(Spacer(1, 6*mm))
+        elements.append(Paragraph(f"Gerado em {datetime.now().strftime('%d/%m/%Y %H:%M')} · Sistema Frota Bello", rodape_style))
+
+        doc.build(elements)
+        buf.seek(0)
+        return buf.read()
+
+    try:
+        msg = MIMEMultipart("mixed")
+        msg["Subject"] = f"Manutenção #{man.id} — {placa} ({man.status})"
+        msg["From"] = f"Frota Bello <{EMAIL_REMETENTE}>"
+        msg["To"] = destinatario
+        msg.attach(MIMEText(html, "html"))
+
+        # Anexa os arquivos já vinculados à manutenção
+        for arq in man.arquivos:
+            filepath = UPLOAD_DIR / arq.caminho
+            if filepath.exists():
+                with open(filepath, "rb") as f:
+                    file_data = f.read()
+                ext = arq.caminho.rsplit(".", 1)[-1].lower()
+                subtype = "pdf" if ext == "pdf" else ("jpeg" if ext in ("jpg", "jpeg") else ext)
+                file_part = MIMEApplication(file_data, _subtype=subtype)
+                file_part.add_header("Content-Disposition", "attachment", filename=arq.nome_arquivo)
+                msg.attach(file_part)
+
+        with smtplib.SMTP("smtp.gmail.com", 587) as server:
+            server.starttls()
+            server.login(EMAIL_REMETENTE, EMAIL_SENHA_APP)
+            server.sendmail(EMAIL_REMETENTE, destinatario, msg.as_string())
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao enviar e-mail: {str(e)}")
+
+    return {"ok": True, "mensagem": f"E-mail enviado para {destinatario}"}
 
 
 @app.put("/api/manutencoes/{manutencao_id}", response_model=schemas.ManutencaoOut)
@@ -951,6 +1459,7 @@ def update_manutencao(manutencao_id: int, data: schemas.ManutencaoUpdate, db: Se
     db.refresh(man)
     return db.query(models.Manutencao).options(
         joinedload(models.Manutencao.veiculo),
+        joinedload(models.Manutencao.ativo),
         joinedload(models.Manutencao.motorista),
         joinedload(models.Manutencao.servicos),
         joinedload(models.Manutencao.arquivos),
@@ -1244,12 +1753,18 @@ def list_solicitacoes(
     prioridade: Optional[str] = None,
     search: Optional[str] = None,
     veiculo_id: Optional[int] = None,
+    ativo_id: Optional[int] = None,
     manutencao_id: Optional[int] = None,
     db: Session = Depends(get_db)
 ):
-    q = db.query(models.Solicitacao)
+    q = db.query(models.Solicitacao).options(
+        joinedload(models.Solicitacao.veiculo),
+        joinedload(models.Solicitacao.ativo),
+    )
     if veiculo_id:
         q = q.filter(models.Solicitacao.veiculo_id == veiculo_id)
+    if ativo_id:
+        q = q.filter(models.Solicitacao.ativo_id == ativo_id)
     if manutencao_id:
         q = q.filter(models.Solicitacao.manutencao_id == manutencao_id)
     if status:

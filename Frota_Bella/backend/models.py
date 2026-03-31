@@ -65,11 +65,28 @@ class Motorista(Base):
     manutencoes = relationship("Manutencao", back_populates="motorista")
 
 
+class Ativo(Base):
+    __tablename__ = "ativos"
+
+    id = Column(Integer, primary_key=True, index=True)
+    nome = Column(String(200), nullable=False)
+    tipo = Column(String(100), nullable=True)
+    codigo = Column(String(50), nullable=True)
+    localizacao = Column(String(200), nullable=True)
+    descricao = Column(Text, nullable=True)
+    observacao = Column(Text, nullable=True)
+    ativo = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    manutencoes = relationship("Manutencao", back_populates="ativo")
+
+
 class Manutencao(Base):
     __tablename__ = "manutencoes"
 
     id = Column(Integer, primary_key=True, index=True)
-    veiculo_id = Column(Integer, ForeignKey("veiculos.id"), nullable=False)
+    veiculo_id = Column(Integer, ForeignKey("veiculos.id"), nullable=True)
+    ativo_id = Column(Integer, ForeignKey("ativos.id"), nullable=True)
     motorista_id = Column(Integer, ForeignKey("motoristas.id"), nullable=True)
     km_entrada = Column(Integer)
     horimetro_entrada = Column(Numeric(10, 2))
@@ -97,6 +114,7 @@ class Manutencao(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     veiculo = relationship("Veiculo", back_populates="manutencoes")
+    ativo = relationship("Ativo", back_populates="manutencoes")
     motorista = relationship("Motorista", back_populates="manutencoes")
     servicos = relationship("ServicoVeiculo", back_populates="manutencao", cascade="all, delete-orphan")
     arquivos = relationship("ArquivoManutencao", back_populates="manutencao", cascade="all, delete-orphan")
@@ -184,6 +202,7 @@ class Solicitacao(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     veiculo_id = Column(Integer, ForeignKey("veiculos.id"), nullable=True)
+    ativo_id = Column(Integer, ForeignKey("ativos.id"), nullable=True)
     manutencao_id = Column(Integer, ForeignKey("manutencoes.id"), nullable=True)
     solicitante = Column(String(200), nullable=False)
     descricao = Column(Text, nullable=False)
@@ -195,6 +214,7 @@ class Solicitacao(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     veiculo = relationship("Veiculo")
+    ativo = relationship("Ativo")
     manutencao = relationship("Manutencao", foreign_keys=[manutencao_id])
 
 

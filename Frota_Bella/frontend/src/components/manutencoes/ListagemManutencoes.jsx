@@ -606,6 +606,19 @@ export default function ListagemManutencoes() {
   const [relatorioModal, setRelatorioModal] = useState(false)
   const [relatorio, setRelatorio] = useState(emptyRelatorio)
   const [gerando, setGerando] = useState(false)
+  const [expandedId, setExpandedId] = useState(null)
+  const [expandedData, setExpandedData] = useState({})
+
+  const handleExpand = async (item) => {
+    if (expandedId === item.id) { setExpandedId(null); return }
+    setExpandedId(item.id)
+    if (!expandedData[item.id]) {
+      try {
+        const r = await axios.get(`${API}/manutencoes/${item.id}`)
+        setExpandedData(d => ({ ...d, [item.id]: r.data }))
+      } catch {}
+    }
+  }
 
   const handleGerarRelatorio = async () => {
     setGerando(true)
@@ -739,16 +752,31 @@ export default function ListagemManutencoes() {
                   const va = a[sortField] ?? ''; const vb = b[sortField] ?? ''
                   return sortDir === 'asc' ? String(va).localeCompare(String(vb), 'pt-BR', { numeric: true }) : String(vb).localeCompare(String(va), 'pt-BR', { numeric: true })
                 }) : data.items).map((item, idx) => (
+                  <React.Fragment key={item.id}>
                   <tr
-                    key={item.id}
-                    className={`border-b border-gray-100 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors ${
-                      idx % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-700/50'
+                    onClick={() => handleExpand(item)}
+                    className={`border-b border-gray-100 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors cursor-pointer ${
+                      expandedId === item.id ? 'bg-blue-50 dark:bg-blue-900/20' : idx % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-700/50'
                     }`}
                   >
-                    <td className="px-2 py-1.5 font-medium text-blue-700">#{item.id}</td>
+                    <td className="px-2 py-1.5 font-medium text-blue-700">
+                      <div className="flex items-center gap-1">
+                        <ChevronDown className={`w-3 h-3 text-blue-400 transition-transform ${expandedId === item.id ? '' : '-rotate-90'}`} />
+                        #{item.id}
+                      </div>
+                    </td>
                     <td className="px-2 py-1.5">
-                      <div className="font-medium">{item.veiculo_placa}</div>
-                      <div className="text-gray-400 dark:text-gray-500 text-xs leading-none">{item.veiculo_descricao}</div>
+                      {item.veiculo_placa ? (
+                        <>
+                          <div className="font-medium">{item.veiculo_placa}</div>
+                          <div className="text-gray-400 dark:text-gray-500 text-xs leading-none">{item.veiculo_descricao}</div>
+                        </>
+                      ) : item.ativo_nome ? (
+                        <>
+                          <div className="font-medium text-purple-700 dark:text-purple-400">{item.ativo_nome}</div>
+                          <div className="text-gray-400 dark:text-gray-500 text-xs leading-none">{item.ativo_tipo || 'Ativo'}</div>
+                        </>
+                      ) : <span className="text-gray-400">—</span>}
                     </td>
                     <td className="px-2 py-1.5">{item.motorista_nome || '-'}</td>
                     <td className="px-2 py-1.5">{item.responsavel_manutencao || '-'}</td>
@@ -771,7 +799,7 @@ export default function ListagemManutencoes() {
                         {item.status}
                       </span>
                     </td>
-                    <td className="px-2 py-1.5">
+                    <td className="px-2 py-1.5" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center justify-center gap-1">
                         <button
                           className={`relative p-0.5 transition-colors ${item.arquivos_count > 0 ? 'text-blue-500 hover:text-blue-700' : 'text-gray-300 cursor-default'}`}
@@ -817,6 +845,77 @@ export default function ListagemManutencoes() {
                       </div>
                     </td>
                   </tr>
+                  {expandedId === item.id && (() => {
+                    const det = expandedData[item.id]
+                    const servicos = det?.servicos || []
+                    const stBadge = { Finalizado: 'bg-green-500 text-white', Cancelado: 'bg-red-500 text-white', 'Em Andamento': 'bg-blue-500 text-white' }
+                    return (
+                      <tr>
+                        <td colSpan={12} className="px-0 py-0 bg-blue-50 dark:bg-blue-900/10 border-b-2 border-blue-300 dark:border-blue-700">
+                          <div className="mx-4 my-2 rounded-lg border border-blue-200 dark:border-blue-700 overflow-hidden shadow-sm">
+                            {/* Header */}
+                            <div className="bg-gradient-to-r from-blue-700 to-blue-500 px-4 py-2 text-xs text-white flex flex-wrap gap-x-5 gap-y-0.5 font-medium" onClick={e => e.stopPropagation()}>
+                              <span><strong>Tipo:</strong> {item.tipo || '-'}</span>
+                              <span><strong>Status:</strong> {item.status || '-'}</span>
+                              <span><strong>Oficina/Prestador:</strong> {item.responsavel_manutencao || '-'}</span>
+                              <span><strong>Motorista:</strong> {item.motorista_nome || '-'}</span>
+                              <span><strong>KM Entrada:</strong> {item.km_entrada ? item.km_entrada.toLocaleString('pt-BR') : '-'}</span>
+                              {det?.servicos_solicitados && <span><strong>Solicitado:</strong> {det.servicos_solicitados}</span>}
+                              {det?.observacao && <span><strong>Obs:</strong> {det.observacao}</span>}
+                            </div>
+                            {/* Serviços */}
+                            {!det ? (
+                              <div className="text-xs text-gray-400 px-4 py-3 bg-white dark:bg-gray-800 flex items-center gap-2">
+                                <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Carregando...
+                              </div>
+                            ) : servicos.length === 0 ? (
+                              <div className="text-xs text-gray-400 px-4 py-3 bg-white dark:bg-gray-800">Nenhum serviço registrado.</div>
+                            ) : (
+                              <table className="w-full text-xs" onClick={e => e.stopPropagation()}>
+                                <thead>
+                                  <tr className="bg-blue-100 dark:bg-blue-900/30 text-blue-900 dark:text-blue-200 border-b border-blue-200 dark:border-blue-800">
+                                    <th className="px-4 py-1.5 text-left font-semibold">Parte do Veículo</th>
+                                    <th className="px-4 py-1.5 text-left font-semibold">Serviço</th>
+                                    <th className="px-4 py-1.5 text-left font-semibold">Tipo</th>
+                                    <th className="px-4 py-1.5 text-left font-semibold">Responsável</th>
+                                    <th className="px-4 py-1.5 text-left font-semibold">Descrição</th>
+                                    <th className="px-4 py-1.5 text-left font-semibold">Dt. Serviço</th>
+                                    <th className="px-4 py-1.5 text-center font-semibold">Status</th>
+                                    <th className="px-4 py-1.5 text-right font-semibold">Valor</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {servicos.map((s, i) => (
+                                    <tr key={i} className={`border-t border-blue-100 dark:border-blue-800/30 ${i % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-blue-50 dark:bg-blue-900/10'}`}>
+                                      <td className="px-4 py-1.5 text-gray-600 dark:text-gray-400">{s.parte_veiculo || '-'}</td>
+                                      <td className="px-4 py-1.5 font-semibold text-gray-800 dark:text-gray-200">{s.servico || '-'}</td>
+                                      <td className="px-4 py-1.5 text-gray-600 dark:text-gray-400">{s.tipo_uso || '-'}</td>
+                                      <td className="px-4 py-1.5 text-gray-600 dark:text-gray-400">{s.pessoa_responsavel || '-'}</td>
+                                      <td className="px-4 py-1.5 text-gray-600 dark:text-gray-400">{s.descricao || '-'}</td>
+                                      <td className="px-4 py-1.5 text-gray-600 dark:text-gray-400">{s.dt_servico ? new Date(s.dt_servico + 'T00:00:00').toLocaleDateString('pt-BR') : '-'}</td>
+                                      <td className="px-4 py-1.5 text-center">
+                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${stBadge[s.status] || 'bg-gray-200 text-gray-600'}`}>{s.status || '-'}</span>
+                                      </td>
+                                      <td className="px-4 py-1.5 text-right font-semibold text-gray-700 dark:text-gray-300">
+                                        {s.valor ? `R$ ${Number(s.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '—'}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                  <tr className="border-t border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20">
+                                    <td colSpan={7} className="px-4 py-1.5 text-right text-xs font-bold text-blue-800 dark:text-blue-300">Total:</td>
+                                    <td className="px-4 py-1.5 text-right text-xs font-bold text-blue-800 dark:text-blue-300">
+                                      R$ {servicos.reduce((s, r) => s + (Number(r.valor) || 0), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                    </td>
+                                  </tr>
+                                </tbody>
+                              </table>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })()}
+                  </React.Fragment>
                 ))
               )}
             </tbody>

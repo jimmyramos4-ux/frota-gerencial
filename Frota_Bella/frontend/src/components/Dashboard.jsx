@@ -36,7 +36,7 @@ function BarChartMensal({ data }) {
   const max = Math.max(...data.map(d => Math.max(d.corretiva, d.preventiva)), 1)
 
   return (
-    <div className="w-full flex flex-col flex-1" style={{ minHeight: 80 }}>
+    <div className="w-full flex flex-col flex-1" style={{ minHeight: 140 }}>
       {/* Área das barras — flex-1 para preencher o espaço disponível */}
       <div className="flex items-end gap-1 w-full flex-1">
         {data.map((d, i) => {
@@ -195,14 +195,32 @@ function BarChartSolicitacoes({ data }) {
   const max = Math.max(...data.map(d => d.total), 1)
   return (
     <div className="w-full flex flex-col flex-1" style={{ minHeight: 80 }}>
+      {/* Legenda */}
+      <div className="flex items-center gap-3 mb-1 shrink-0">
+        <span className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400">
+          <span style={{ display:'inline-block', width:8, height:8, borderRadius:2, background:'#a78bfa' }} /> Total
+        </span>
+        <span className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400">
+          <span style={{ display:'inline-block', width:8, height:8, borderRadius:2, background:'#22c55e' }} /> Finalizadas
+        </span>
+      </div>
       <div className="flex items-end gap-1 w-full flex-1">
         {data.map((d, i) => {
           const isCurrent = i === data.length - 1
-          const p = d.total > 0 ? Math.max((d.total / max) * 100, 4) : 0
+          const pT = d.total > 0 ? Math.max((d.total / max) * 100, 4) : 0
+          const pF = d.finalizadas > 0 ? Math.max((d.finalizadas / max) * 100, 4) : 0
           return (
-            <div key={d.mes} className="flex-1 flex flex-col justify-end items-center" style={{ height: '100%', padding: '0 2px' }}>
-              {d.total > 0 && <span style={{ fontSize: 10, color: isCurrent ? '#7c3aed' : '#8b5cf6', fontWeight: 700, lineHeight: 1.2 }}>{d.total}</span>}
-              <div style={{ width: '100%', height: `${p}%`, background: isCurrent ? '#7c3aed' : '#a78bfa', borderRadius: '2px 2px 0 0', opacity: 0.9 }} />
+            <div key={d.mes} className="flex-1 flex items-end gap-0.5" style={{ height: '100%', padding: '0 1px' }}>
+              {/* Barra total */}
+              <div className="flex-1 flex flex-col justify-end items-center" style={{ height: '100%' }}>
+                {d.total > 0 && <span style={{ fontSize: 9, color: isCurrent ? '#7c3aed' : '#8b5cf6', fontWeight: 700, lineHeight: 1.2 }}>{d.total}</span>}
+                <div style={{ width: '100%', height: `${pT}%`, background: isCurrent ? '#7c3aed' : '#a78bfa', borderRadius: '2px 2px 0 0', opacity: 0.9 }} />
+              </div>
+              {/* Barra finalizadas */}
+              <div className="flex-1 flex flex-col justify-end items-center" style={{ height: '100%' }}>
+                {d.finalizadas > 0 && <span style={{ fontSize: 9, color: '#16a34a', fontWeight: 700, lineHeight: 1.2 }}>{d.finalizadas}</span>}
+                <div style={{ width: '100%', height: `${pF}%`, background: '#22c55e', borderRadius: '2px 2px 0 0', opacity: 0.9 }} />
+              </div>
             </div>
           )
         })}
@@ -442,13 +460,17 @@ function buildSolStats(items) {
       mes: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
       label: d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', ''),
       total: 0,
+      finalizadas: 0,
     })
   }
   items.forEach(s => {
     if (!s.dt_solicitacao) return
     const mes = s.dt_solicitacao.slice(0, 7)
     const slot = meses.find(m => m.mes === mes)
-    if (slot) slot.total++
+    if (slot) {
+      slot.total++
+      if (s.status === 'Finalizada') slot.finalizadas++
+    }
   })
 
   // Ranking por veículo
@@ -777,6 +799,7 @@ export default function Dashboard() {
                   </div>
                   <div className="flex items-center gap-3 text-[10px] text-gray-500 dark:text-gray-400">
                     <span>Mês atual: <strong className="text-purple-600">{solStats.meses.slice(-1)[0]?.total || 0}</strong></span>
+                    <span>Finalizadas mês: <strong className="text-green-600">{solStats.meses.slice(-1)[0]?.finalizadas || 0}</strong></span>
                     <span>Total: <strong className="text-gray-700 dark:text-gray-200">{solStats.total}</strong></span>
                   </div>
                 </div>

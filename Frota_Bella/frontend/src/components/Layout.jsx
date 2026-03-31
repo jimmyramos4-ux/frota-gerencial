@@ -17,6 +17,7 @@ import {
   Moon,
   Sun,
   Store,
+  Package,
   DatabaseBackup,
   CheckCircle,
   AlertTriangle,
@@ -37,21 +38,17 @@ const navItems = [
   { label: 'Partes do Veículo', icon: Layers, to: '/partes-veiculo' },
   { label: 'Tipos de Serviço', icon: Cog, to: '/tipos-servico' },
   { label: 'Oficinas / Prestadores', icon: Store, to: '/oficinas-prestadores' },
+  { label: 'Ativos / Equipamentos', icon: Package, to: '/ativos' },
 ]
 
-function fmtSync(dt) {
-  if (!dt) return null
-  const d = new Date(dt)
-  return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-}
 
 export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [syncInfo, setSyncInfo] = useState(null)
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light')
   const [vencBadge, setVencBadge] = useState({ vencido: 0, proximo: 0 })
   const [toast, setToast] = useState(null) // { vencido, proximo }
   const [backupState, setBackupState] = useState(null) // null | 'loading' | { ok, msg }
+  const [syncState, setSyncState] = useState(null) // null | 'loading' | { ok, msg }
   const location = useLocation()
 
   useEffect(() => {
@@ -63,11 +60,6 @@ export default function Layout() {
     localStorage.setItem('theme', theme)
   }, [theme])
 
-  useEffect(() => {
-    axios.get(`${API}/veiculos/ultimo-sync`)
-      .then(r => setSyncInfo(r.data))
-      .catch(() => {})
-  }, [location.pathname])
 
   // Busca vencimentos para badge e toast
   useEffect(() => {
@@ -135,24 +127,41 @@ export default function Layout() {
           })}
         </nav>
 
-        {/* Footer com sync info */}
+        {/* Footer com sync e backup */}
         <div className="px-3 py-3 border-t border-blue-700 space-y-2">
-          {syncInfo && (
-            <div className="bg-blue-800 rounded-lg px-2.5 py-2 space-y-0.5">
-              <div className="flex items-center gap-1.5 text-blue-300 text-[10px] font-semibold uppercase tracking-wide">
-                <RefreshCw className="w-3 h-3" />
-                Último Sync KM
-              </div>
-              <div className="text-white text-xs font-medium">
-                {fmtSync(syncInfo.ultima_sync) || 'Nunca sincronizado'}
-              </div>
-              {syncInfo.veiculos_com_km > 0 && (
-                <div className="text-blue-400 text-[10px]">
-                  {syncInfo.veiculos_com_km} veículo(s) com KM
-                </div>
-              )}
-            </div>
-          )}
+          {/* Botão Sync KM */}
+          <button
+            onClick={async () => {
+              setSyncState('loading')
+              try {
+                const r = await axios.post(`${API}/veiculos/sync-km`)
+                const msg = `${r.data.atualizados} veículo(s) atualizado(s)`
+                const extra = r.data.nao_encontrados?.length
+                  ? ` · ${r.data.nao_encontrados.length} não encontrado(s)`
+                  : ''
+                setSyncState({ ok: true, msg: msg + extra })
+              } catch (e) {
+                setSyncState({ ok: false, msg: e.response?.data?.detail || 'Erro ao sincronizar' })
+              }
+              setTimeout(() => setSyncState(null), 6000)
+            }}
+            disabled={syncState === 'loading'}
+            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-blue-800 hover:bg-blue-700 text-blue-200 hover:text-white text-xs transition-colors disabled:opacity-60"
+          >
+            {syncState === 'loading'
+              ? <Loader2 className="w-3.5 h-3.5 animate-spin flex-shrink-0" />
+              : syncState?.ok === true
+              ? <CheckCircle className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />
+              : syncState?.ok === false
+              ? <AlertTriangle className="w-3.5 h-3.5 text-red-400 flex-shrink-0" />
+              : <RefreshCw className="w-3.5 h-3.5 flex-shrink-0" />}
+            <span className="leading-tight">
+              {syncState === 'loading' ? 'Sincronizando KM...'
+                : syncState?.ok === true ? <span className="text-green-300">{syncState.msg}</span>
+                : syncState?.ok === false ? <span className="text-red-300">{syncState.msg}</span>
+                : 'Sincronizar KM'}
+            </span>
+          </button>
 
           {/* Botão de Backup */}
           <button

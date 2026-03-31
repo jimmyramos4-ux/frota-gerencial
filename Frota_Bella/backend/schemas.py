@@ -52,6 +52,40 @@ class TipoServicoCadOut(TipoServicoCadCreate):
         from_attributes = True
 
 
+# ── Ativo ────────────────────────────────────────────────────────────────────
+
+class AtivoCreate(BaseModel):
+    nome: str
+    tipo: Optional[str] = None
+    codigo: Optional[str] = None
+    localizacao: Optional[str] = None
+    descricao: Optional[str] = None
+    observacao: Optional[str] = None
+    ativo: bool = True
+
+class AtivoUpdate(BaseModel):
+    nome: Optional[str] = None
+    tipo: Optional[str] = None
+    codigo: Optional[str] = None
+    localizacao: Optional[str] = None
+    descricao: Optional[str] = None
+    observacao: Optional[str] = None
+    ativo: Optional[bool] = None
+
+class AtivoOut(AtivoCreate):
+    id: int
+    created_at: datetime
+    class Config:
+        from_attributes = True
+
+class PaginatedAtivos(BaseModel):
+    items: List[AtivoOut]
+    total: int
+    page: int
+    per_page: int
+    total_pages: int
+
+
 # ── OficinaPrestador ─────────────────────────────────────────────────────────
 
 class OficinaPrestadorCreate(BaseModel):
@@ -210,7 +244,8 @@ class ArquivoManutencaoOut(BaseModel):
 # ── Manutencao ────────────────────────────────────────────────────────────────
 
 class ManutencaoBase(BaseModel):
-    veiculo_id: int
+    veiculo_id: Optional[int] = None
+    ativo_id: Optional[int] = None
     motorista_id: Optional[int] = None
     km_entrada: Optional[int] = None
     horimetro_entrada: Optional[Decimal] = None
@@ -238,6 +273,8 @@ class ManutencaoListItem(BaseModel):
     id: int
     veiculo_placa: Optional[str] = None
     veiculo_descricao: Optional[str] = None
+    ativo_nome: Optional[str] = None
+    ativo_tipo: Optional[str] = None
     motorista_nome: Optional[str] = None
     motorista_codigo: Optional[str] = None
     responsavel_manutencao: Optional[str] = None
@@ -260,6 +297,7 @@ class ManutencaoOut(ManutencaoBase):
     created_at: datetime
     updated_at: datetime
     veiculo: Optional[VeiculoOut] = None
+    ativo: Optional[AtivoOut] = None
     motorista: Optional[MotoristaOut] = None
     servicos: List[ServicoVeiculoOut] = []
     arquivos: List[ArquivoManutencaoOut] = []
@@ -288,6 +326,7 @@ class PaginatedTiposServico(BaseModel):
 
 class SolicitacaoCreate(BaseModel):
     veiculo_id: Optional[int] = None
+    ativo_id: Optional[int] = None
     solicitante: str
     descricao: str
     prioridade: str = "Média"
@@ -298,6 +337,7 @@ class SolicitacaoCreate(BaseModel):
 
 class SolicitacaoUpdate(BaseModel):
     veiculo_id: Optional[int] = None
+    ativo_id: Optional[int] = None
     manutencao_id: Optional[int] = None
     solicitante: Optional[str] = None
     descricao: Optional[str] = None
@@ -312,6 +352,7 @@ class SolicitacaoOut(SolicitacaoCreate):
     dt_solicitacao: datetime
     updated_at: datetime
     veiculo: Optional[VeiculoOut] = None
+    ativo: Optional[AtivoOut] = None
 
     class Config:
         from_attributes = True

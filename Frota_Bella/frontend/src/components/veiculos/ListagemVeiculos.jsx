@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
+import { useNavigate } from 'react-router-dom'
 import {
   Plus,
   Pencil,
@@ -16,6 +17,7 @@ import {
   ArrowDown,
   ArrowUpDown,
   Download,
+  History,
 } from 'lucide-react'
 
 function SortIcon({ field, sortField, sortDir }) {
@@ -180,6 +182,7 @@ function VeiculoModal({ veiculo, onClose, onSaved }) {
 }
 
 export default function ListagemVeiculos() {
+  const navigate = useNavigate()
   const [veiculos, setVeiculos] = useState([])
   const [loading, setLoading] = useState(false)
   const [syncing, setSyncing] = useState(false)
@@ -354,6 +357,9 @@ export default function ListagemVeiculos() {
                     <td className="px-3 py-2 whitespace-nowrap text-gray-500 dark:text-gray-400">{fmt(v.created_at)}</td>
                     <td className="px-3 py-2">
                       <div className="flex items-center justify-center gap-1.5">
+                        <button className="p-0.5 text-gray-500 hover:text-blue-600" title="Histórico" onClick={() => navigate(`/veiculos/${v.id}/historico`)}>
+                          <History className="w-3.5 h-3.5" />
+                        </button>
                         <button className="p-0.5 text-gray-500 hover:text-yellow-600" title="Editar" onClick={() => setModal(v)}>
                           <Pencil className="w-3.5 h-3.5" />
                         </button>

@@ -1,20 +1,29 @@
 import React, { useState } from 'react'
+import axios from 'axios'
 import { X, Mail, Send } from 'lucide-react'
+
+const API = 'http://localhost:8000/api'
 
 export function EmailModal({ manutencaoId, onClose }) {
   const [email, setEmail] = useState('')
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
+  const [erro, setErro] = useState('')
 
   const handleSend = async (e) => {
     e.preventDefault()
     if (!email) return
     setSending(true)
-    // Simulate sending
-    await new Promise((r) => setTimeout(r, 1000))
-    setSending(false)
-    setSent(true)
-    setTimeout(onClose, 1500)
+    setErro('')
+    try {
+      await axios.post(`${API}/manutencoes/${manutencaoId}/enviar-email`, { email })
+      setSent(true)
+      setTimeout(onClose, 2000)
+    } catch (err) {
+      setErro(err.response?.data?.detail || 'Erro ao enviar e-mail. Tente novamente.')
+    } finally {
+      setSending(false)
+    }
   }
 
   return (
@@ -37,7 +46,7 @@ export function EmailModal({ manutencaoId, onClose }) {
         <form onSubmit={handleSend} className="p-5">
           {sent ? (
             <p className="text-green-600 font-medium text-center py-4">
-              E-mail enviado com sucesso!
+              ✓ E-mail enviado com sucesso!
             </p>
           ) : (
             <>
@@ -51,6 +60,7 @@ export function EmailModal({ manutencaoId, onClose }) {
                 required
                 autoFocus
               />
+              {erro && <p className="text-red-500 text-xs mb-3">{erro}</p>}
               <div className="flex gap-2 justify-end">
                 <button
                   type="button"
