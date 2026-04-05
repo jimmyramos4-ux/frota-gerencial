@@ -18,11 +18,23 @@ import {
   ArrowUpDown,
   Download,
   History,
+  FileSpreadsheet,
+  FileText,
 } from 'lucide-react'
+import * as XLSX from 'xlsx'
+import jsPDF from 'jspdf'
+import autoTable from 'jspdf-autotable'
 
-function SortIcon({ field, sortField, sortDir }) {
-  if (sortField !== field) return <ArrowUpDown className="w-3 h-3 opacity-30" />
-  return sortDir === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+function SortIcon({ field, sorts }) {
+  const idx = sorts.findIndex(s => s.field === field)
+  if (idx === -1) return <ArrowUpDown className="w-3 h-3 opacity-30" />
+  const s = sorts[idx]
+  return (
+    <span className="inline-flex items-center gap-0.5">
+      {s.dir === 'asc' ? <ArrowUp className="w-3 h-3 text-blue-500" /> : <ArrowDown className="w-3 h-3 text-blue-500" />}
+      {sorts.length > 1 && <span className="text-[9px] font-bold text-blue-400 leading-none">{idx + 1}</span>}
+    </span>
+  )
 }
 
 const API = 'http://localhost:8000/api'
@@ -38,6 +50,7 @@ const emptyForm = {
   capacidade: '',
   vinculo: '',
   ultimo_km: '',
+  motorista_id: '',
 }
 
 function fmt(dt) {
@@ -54,11 +67,16 @@ function VeiculoModal({ veiculo, onClose, onSaved }) {
   const isEdit = Boolean(veiculo?.id)
   const [form, setForm] = useState(
     veiculo
-      ? { placa: veiculo.placa, marca: veiculo.marca || '', modelo: veiculo.modelo || '', tipo: veiculo.tipo || '', grupo: veiculo.grupo || '', ano: veiculo.ano || '', chassi: veiculo.chassi || '', capacidade: veiculo.capacidade || '', vinculo: veiculo.vinculo || '', ultimo_km: veiculo.ultimo_km || '' }
+      ? { placa: veiculo.placa, marca: veiculo.marca || '', modelo: veiculo.modelo || '', tipo: veiculo.tipo || '', grupo: veiculo.grupo || '', ano: veiculo.ano || '', chassi: veiculo.chassi || '', capacidade: veiculo.capacidade || '', vinculo: veiculo.vinculo || '', ultimo_km: veiculo.ultimo_km || '', motorista_id: veiculo.motorista_id || '' }
       : emptyForm
   )
+  const [motoristas, setMotoristas] = useState([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+
+  React.useEffect(() => {
+    axios.get('http://localhost:8000/api/motoristas').then(r => setMotoristas(r.data)).catch(() => {})
+  }, [])
 
   const setF = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }))
 
@@ -71,7 +89,7 @@ function VeiculoModal({ veiculo, onClose, onSaved }) {
     setSaving(true)
     setError('')
     try {
-      const payload = { ...form, ano: form.ano ? Number(form.ano) : null, ultimo_km: form.ultimo_km ? Number(form.ultimo_km) : null }
+      const payload = { ...form, ano: form.ano ? Number(form.ano) : null, ultimo_km: form.ultimo_km ? Number(form.ultimo_km) : null, motorista_id: form.motorista_id ? Number(form.motorista_id) : null }
       if (isEdit) {
         await axios.put(`${API}/veiculos/${veiculo.id}`, payload)
       } else {
@@ -166,6 +184,15 @@ function VeiculoModal({ veiculo, onClose, onSaved }) {
               </select>
             </div>
           </div>
+          <div>
+            <label className="form-label">Motorista Responsável</label>
+            <select className="form-select" value={form.motorista_id} onChange={setF('motorista_id')}>
+              <option value="">— Nenhum —</option>
+              {motoristas.map(m => (
+                <option key={m.id} value={m.id}>{m.codigo} — {m.nome}</option>
+              ))}
+            </select>
+          </div>
           <div className="flex gap-2 justify-end pt-1">
             <button type="button" className="btn-secondary btn-sm px-4 py-1.5" onClick={onClose}>
               Cancelar
@@ -188,13 +215,25 @@ export default function ListagemVeiculos() {
   const [syncing, setSyncing] = useState(false)
   const [search, setSearch] = useState('')
   const [modal, setModal] = useState(null)
-  const [toast, setToast] = useState(null) // { msg, type: 'success'|'error' }
-  const [sortField, setSortField] = useState('')
-  const [sortDir, setSortDir] = useState('asc')
+  const [toast, setToast] = useState(null)
+  const [sorts, setSorts] = useState([]) // [{field, dir}]
 
-  const handleSort = (field) => {
-    if (sortField === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
-    else { setSortField(field); setSortDir('asc') }
+  // Clique simples: define como única ordenação. Shift+clique: adiciona/alterna como nível extra.
+  const handleSort = (field, e) => {
+    if (e.shiftKey) {
+      setSorts(prev => {
+        const idx = prev.findIndex(s => s.field === field)
+        if (idx === -1) return [...prev, { field, dir: 'asc' }]
+        if (prev[idx].dir === 'asc') return prev.map((s, i) => i === idx ? { ...s, dir: 'desc' } : s)
+        return prev.filter((_, i) => i !== idx) // terceiro clique remove
+      })
+    } else {
+      setSorts(prev => {
+        const existing = prev.find(s => s.field === field)
+        if (existing && prev.length === 1) return [{ field, dir: existing.dir === 'asc' ? 'desc' : 'asc' }]
+        return [{ field, dir: 'asc' }]
+      })
+    }
   }
 
   const showToast = (msg, type = 'success') => {
@@ -253,8 +292,59 @@ export default function ListagemVeiculos() {
   const cols = [
     ['placa','Placa'],['marca','Marca'],['modelo','Modelo'],['tipo','Tipo'],
     ['grupo','Grupo'],['ano','Ano'],['capacidade','Capacidade'],['vinculo','Vínculo'],
-    ['chassi','Chassi'],['ultimo_km','Último KM'],['created_at','Cadastro']
+    ['chassi','Chassi'],['ultimo_km','Último KM'],['motorista','Motorista'],['created_at','Cadastro']
   ]
+
+  const exportRows = (list) => list.map(v => ({
+    'Placa': v.placa,
+    'Marca': v.marca || '',
+    'Modelo': v.modelo || '',
+    'Tipo': v.tipo || '',
+    'Grupo': v.grupo || '',
+    'Ano': v.ano || '',
+    'Capacidade': v.capacidade || '',
+    'Vínculo': v.vinculo || '',
+    'Chassi': v.chassi || '',
+    'Último KM': v.ultimo_km ? Number(v.ultimo_km).toLocaleString('pt-BR') + ' km' : '',
+    'Motorista': v.motorista ? `${v.motorista.nome} (${v.motorista.codigo})` : '',
+    'Cadastro': v.created_at ? new Date(v.created_at).toLocaleDateString('pt-BR') : '',
+  }))
+
+  const exportExcel = () => {
+    const rows = exportRows(sortedVeiculos)
+    const ws = XLSX.utils.json_to_sheet(rows)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Veículos')
+    XLSX.writeFile(wb, `veiculos_${new Date().toISOString().slice(0,10)}.xlsx`)
+  }
+
+  const exportPdf = () => {
+    const doc = new jsPDF({ orientation: 'landscape' })
+    doc.setFontSize(13)
+    doc.text('Veículos Cadastrados', 14, 14)
+    doc.setFontSize(8)
+    doc.text(`Gerado em ${new Date().toLocaleString('pt-BR')}`, 14, 20)
+    const rows = exportRows(sortedVeiculos)
+    const headers = Object.keys(rows[0] || {})
+    autoTable(doc, {
+      startY: 24,
+      head: [headers],
+      body: rows.map(r => headers.map(h => r[h])),
+      styles: { fontSize: 7, cellPadding: 2 },
+      headStyles: { fillColor: [30, 80, 180], textColor: 255, fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [240, 244, 255] },
+    })
+    doc.save(`veiculos_${new Date().toISOString().slice(0,10)}.pdf`)
+  }
+
+  const sortedVeiculos = sorts.length === 0 ? veiculos : [...veiculos].sort((a, b) => {
+    for (const { field, dir } of sorts) {
+      const va = a[field] ?? ''; const vb = b[field] ?? ''
+      const cmp = String(va).localeCompare(String(vb), 'pt-BR', { numeric: true })
+      if (cmp !== 0) return dir === 'asc' ? cmp : -cmp
+    }
+    return 0
+  })
 
   return (
     <div className="space-y-3">
@@ -284,6 +374,12 @@ export default function ListagemVeiculos() {
             {syncing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
             {syncing ? 'Sincronizando...' : 'Sync KM'}
           </button>
+          <button onClick={exportExcel} className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold shadow-sm transition-colors" title="Exportar Excel">
+            <FileSpreadsheet className="w-3.5 h-3.5" /> Excel
+          </button>
+          <button onClick={exportPdf} className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold shadow-sm transition-colors" title="Exportar PDF">
+            <FileText className="w-3.5 h-3.5" /> PDF
+          </button>
           <button onClick={() => setModal('new')} className="btn-primary flex items-center gap-1.5">
             <Plus className="w-3.5 h-3.5" />
             Novo Veículo
@@ -300,10 +396,15 @@ export default function ListagemVeiculos() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        {search && (
-          <button onClick={() => setSearch('')} className="text-gray-400 hover:text-gray-600">
+        {(search || sorts.length > 0) && (
+          <button onClick={() => { setSearch(''); setSorts([]) }} className="text-gray-400 hover:text-gray-600" title="Limpar busca e ordenação">
             <X className="w-4 h-4" />
           </button>
+        )}
+        {sorts.length > 0 && (
+          <span className="text-[10px] text-blue-500 font-medium whitespace-nowrap">
+            {sorts.map(s => s.field).join(' → ')}
+          </span>
         )}
       </div>
 
@@ -317,8 +418,8 @@ export default function ListagemVeiculos() {
             <thead>
               <tr className="bg-blue-50 dark:bg-blue-900/20 border-b border-blue-100 dark:border-blue-800/40">
                 {cols.map(([f, l]) => (
-                  <th key={f} className="px-3 py-2 text-left text-blue-800 dark:text-blue-300 font-semibold cursor-pointer select-none hover:bg-blue-100 dark:hover:bg-blue-900/30 whitespace-nowrap" onClick={() => handleSort(f)}>
-                    <span className="flex items-center gap-1">{l} <SortIcon field={f} sortField={sortField} sortDir={sortDir} /></span>
+                  <th key={f} className="px-3 py-2 text-left text-blue-800 dark:text-blue-300 font-semibold cursor-pointer select-none hover:bg-blue-100 dark:hover:bg-blue-900/30 whitespace-nowrap" onClick={e => handleSort(f, e)}>
+                    <span className="flex items-center gap-1">{l} <SortIcon field={f} sorts={sorts} /></span>
                   </th>
                 ))}
                 <th className="px-3 py-2 text-center text-blue-800 dark:text-blue-300 font-semibold">Ações</th>
@@ -329,13 +430,10 @@ export default function ListagemVeiculos() {
                 <tr><td colSpan={12} className="text-center py-8 text-gray-400">
                   <RefreshCw className="w-5 h-5 animate-spin inline mr-2" />Carregando...
                 </td></tr>
-              ) : veiculos.length === 0 ? (
+              ) : sortedVeiculos.length === 0 ? (
                 <tr><td colSpan={12} className="text-center py-8 text-gray-400">Nenhum veículo encontrado.</td></tr>
               ) : (
-                (sortField ? [...veiculos].sort((a, b) => {
-                  const va = a[sortField] ?? ''; const vb = b[sortField] ?? ''
-                  return sortDir === 'asc' ? String(va).localeCompare(String(vb), 'pt-BR', { numeric: true }) : String(vb).localeCompare(String(va), 'pt-BR', { numeric: true })
-                }) : veiculos).map((v, idx) => (
+                sortedVeiculos.map((v, idx) => (
                   <tr key={v.id} className={`border-b border-gray-100 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors ${idx % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-700/50'}`}>
                     <td className="px-3 py-2 font-medium text-blue-700 dark:text-blue-400">{v.placa}</td>
                     <td className="px-3 py-2">{v.marca || '-'}</td>
@@ -353,6 +451,11 @@ export default function ListagemVeiculos() {
                           {v.ultimo_km_data && <span className="text-gray-400 dark:text-gray-500 text-[10px]">{fmt(v.ultimo_km_data)}</span>}
                         </span>
                       ) : <span className="text-gray-300">-</span>}
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      {v.motorista
+                        ? <span className="inline-flex flex-col"><span className="font-medium text-gray-700 dark:text-gray-200">{v.motorista.nome}</span><span className="text-gray-400 text-[10px]">{v.motorista.codigo}</span></span>
+                        : <span className="text-gray-300">-</span>}
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap text-gray-500 dark:text-gray-400">{fmt(v.created_at)}</td>
                     <td className="px-3 py-2">

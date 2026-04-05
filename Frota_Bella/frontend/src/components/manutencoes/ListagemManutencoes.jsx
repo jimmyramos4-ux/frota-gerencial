@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import axios from 'axios'
 import {
   Paperclip,
@@ -512,17 +512,43 @@ function RelatorioModal({ relatorio, setRelatorio, onGerar, onClose, gerando }) 
 
 export default function ListagemManutencoes() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  // Inicializa filtros a partir de query params (ex: vindos do clique no gráfico do Dashboard)
+  const initFilters = () => {
+    const tipo = searchParams.get('tipo') || ''
+    const gte = searchParams.get('dt_inicio_gte') || ''
+    const lte = searchParams.get('dt_inicio_lte') || ''
+    if (tipo || gte || lte) {
+      return { ...emptyFilters, tipo, dt_inicio_gte: gte, dt_inicio_lte: lte }
+    }
+    return emptyFilters
+  }
+  const initApplied = () => {
+    const tipo = searchParams.get('tipo') || ''
+    const gte = searchParams.get('dt_inicio_gte') || ''
+    const lte = searchParams.get('dt_inicio_lte') || ''
+    if (tipo || gte || lte) {
+      return { ...emptyFilters, tipo, dt_inicio_gte: gte, dt_inicio_lte: lte }
+    }
+    return {}
+  }
+
   const [data, setData] = useState({ items: [], total: 0, page: 1, per_page: 10, total_pages: 1 })
   const [loading, setLoading] = useState(false)
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(10)
-  const [filters, setFilters] = useState(emptyFilters)
-  const [appliedFilters, setAppliedFilters] = useState({})
+  const [filters, setFilters] = useState(initFilters)
+  const [appliedFilters, setAppliedFilters] = useState(initApplied)
   const [emailModal, setEmailModal] = useState(null)
   const [deleteModal, setDeleteModal] = useState(null)
   const [sortField, setSortField] = useState('')
   const [sortDir, setSortDir] = useState('asc')
-  const [showFilters, setShowFilters] = useState(false)
+  const [showFilters, setShowFilters] = useState(() => {
+    const tipo = searchParams.get('tipo') || ''
+    const gte = searchParams.get('dt_inicio_gte') || ''
+    return !!(tipo || gte)
+  })
   const [lightbox, setLightbox] = useState(null) // { arquivos: [], idx: 0 }
 
   const handleOpenAnexos = async (item) => {

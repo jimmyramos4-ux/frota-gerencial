@@ -83,15 +83,15 @@ export default function Layout() {
       {/* Sidebar */}
       <aside
         className={`${
-          sidebarOpen ? 'w-56' : 'w-0 overflow-hidden'
-        } bg-blue-900 text-white flex-shrink-0 transition-all duration-200 flex flex-col`}
+          sidebarOpen ? 'w-56' : 'w-0'
+        } bg-blue-900 text-white flex-shrink-0 transition-all duration-200 flex flex-col overflow-hidden`}
       >
         {/* Nav */}
-        <nav className="flex-1 py-2 overflow-y-auto">
+        <nav className="flex-1 py-2 overflow-y-auto w-56 min-w-[224px]">
           {navItems.map((item, i) => {
             if (item.type === 'divider') {
               return (
-                <div key={i} className="px-4 pt-3 pb-1 text-xs text-blue-400 uppercase tracking-wider border-t border-blue-800 mt-1">
+                <div key={i} className="px-4 pt-3 pb-1 text-xs text-blue-400 uppercase tracking-wider border-t border-blue-800 mt-1 whitespace-nowrap">
                   {item.label}
                 </div>
               )
@@ -105,7 +105,7 @@ export default function Layout() {
                 key={item.to}
                 to={item.to}
                 onClick={() => setSidebarOpen(false)}
-                className={`flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
+                className={`flex items-center gap-3 px-4 py-2.5 text-sm transition-colors whitespace-nowrap ${
                   active
                     ? 'bg-blue-700 text-white font-medium'
                     : 'text-blue-200 hover:bg-blue-800 hover:text-white'
@@ -128,7 +128,7 @@ export default function Layout() {
         </nav>
 
         {/* Footer com sync e backup */}
-        <div className="px-3 py-3 border-t border-blue-700 space-y-2">
+        <div className="px-3 py-3 border-t border-blue-700 space-y-2 w-56 min-w-[224px]">
           {/* Botão Sync KM */}
           <button
             onClick={async () => {

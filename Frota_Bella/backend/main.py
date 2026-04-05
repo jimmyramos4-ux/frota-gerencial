@@ -43,6 +43,7 @@ _add_column_if_missing(engine, "veiculos", ("ultimo_km", "INTEGER"))
 _add_column_if_missing(engine, "veiculos", ("ultimo_km_data", "DATETIME"))
 _add_column_if_missing(engine, "veiculos", ("capacidade", "VARCHAR(100)"))
 _add_column_if_missing(engine, "veiculos", ("vinculo", "VARCHAR(50)"))
+_add_column_if_missing(engine, "veiculos", ("motorista_id", "INTEGER REFERENCES motoristas(id)"))
 
 # Cria tabela oficinas_prestadores se não existir (nova funcionalidade)
 try:
@@ -498,7 +499,7 @@ def delete_tipo_servico(item_id: int, db: Session = Depends(get_db)):
 
 @app.get("/api/veiculos", response_model=list[schemas.VeiculoOut])
 def list_veiculos(search: Optional[str] = None, db: Session = Depends(get_db)):
-    query = db.query(models.Veiculo)
+    query = db.query(models.Veiculo).options(joinedload(models.Veiculo.motorista))
     if search:
         query = query.filter(
             or_(
@@ -586,7 +587,7 @@ def sync_km(db: Session = Depends(get_db)):
 
 @app.get("/api/veiculos/{veiculo_id}", response_model=schemas.VeiculoOut)
 def get_veiculo(veiculo_id: int, db: Session = Depends(get_db)):
-    veiculo = db.query(models.Veiculo).filter(models.Veiculo.id == veiculo_id).first()
+    veiculo = db.query(models.Veiculo).options(joinedload(models.Veiculo.motorista)).filter(models.Veiculo.id == veiculo_id).first()
     if not veiculo:
         raise HTTPException(status_code=404, detail="Veículo não encontrado")
     return veiculo
@@ -1578,20 +1579,37 @@ def delete_arquivo(arquivo_id: int, db: Session = Depends(get_db)):
 # ── Dashboard Stats ───────────────────────────────────────────────────────────
 
 @app.get("/api/dashboard-stats")
-def dashboard_stats(db: Session = Depends(get_db)):
-    from datetime import date as dt_date
+def dashboard_stats(
+    dt_inicio: Optional[str] = None,
+    dt_fim: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    from datetime import date as dt_date, timedelta
     from sqlalchemy import text
+    import calendar
 
     today = dt_date.today()
 
-    # 1. Manutenções por mês — últimos 12 meses (Corretiva vs Preventiva)
+    # Resolve range de datas
+    if dt_inicio and dt_fim:
+        d_ini = dt_date.fromisoformat(dt_inicio)
+        d_fim = dt_date.fromisoformat(dt_fim)
+    else:
+        # padrão: últimos 12 meses
+        d_fim = today
+        d_ini = dt_date(today.year - 1, today.month, 1)
+
+    dt_ini_str = d_ini.isoformat()
+    dt_fim_str = d_fim.isoformat()
+
+    # 1. Manutenções por mês no período
     meses_raw = db.execute(text("""
         SELECT strftime('%Y-%m', dt_inicio) as mes, tipo, COUNT(*) as total
         FROM manutencoes
-        WHERE dt_inicio >= date('now', '-12 months') AND dt_inicio IS NOT NULL
+        WHERE dt_inicio >= :di AND dt_inicio <= :df AND dt_inicio IS NOT NULL
         GROUP BY strftime('%Y-%m', dt_inicio), tipo
         ORDER BY mes
-    """)).fetchall()
+    """), {"di": dt_ini_str, "df": dt_fim_str}).fetchall()
 
     meses_dict: dict = {}
     for mes, tipo, total in meses_raw:
@@ -1604,13 +1622,14 @@ def dashboard_stats(db: Session = Depends(get_db)):
         else:
             meses_dict[mes]["outros"] += total
 
+    # Gera lista de meses no range
     MESES_PT = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"]
     manutencoes_por_mes = []
-    for i in range(11, -1, -1):
-        month = (today.month - 1 - i) % 12 + 1
-        year = today.year + (today.month - 1 - i) // 12
-        mes_key = f"{year:04d}-{month:02d}"
-        label = f"{MESES_PT[month-1]}/{str(year)[2:]}"
+    cur = dt_date(d_ini.year, d_ini.month, 1)
+    end_month = dt_date(d_fim.year, d_fim.month, 1)
+    while cur <= end_month:
+        mes_key = cur.strftime("%Y-%m")
+        label = f"{MESES_PT[cur.month-1]}/{str(cur.year)[2:]}"
         d = meses_dict.get(mes_key, {"corretiva": 0, "preventiva": 0, "outros": 0})
         manutencoes_por_mes.append({
             "mes": mes_key,
@@ -1619,20 +1638,25 @@ def dashboard_stats(db: Session = Depends(get_db)):
             "preventiva": d["preventiva"],
             "total": d["corretiva"] + d["preventiva"] + d["outros"],
         })
+        # avança 1 mês
+        if cur.month == 12:
+            cur = dt_date(cur.year + 1, 1, 1)
+        else:
+            cur = dt_date(cur.year, cur.month + 1, 1)
 
-    # 2. Custo total por veículo (top 10 por custo)
+    # 2. Custo total por veículo no período (top 10)
     custo_raw = db.execute(text("""
         SELECT v.id, v.placa, v.descricao,
                COUNT(DISTINCT m.id) as total_manutencoes,
                COALESCE(SUM(CAST(sv.valor AS REAL)), 0) as total_custo
         FROM veiculos v
-        LEFT JOIN manutencoes m ON m.veiculo_id = v.id
+        LEFT JOIN manutencoes m ON m.veiculo_id = v.id AND m.dt_inicio >= :di AND m.dt_inicio <= :df
         LEFT JOIN servicos_veiculo sv ON sv.manutencao_id = m.id AND sv.valor IS NOT NULL
         GROUP BY v.id, v.placa, v.descricao
         HAVING total_manutencoes > 0
         ORDER BY total_custo DESC
         LIMIT 10
-    """)).fetchall()
+    """), {"di": dt_ini_str, "df": dt_fim_str}).fetchall()
 
     custo_por_veiculo = [
         {"veiculo_id": r[0], "placa": r[1], "descricao": r[2],
@@ -1640,15 +1664,15 @@ def dashboard_stats(db: Session = Depends(get_db)):
         for r in custo_raw
     ]
 
-    # 3. Ranking de veículos com mais manutenções (top 10)
+    # 3. Ranking de veículos com mais manutenções no período (top 10)
     ranking_raw = db.execute(text("""
         SELECT v.id, v.placa, v.descricao, COUNT(m.id) as total
         FROM veiculos v
-        JOIN manutencoes m ON m.veiculo_id = v.id
+        JOIN manutencoes m ON m.veiculo_id = v.id AND m.dt_inicio >= :di AND m.dt_inicio <= :df
         GROUP BY v.id, v.placa, v.descricao
         ORDER BY total DESC
         LIMIT 10
-    """)).fetchall()
+    """), {"di": dt_ini_str, "df": dt_fim_str}).fetchall()
 
     ranking_manutencoes = [
         {"veiculo_id": r[0], "placa": r[1], "descricao": r[2], "total": r[3]}
@@ -1659,6 +1683,8 @@ def dashboard_stats(db: Session = Depends(get_db)):
         "manutencoes_por_mes": manutencoes_por_mes,
         "custo_por_veiculo": custo_por_veiculo,
         "ranking_manutencoes": ranking_manutencoes,
+        "dt_inicio": dt_ini_str,
+        "dt_fim": dt_fim_str,
     }
 
 

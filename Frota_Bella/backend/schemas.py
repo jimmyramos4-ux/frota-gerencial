@@ -137,6 +137,7 @@ class VeiculoBase(BaseModel):
     chassi: Optional[str] = None
     capacidade: Optional[str] = None
     vinculo: Optional[str] = None
+    motorista_id: Optional[int] = None
 
 
 class VeiculoCreate(VeiculoBase):
@@ -154,6 +155,7 @@ class VeiculoUpdate(BaseModel):
     chassi: Optional[str] = None
     capacidade: Optional[str] = None
     vinculo: Optional[str] = None
+    motorista_id: Optional[int] = None
     ultimo_km: Optional[int] = None
     ultimo_km_data: Optional[datetime] = None
 
@@ -163,6 +165,7 @@ class VeiculoOut(VeiculoBase):
     ultimo_km: Optional[int] = None
     ultimo_km_data: Optional[datetime] = None
     created_at: datetime
+    motorista: Optional['MotoristaOut'] = None
 
     class Config:
         from_attributes = True

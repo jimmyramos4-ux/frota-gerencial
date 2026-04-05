@@ -49,9 +49,11 @@ class Veiculo(Base):
     vinculo = Column(String(50), nullable=True)
     ultimo_km = Column(Integer, nullable=True)
     ultimo_km_data = Column(DateTime, nullable=True)
+    motorista_id = Column(Integer, ForeignKey("motoristas.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     manutencoes = relationship("Manutencao", back_populates="veiculo")
+    motorista = relationship("Motorista")
 
 
 class Motorista(Base):

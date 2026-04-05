@@ -39,6 +39,11 @@ function calcProxDt(dtServico, nrDias) {
   return dt.toISOString().split('T')[0]
 }
 
+function fmtDate(d) {
+  if (!d) return '-'
+  return new Date(d + 'T00:00:00').toLocaleDateString('pt-BR')
+}
+
 function dtToInput(dt) {
   if (!dt) return ''
   const d = new Date(dt)
@@ -758,8 +763,8 @@ export default function FormManutencao() {
                       <td className="px-2 py-2 font-medium dark:text-gray-200">{s.parte_veiculo || '-'}</td>
                       <td className="px-2 py-2 dark:text-gray-200">{s.servico || '-'}</td>
                       <td className="px-2 py-2 text-gray-500 dark:text-gray-400">{s.tipo_uso || '-'}</td>
-                      <td className="px-2 py-2 whitespace-nowrap text-gray-600 dark:text-gray-400">{s.dt_servico || '-'}</td>
-                      <td className="px-2 py-2 whitespace-nowrap text-gray-600 dark:text-gray-400">{s.proxima_dt_validade || '-'}</td>
+                      <td className="px-2 py-2 whitespace-nowrap text-gray-600 dark:text-gray-400">{fmtDate(s.dt_servico)}</td>
+                      <td className="px-2 py-2 whitespace-nowrap text-gray-600 dark:text-gray-400">{fmtDate(s.proxima_dt_validade)}</td>
                       <td className="px-2 py-2 text-right tabular-nums text-gray-600 dark:text-gray-400">{s.proximo_km_validade || '-'}</td>
                       <td className="px-2 py-2 text-gray-600 dark:text-gray-400">{s.pessoa_responsavel || '-'}</td>
                       <td className="px-2 py-2 text-gray-500 dark:text-gray-400">{s.descricao || '-'}</td>

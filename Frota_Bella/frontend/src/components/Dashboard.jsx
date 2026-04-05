@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import {
   Wrench, Car, RefreshCw, ChevronDown, ChevronUp, ChevronsUpDown,
@@ -31,7 +31,7 @@ const prioridadeBadge = {
 
 // ── Gráfico de barras mensais (CSS flex — 100% responsivo) ───────────────────
 
-function BarChartMensal({ data }) {
+function BarChartMensal({ data, onBarClick }) {
   if (!data?.length) return null
   const max = Math.max(...data.map(d => Math.max(d.corretiva, d.preventiva)), 1)
 
@@ -52,22 +52,32 @@ function BarChartMensal({ data }) {
                   {d.corretiva > 0 && (
                     <span style={{ fontSize: 10, color: '#ea580c', fontWeight: 700, lineHeight: 1.2 }}>{d.corretiva}</span>
                   )}
-                  <div style={{
-                    width: '100%', height: `${pC}%`,
-                    background: isCurrent ? '#ea580c' : '#f97316',
-                    borderRadius: '2px 2px 0 0', opacity: 0.9,
-                  }} />
+                  <div
+                    onClick={() => d.corretiva > 0 && onBarClick?.(d.mes, 'Corretiva')}
+                    title={d.corretiva > 0 ? `${d.corretiva} Corretiva(s) — ${d.label}` : undefined}
+                    style={{
+                      width: '100%', height: `${pC}%`,
+                      background: isCurrent ? '#ea580c' : '#f97316',
+                      borderRadius: '2px 2px 0 0', opacity: 0.9,
+                      cursor: d.corretiva > 0 ? 'pointer' : 'default',
+                    }}
+                  />
                 </div>
                 {/* Preventiva */}
                 <div className="flex-1 flex flex-col items-center justify-end" style={{ height: '100%' }}>
                   {d.preventiva > 0 && (
                     <span style={{ fontSize: 10, color: '#2563eb', fontWeight: 700, lineHeight: 1.2 }}>{d.preventiva}</span>
                   )}
-                  <div style={{
-                    width: '100%', height: `${pP}%`,
-                    background: isCurrent ? '#2563eb' : '#60a5fa',
-                    borderRadius: '2px 2px 0 0', opacity: 0.9,
-                  }} />
+                  <div
+                    onClick={() => d.preventiva > 0 && onBarClick?.(d.mes, 'Preventiva')}
+                    title={d.preventiva > 0 ? `${d.preventiva} Preventiva(s) — ${d.label}` : undefined}
+                    style={{
+                      width: '100%', height: `${pP}%`,
+                      background: isCurrent ? '#2563eb' : '#60a5fa',
+                      borderRadius: '2px 2px 0 0', opacity: 0.9,
+                      cursor: d.preventiva > 0 ? 'pointer' : 'default',
+                    }}
+                  />
                 </div>
               </div>
             </div>
@@ -473,10 +483,10 @@ function buildSolStats(items) {
     }
   })
 
-  // Ranking por veículo
+  // Ranking por veículo (apenas veículos, sem ativos)
   const byVeiculo = {}
-  items.forEach(s => {
-    const placa = s.veiculo?.placa || '—'
+  items.filter(s => s.veiculo?.placa).forEach(s => {
+    const placa = s.veiculo.placa
     if (!byVeiculo[placa]) byVeiculo[placa] = { placa, total: 0, abertas: 0, prioridades: {} }
     byVeiculo[placa].total++
     if (['Aberta', 'Em Análise'].includes(s.status)) byVeiculo[placa].abertas++
@@ -485,7 +495,7 @@ function buildSolStats(items) {
   const priorOrd = { Crítico: 0, Alta: 1, Média: 2, Baixa: 3 }
   const rankingVeiculos = Object.values(byVeiculo)
     .map(v => ({ ...v, topPrior: Object.keys(v.prioridades).sort((a, b) => (priorOrd[a] ?? 9) - (priorOrd[b] ?? 9))[0] }))
-    .sort((a, b) => b.total - a.total).slice(0, 8)
+    .sort((a, b) => b.total - a.total).slice(0, 5)
 
   // Totais
   const total = items.length
@@ -514,21 +524,72 @@ function buildSolStats(items) {
 
 // ── Dashboard principal ───────────────────────────────────────────────────────
 
+const MESES_PT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
+
+function calcPeriodo(tipo, ano, mes, tri) {
+  const hoje = new Date()
+  let ini, fim
+  if (tipo === 'mes') {
+    ini = new Date(ano, mes - 1, 1)
+    fim = new Date(ano, mes, 0)
+  } else if (tipo === 'trimestre') {
+    const m0 = (tri - 1) * 3
+    ini = new Date(ano, m0, 1)
+    fim = new Date(ano, m0 + 3, 0)
+  } else if (tipo === 'ano') {
+    ini = new Date(ano, 0, 1)
+    fim = new Date(ano, 11, 31)
+  } else { // 12m
+    fim = hoje
+    ini = new Date(hoje.getFullYear() - 1, hoje.getMonth(), 1)
+  }
+  const fmt = d => d.toISOString().slice(0, 10)
+  return { dt_inicio: fmt(ini), dt_fim: fmt(fim) }
+}
+
+function labelPeriodo(tipo, ano, mes, tri) {
+  if (tipo === '12m') return 'Últimos 12 meses'
+  if (tipo === 'ano') return `Ano ${ano}`
+  if (tipo === 'trimestre') return `${tri}º Trim. ${ano}`
+  return `${MESES_PT[mes - 1]}/${String(ano).slice(2)}`
+}
+
 export default function Dashboard() {
+  const navigate = useNavigate()
+  const hoje = new Date()
   const [frota, setFrota] = useState([])
   const [stats, setStats] = useState(null)
   const [vencimentos, setVencimentos] = useState([])
   const [solicitacoes, setSolicitacoes] = useState([])
   const [loading, setLoading] = useState(true)
+  const [statsLoading, setStatsLoading] = useState(false)
   const [sortCol, setSortCol] = useState('status')
   const [sortDir, setSortDir] = useState('desc')
+  // Filtro de período
+  const [periodoTipo, setPeriodoTipo] = useState('ano') // '12m' | 'ano' | 'trimestre' | 'mes'
+  const [periodoAno, setPeriodoAno] = useState(hoje.getFullYear())
+  const [periodoMes, setPeriodoMes] = useState(hoje.getMonth() + 1)
+  const [periodoTri, setPeriodoTri] = useState(Math.ceil((hoje.getMonth() + 1) / 3))
+
+  const anosDisponiveis = Array.from({ length: 5 }, (_, i) => hoje.getFullYear() - i)
+
+  const fetchStats = async (tipo, ano, mes, tri) => {
+    setStatsLoading(true)
+    try {
+      const { dt_inicio, dt_fim } = calcPeriodo(tipo, ano, mes, tri)
+      const r = await axios.get(`${API}/dashboard-stats`, { params: { dt_inicio, dt_fim } })
+      setStats(r.data)
+    } catch (err) { console.error(err) }
+    finally { setStatsLoading(false) }
+  }
 
   const fetchAll = async () => {
     setLoading(true)
     try {
+      const { dt_inicio, dt_fim } = calcPeriodo(periodoTipo, periodoAno, periodoMes, periodoTri)
       const [frotaRes, statsRes, vencRes, solRes] = await Promise.all([
         axios.get(`${API}/frota-status`),
-        axios.get(`${API}/dashboard-stats`),
+        axios.get(`${API}/dashboard-stats`, { params: { dt_inicio, dt_fim } }),
         axios.get(`${API}/vencimentos`),
         axios.get(`${API}/solicitacoes`, { params: { per_page: 10000 } }),
       ])
@@ -543,6 +604,24 @@ export default function Dashboard() {
     }
   }
 
+  const aplicarPeriodo = (tipo, ano, mes, tri) => {
+    setPeriodoTipo(tipo)
+    setPeriodoAno(ano)
+    setPeriodoMes(mes)
+    setPeriodoTri(tri)
+    fetchStats(tipo, ano, mes, tri)
+  }
+
+  const handleBarClick = (mes, tipo) => {
+    // mes = "2026-03", tipo = "Corretiva" | "Preventiva"
+    const [y, m] = mes.split('-').map(Number)
+    const lastDay = new Date(y, m, 0).getDate()
+    const pad = n => String(n).padStart(2, '0')
+    const gte = `${y}-${pad(m)}-01`
+    const lte = `${y}-${pad(m)}-${pad(lastDay)}`
+    navigate(`/manutencoes?tipo=${encodeURIComponent(tipo)}&dt_inicio_gte=${gte}&dt_inicio_lte=${lte}`)
+  }
+
   useEffect(() => { fetchAll() }, [])
 
   const handleSort = (col) => {
@@ -553,8 +632,9 @@ export default function Dashboard() {
   const solStats = buildSolStats(solicitacoes)
 
   const sorted = sortFrota(frota, sortCol, sortDir)
-  const emManutencao = frota.filter(v => v.em_manutencao).length
-  const emOperacao = frota.filter(v => !v.em_manutencao).length
+  const frotaPesada = frota.filter(v => v.grupo === 'Pesado')
+  const emManutencao = frotaPesada.filter(v => v.em_manutencao).length
+  const emOperacao = frotaPesada.filter(v => !v.em_manutencao).length
   const vencidos = vencimentos.filter(v => v.status === 'Vencido').length
   const proximos = vencimentos.filter(v => v.status === 'Próximo').length
 
@@ -566,13 +646,14 @@ export default function Dashboard() {
 
       {/* ── Cards de resumo ── */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm px-4 py-3 flex items-center gap-3">
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm px-4 py-3 flex items-center gap-3 relative">
           <div className="p-2 rounded-full bg-blue-100">
             <Car className="w-4 h-4 text-blue-600" />
           </div>
           <div>
             <p className="text-[10px] text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wide">Frota Total</p>
-            <p className="text-2xl font-extrabold text-gray-800 dark:text-gray-100 leading-tight">{frota.length}</p>
+            <p className="text-2xl font-extrabold text-gray-800 dark:text-gray-100 leading-tight">{frotaPesada.length}</p>
+            <p className="text-[9px] text-blue-500 dark:text-blue-400 font-medium mt-0.5">Somente Pesados</p>
           </div>
         </div>
 
@@ -583,6 +664,7 @@ export default function Dashboard() {
           <div>
             <p className="text-[10px] text-orange-600 font-medium uppercase tracking-wide">Em Manutenção</p>
             <p className="text-2xl font-extrabold text-orange-600 leading-tight">{emManutencao}</p>
+            <p className="text-[9px] text-blue-500 dark:text-blue-400 font-medium mt-0.5">Somente Pesados</p>
           </div>
         </div>
 
@@ -593,6 +675,7 @@ export default function Dashboard() {
           <div>
             <p className="text-[10px] text-green-600 font-medium uppercase tracking-wide">Em Operação</p>
             <p className="text-2xl font-extrabold text-green-600 leading-tight">{emOperacao}</p>
+            <p className="text-[9px] text-blue-500 dark:text-blue-400 font-medium mt-0.5">Somente Pesados</p>
           </div>
         </div>
 
@@ -622,12 +705,51 @@ export default function Dashboard() {
 
         {/* Gráfico manutenções por mês */}
         <div className="md:col-span-2 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm p-4 flex flex-col">
-          <div className="flex items-center justify-between mb-3 shrink-0">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-blue-600" />
+          <div className="mb-3 shrink-0 space-y-2">
+            {/* Linha 1: título + filtro de período */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <TrendingUp className="w-4 h-4 text-blue-600 flex-shrink-0" />
               <span className="text-sm font-bold text-gray-700 dark:text-gray-200">Manutenções por Mês</span>
-              <span className="text-xs text-gray-400 dark:text-gray-500">(últimos 12 meses)</span>
+              <div className="flex items-center gap-1 ml-auto flex-wrap">
+                {[['12m','12 Meses'],['ano','Ano'],['trimestre','Trimestre'],['mes','Mês']].map(([v,l]) => (
+                  <button key={v} onClick={() => aplicarPeriodo(v, periodoAno, periodoMes, periodoTri)}
+                    className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${periodoTipo === v ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
+                    {l}
+                  </button>
+                ))}
+                {periodoTipo === 'ano' && (
+                  <select value={periodoAno} onChange={e => aplicarPeriodo('ano', +e.target.value, periodoMes, periodoTri)}
+                    className="text-[10px] border border-gray-200 dark:border-gray-600 rounded px-1 py-0.5 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 ml-1">
+                    {anosDisponiveis.map(a => <option key={a} value={a}>{a}</option>)}
+                  </select>
+                )}
+                {periodoTipo === 'trimestre' && (
+                  <div className="flex gap-1 ml-1">
+                    <select value={periodoTri} onChange={e => aplicarPeriodo('trimestre', periodoAno, periodoMes, +e.target.value)}
+                      className="text-[10px] border border-gray-200 dark:border-gray-600 rounded px-1 py-0.5 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200">
+                      {[1,2,3,4].map(t => <option key={t} value={t}>{t}º Trim.</option>)}
+                    </select>
+                    <select value={periodoAno} onChange={e => aplicarPeriodo('trimestre', +e.target.value, periodoMes, periodoTri)}
+                      className="text-[10px] border border-gray-200 dark:border-gray-600 rounded px-1 py-0.5 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200">
+                      {anosDisponiveis.map(a => <option key={a} value={a}>{a}</option>)}
+                    </select>
+                  </div>
+                )}
+                {periodoTipo === 'mes' && (
+                  <div className="flex gap-1 ml-1">
+                    <select value={periodoMes} onChange={e => aplicarPeriodo('mes', periodoAno, +e.target.value, periodoTri)}
+                      className="text-[10px] border border-gray-200 dark:border-gray-600 rounded px-1 py-0.5 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200">
+                      {MESES_PT.map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
+                    </select>
+                    <select value={periodoAno} onChange={e => aplicarPeriodo('mes', +e.target.value, periodoMes, periodoTri)}
+                      className="text-[10px] border border-gray-200 dark:border-gray-600 rounded px-1 py-0.5 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200">
+                      {anosDisponiveis.map(a => <option key={a} value={a}>{a}</option>)}
+                    </select>
+                  </div>
+                )}
+              </div>
             </div>
+            {/* Linha 2: legenda + totais */}
             <div className="flex items-center gap-4 text-[10px]">
               <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-orange-400 inline-block" />Corretiva</span>
               <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-blue-400 inline-block" />Preventiva</span>
@@ -636,13 +758,13 @@ export default function Dashboard() {
               <span className="text-gray-500 dark:text-gray-400">Total: <strong className="text-gray-700 dark:text-gray-200">{stats?.manutencoes_por_mes?.reduce((s, m) => s + m.total, 0) || 0}</strong></span>
             </div>
           </div>
-          {loading ? (
+          {loading || statsLoading ? (
             <div className="flex-1 flex items-center justify-center text-gray-400 text-xs">
               <RefreshCw className="w-4 h-4 animate-spin mr-2" />Carregando...
             </div>
           ) : (
             <div className="flex-1 flex flex-col">
-              <BarChartMensal data={stats?.manutencoes_por_mes || []} />
+              <BarChartMensal data={stats?.manutencoes_por_mes || []} onBarClick={handleBarClick} />
             </div>
           )}
         </div>
@@ -854,10 +976,10 @@ export default function Dashboard() {
               <div className="flex items-center gap-2">
                 <div className="w-20 rounded-full overflow-hidden h-1.5 bg-blue-900">
                   <div className="h-full bg-green-400 transition-all duration-500"
-                    style={{ width: `${(emOperacao / frota.length) * 100}%` }} />
+                    style={{ width: `${frotaPesada.length ? (emOperacao / frotaPesada.length) * 100 : 0}%` }} />
                 </div>
                 <span className="text-xs font-bold text-green-300">
-                  {Math.round((emOperacao / frota.length) * 100)}% disponível
+                  {frotaPesada.length ? Math.round((emOperacao / frotaPesada.length) * 100) : 0}% disponível
                 </span>
               </div>
             )}
