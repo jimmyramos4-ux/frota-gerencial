@@ -206,7 +206,7 @@ export default function LookupField({ endpoint, value, onChange, placeholder = '
     <div ref={wrapRef} className="relative">
       <div className="flex gap-1">
         <input
-          className="form-input text-xs py-0.5 flex-1"
+          className="border border-gray-300 dark:border-gray-600 rounded px-2 py-1.5 text-xs flex-1 focus:outline-none focus:border-blue-400 bg-white dark:bg-gray-700 dark:text-gray-100"
           value={inputText}
           onChange={handleInputChange}
           onFocus={handleFocus}

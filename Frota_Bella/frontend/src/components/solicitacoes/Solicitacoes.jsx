@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import axios from 'axios'
 import {
   ClipboardList, Plus, Trash2, Pencil, Check, X,
@@ -64,8 +64,10 @@ export default function Solicitacoes() {
   const [form, setForm] = useState(emptyForm)
   const [editingId, setEditingId] = useState(null)
   const [editForm, setEditForm] = useState({})
-  const [filterStatus, setFilterStatus] = useState('Aberta')
+  const [searchParams] = useSearchParams()
+  const [filterStatus, setFilterStatus] = useState(() => searchParams.get('status') ?? 'Aberta')
   const [filterPrior, setFilterPrior] = useState('')
+  const [filterMes, setFilterMes] = useState(() => searchParams.get('mes') || '')
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [showResumo, setShowResumo] = useState(false)
@@ -178,6 +180,7 @@ export default function Solicitacoes() {
   const filtered = items
     .filter(s => !filterStatus || s.status === filterStatus)
     .filter(s => !filterPrior || s.prioridade === filterPrior)
+    .filter(s => !filterMes || (s.dt_solicitacao || '').startsWith(filterMes))
     .filter(s => !search ||
       s.descricao.toLowerCase().includes(search.toLowerCase()) ||
       s.solicitante.toLowerCase().includes(search.toLowerCase()) ||
@@ -199,15 +202,31 @@ export default function Solicitacoes() {
     <div className="space-y-4 max-w-7xl mx-auto">
 
       {/* ── CABEÇALHO ── */}
-      <div className="bg-gradient-to-r from-blue-800 to-blue-600 rounded-lg shadow px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      <div className="bg-gradient-to-r from-blue-800 to-blue-600 rounded-lg shadow px-4 py-3 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3 shrink-0">
           <ClipboardList className="w-6 h-6 text-blue-200" />
           <div>
             <h1 className="text-white font-bold text-base leading-tight">Solicitações de Manutenção</h1>
             <p className="text-blue-200 text-xs">Registre e acompanhe as demandas da frota</p>
           </div>
         </div>
-        <div className="flex gap-3 text-xs">
+        {/* Legenda de prioridades */}
+        <div className="flex items-center gap-3 flex-1 justify-center">
+          <span className="text-blue-300 text-[10px] font-semibold uppercase tracking-wide shrink-0">Prioridade:</span>
+          {[
+            { color: '#ef4444', label: 'Crítico', desc: 'Parado / Risco operacional' },
+            { color: '#f97316', label: 'Alta',    desc: 'Impacto significativo' },
+            { color: '#eab308', label: 'Média',   desc: 'Atenção necessária' },
+            { color: '#22c55e', label: 'Baixa',   desc: 'Sem urgência' },
+          ].map(({ color, label, desc }) => (
+            <span key={label} className="flex items-center gap-1">
+              <span style={{ width: 9, height: 9, borderRadius: '50%', background: color, display: 'inline-block', flexShrink: 0 }} />
+              <span style={{ color }} className="text-[11px] font-bold">{label}</span>
+              <span className="text-blue-300 text-[10px]">— {desc}</span>
+            </span>
+          ))}
+        </div>
+        <div className="flex gap-3 text-xs shrink-0">
           <div className="bg-blue-700 rounded px-3 py-1.5 text-center">
             <div className="text-white font-bold text-lg leading-none">{counts.total}</div>
             <div className="text-blue-300">Total</div>
@@ -431,8 +450,14 @@ export default function Solicitacoes() {
           <option value="">Todas as prioridades</option>
           {PRIORIDADES.map(p => <option key={p}>{p}</option>)}
         </select>
-        {(filterStatus || filterPrior || search) && (
-          <button onClick={() => { setFilterStatus(''); setFilterPrior(''); setSearch('') }}
+        {filterMes && (
+          <span className="flex items-center gap-1 text-xs bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded-full">
+            {filterMes}
+            <button onClick={() => setFilterMes('')} className="hover:text-red-500"><X className="w-3 h-3" /></button>
+          </span>
+        )}
+        {(filterStatus || filterPrior || search || filterMes) && (
+          <button onClick={() => { setFilterStatus(''); setFilterPrior(''); setSearch(''); setFilterMes('') }}
             className="text-xs text-red-500 hover:text-red-700 flex items-center gap-1">
             <X className="w-3 h-3" /> Limpar
           </button>
@@ -470,13 +495,15 @@ export default function Solicitacoes() {
             {editingId === s.id ? (
               /* ── MODO EDIÇÃO ── */
               <div className="p-4 bg-blue-50 dark:bg-blue-900/20 space-y-3">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
                   <div>
-                    <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Solicitante</label>
+                    <div className="h-6 flex items-center mb-1">
+                      <label className="text-xs font-semibold text-blue-800 dark:text-blue-300">Solicitante</label>
+                    </div>
                     <input className={inp} value={editForm.solicitante} onChange={setEf('solicitante')} />
                   </div>
                   <div>
-                    <div className="flex items-center gap-1 mb-1">
+                    <div className="h-6 flex items-center gap-1 mb-1">
                       <label className="text-xs font-semibold text-blue-800 dark:text-blue-300">Veículo / Ativo</label>
                       <div className="ml-1 flex rounded overflow-hidden border border-gray-300 dark:border-gray-600 text-[10px]">
                         <button type="button"
@@ -504,13 +531,17 @@ export default function Solicitacoes() {
                     )}
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Prioridade</label>
+                    <div className="h-6 flex items-center mb-1">
+                      <label className="text-xs font-semibold text-blue-800 dark:text-blue-300">Prioridade</label>
+                    </div>
                     <select className={sel} value={editForm.prioridade} onChange={setEf('prioridade')}>
                       {PRIORIDADES.map(p => <option key={p}>{p}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Data da Solicitação</label>
+                    <div className="h-6 flex items-center mb-1">
+                      <label className="text-xs font-semibold text-blue-800 dark:text-blue-300">Data da Solicitação</label>
+                    </div>
                     <input type="date" className={inp} value={editForm.dt_solicitacao || ''} onChange={setEf('dt_solicitacao')} />
                   </div>
                 </div>

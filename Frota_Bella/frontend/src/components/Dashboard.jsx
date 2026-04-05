@@ -200,7 +200,7 @@ function VencimentosAlerta({ items }) {
 
 // ── Gráfico barras solicitações por mês ──────────────────────────────────────
 
-function BarChartSolicitacoes({ data }) {
+function BarChartSolicitacoes({ data, onBarClick }) {
   if (!data?.length) return null
   const max = Math.max(...data.map(d => d.total), 1)
   return (
@@ -224,12 +224,20 @@ function BarChartSolicitacoes({ data }) {
               {/* Barra total */}
               <div className="flex-1 flex flex-col justify-end items-center" style={{ height: '100%' }}>
                 {d.total > 0 && <span style={{ fontSize: 9, color: isCurrent ? '#7c3aed' : '#8b5cf6', fontWeight: 700, lineHeight: 1.2 }}>{d.total}</span>}
-                <div style={{ width: '100%', height: `${pT}%`, background: isCurrent ? '#7c3aed' : '#a78bfa', borderRadius: '2px 2px 0 0', opacity: 0.9 }} />
+                <div
+                  onClick={() => d.total > 0 && onBarClick?.(d.mes, '')}
+                  title={d.total > 0 ? `${d.total} solicitação(ões) — ${d.label}` : undefined}
+                  style={{ width: '100%', height: `${pT}%`, background: isCurrent ? '#7c3aed' : '#a78bfa', borderRadius: '2px 2px 0 0', opacity: 0.9, cursor: d.total > 0 ? 'pointer' : 'default' }}
+                />
               </div>
               {/* Barra finalizadas */}
               <div className="flex-1 flex flex-col justify-end items-center" style={{ height: '100%' }}>
                 {d.finalizadas > 0 && <span style={{ fontSize: 9, color: '#16a34a', fontWeight: 700, lineHeight: 1.2 }}>{d.finalizadas}</span>}
-                <div style={{ width: '100%', height: `${pF}%`, background: '#22c55e', borderRadius: '2px 2px 0 0', opacity: 0.9 }} />
+                <div
+                  onClick={() => d.finalizadas > 0 && onBarClick?.(d.mes, 'Finalizada')}
+                  title={d.finalizadas > 0 ? `${d.finalizadas} finalizada(s) — ${d.label}` : undefined}
+                  style={{ width: '100%', height: `${pF}%`, background: '#22c55e', borderRadius: '2px 2px 0 0', opacity: 0.9, cursor: d.finalizadas > 0 ? 'pointer' : 'default' }}
+                />
               </div>
             </div>
           )
@@ -565,6 +573,7 @@ export default function Dashboard() {
   const [statsLoading, setStatsLoading] = useState(false)
   const [sortCol, setSortCol] = useState('status')
   const [sortDir, setSortDir] = useState('desc')
+  const [frotaGrupo, setFrotaGrupo] = useState('Pesado') // 'Pesado' | 'Leve' | 'Todos'
   // Filtro de período
   const [periodoTipo, setPeriodoTipo] = useState('ano') // '12m' | 'ano' | 'trimestre' | 'mes'
   const [periodoAno, setPeriodoAno] = useState(hoje.getFullYear())
@@ -631,7 +640,8 @@ export default function Dashboard() {
 
   const solStats = buildSolStats(solicitacoes)
 
-  const sorted = sortFrota(frota, sortCol, sortDir)
+  const frotaFiltrada = frotaGrupo === 'Todos' ? frota : frota.filter(v => v.grupo === frotaGrupo)
+  const sorted = sortFrota(frotaFiltrada, sortCol, sortDir)
   const frotaPesada = frota.filter(v => v.grupo === 'Pesado')
   const emManutencao = frotaPesada.filter(v => v.em_manutencao).length
   const emOperacao = frotaPesada.filter(v => !v.em_manutencao).length
@@ -926,7 +936,7 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="flex-1 flex flex-col">
-                  <BarChartSolicitacoes data={solStats.meses} />
+                  <BarChartSolicitacoes data={solStats.meses} onBarClick={(mes, status) => navigate(`/solicitacoes?mes=${mes}&status=${encodeURIComponent(status)}`)} />
                 </div>
               </div>
 
@@ -967,22 +977,32 @@ export default function Dashboard() {
 
       {/* ── Tabela status da frota ── */}
       <div className="rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-        <div className="bg-gradient-to-r from-blue-700 to-blue-500 px-4 py-3 flex items-center justify-between">
-          <span className="flex items-center gap-2 text-white font-bold text-sm">
+        <div className="bg-gradient-to-r from-blue-700 to-blue-500 px-4 py-3 flex items-center justify-between gap-3">
+          <span className="flex items-center gap-2 text-white font-bold text-sm shrink-0">
             <Car className="w-5 h-5" /> Status da Frota
           </span>
-          <div className="flex items-center gap-3">
-            {frota.length > 0 && (
-              <div className="flex items-center gap-2">
-                <div className="w-20 rounded-full overflow-hidden h-1.5 bg-blue-900">
-                  <div className="h-full bg-green-400 transition-all duration-500"
-                    style={{ width: `${frotaPesada.length ? (emOperacao / frotaPesada.length) * 100 : 0}%` }} />
+          {/* Filtro Leve / Pesado */}
+          <div className="flex items-center gap-1">
+            {[['Pesado','Pesado'],['Leve','Leve'],['Todos','Todos']].map(([v, l]) => (
+              <button key={v} onClick={() => setFrotaGrupo(v)}
+                className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${frotaGrupo === v ? 'bg-white text-blue-700' : 'bg-blue-600/60 text-blue-100 hover:bg-blue-600'}`}>
+                {l}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-3 ml-auto">
+            {frotaFiltrada.length > 0 && (() => {
+              const emOp = frotaFiltrada.filter(v => !v.em_manutencao).length
+              const pct = Math.round((emOp / frotaFiltrada.length) * 100)
+              return (
+                <div className="flex items-center gap-2">
+                  <div className="w-20 rounded-full overflow-hidden h-1.5 bg-blue-900">
+                    <div className="h-full bg-green-400 transition-all duration-500" style={{ width: `${pct}%` }} />
+                  </div>
+                  <span className="text-xs font-bold text-green-300">{pct}% disponível</span>
                 </div>
-                <span className="text-xs font-bold text-green-300">
-                  {frotaPesada.length ? Math.round((emOperacao / frotaPesada.length) * 100) : 0}% disponível
-                </span>
-              </div>
-            )}
+              )
+            })()}
             <button onClick={fetchAll} className="text-blue-200 hover:text-white transition-colors" title="Atualizar">
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
