@@ -243,7 +243,7 @@ export default function Layout() {
               <Bell className="w-5 h-5 text-red-500" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">Atenção — Serviços Vencidos</p>
+              <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">Atenção — Vencimentos</p>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                 {toast.vencido > 0 && <span className="text-red-500 font-medium">{toast.vencido} vencido{toast.vencido > 1 ? 's' : ''}</span>}
                 {toast.vencido > 0 && toast.proximo > 0 && ' · '}

@@ -62,9 +62,21 @@ class Motorista(Base):
     id = Column(Integer, primary_key=True, index=True)
     codigo = Column(String(50), unique=True, nullable=False, index=True)
     nome = Column(String(200), nullable=False)
+    cpf = Column(String(20), nullable=True)
+    nr_registro_cnh = Column(String(30), nullable=True)
+    validade_cnh = Column(String(10), nullable=True)
+    categoria_cnh = Column(String(10), nullable=True)
+    telefone = Column(String(30), nullable=True)
+    email = Column(String(200), nullable=True)
+    cidade_emissao_cnh = Column(String(100), nullable=True)
+    dt_exame_toxicologico = Column(String(10), nullable=True)
+    tipo = Column(String(50), nullable=True)
+    dt_nascimento = Column(String(10), nullable=True)
+    ativo = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     manutencoes = relationship("Manutencao", back_populates="motorista")
+    arquivos = relationship("ArquivoMotorista", back_populates="motorista", cascade="all, delete-orphan")
 
 
 class Ativo(Base):
@@ -207,6 +219,7 @@ class Solicitacao(Base):
     ativo_id = Column(Integer, ForeignKey("ativos.id"), nullable=True)
     manutencao_id = Column(Integer, ForeignKey("manutencoes.id"), nullable=True)
     solicitante = Column(String(200), nullable=False)
+    parte_veiculo = Column(String(200), nullable=True)
     descricao = Column(Text, nullable=False)
     prioridade = Column(String(20), nullable=False, default="Média")
     status = Column(String(30), nullable=False, default="Aberta")
@@ -218,6 +231,19 @@ class Solicitacao(Base):
     veiculo = relationship("Veiculo")
     ativo = relationship("Ativo")
     manutencao = relationship("Manutencao", foreign_keys=[manutencao_id])
+
+
+class ArquivoMotorista(Base):
+    __tablename__ = "arquivos_motorista"
+
+    id = Column(Integer, primary_key=True, index=True)
+    motorista_id = Column(Integer, ForeignKey("motoristas.id"), nullable=False)
+    nome_arquivo = Column(String(300), nullable=False)
+    caminho = Column(String(500), nullable=False)
+    descricao = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    motorista = relationship("Motorista", back_populates="arquivos")
 
 
 class ArquivoManutencao(Base):

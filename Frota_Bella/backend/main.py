@@ -44,6 +44,17 @@ _add_column_if_missing(engine, "veiculos", ("ultimo_km_data", "DATETIME"))
 _add_column_if_missing(engine, "veiculos", ("capacidade", "VARCHAR(100)"))
 _add_column_if_missing(engine, "veiculos", ("vinculo", "VARCHAR(50)"))
 _add_column_if_missing(engine, "veiculos", ("motorista_id", "INTEGER REFERENCES motoristas(id)"))
+_add_column_if_missing(engine, "motoristas", ("cpf", "VARCHAR(20)"))
+_add_column_if_missing(engine, "motoristas", ("nr_registro_cnh", "VARCHAR(30)"))
+_add_column_if_missing(engine, "motoristas", ("validade_cnh", "VARCHAR(10)"))
+_add_column_if_missing(engine, "motoristas", ("categoria_cnh", "VARCHAR(10)"))
+_add_column_if_missing(engine, "motoristas", ("telefone", "VARCHAR(30)"))
+_add_column_if_missing(engine, "motoristas", ("cidade_emissao_cnh", "VARCHAR(100)"))
+_add_column_if_missing(engine, "motoristas", ("dt_exame_toxicologico", "VARCHAR(10)"))
+_add_column_if_missing(engine, "motoristas", ("tipo", "VARCHAR(50)"))
+_add_column_if_missing(engine, "motoristas", ("dt_nascimento", "VARCHAR(10)"))
+_add_column_if_missing(engine, "motoristas", ("ativo", "BOOLEAN DEFAULT 1"))
+_add_column_if_missing(engine, "motoristas", ("email", "VARCHAR(200)"))
 
 # Cria tabela oficinas_prestadores se não existir (nova funcionalidade)
 try:
@@ -91,6 +102,7 @@ except Exception as _e:
     print(f"[migration] ativos: {_e}")
 
 _add_column_if_missing(engine, "solicitacoes", ("ativo_id", "INTEGER REFERENCES ativos(id)"))
+_add_column_if_missing(engine, "solicitacoes", ("parte_veiculo", "VARCHAR(200)"))
 
 app = FastAPI(title="Frota Bello API", version="1.0.0")
 
@@ -848,6 +860,8 @@ def list_vencimentos(db: Session = Depends(get_db)):
         )
         overall_label = ["Vencido", "Próximo", "Ok", None][overall]
         result.append({
+            "row_key": f"sv_{sv.id}",
+            "tipo_vencimento": "Serviço",
             "servico_id": sv.id,
             "manutencao_id": m.id,
             "veiculo_id": v.id,
@@ -863,7 +877,56 @@ def list_vencimentos(db: Session = Depends(get_db)):
             "status_km": status_km,
             "status_dt": status_dt,
             "status": overall_label,
+            "motorista_id": None,
+            "motorista_nome": None,
+            "motorista_codigo": None,
         })
+
+    # ── CNH e Exame Toxicológico dos motoristas ────────────────────────────────
+    DIAS_NOTIF_MOTORISTA = 30
+    from datetime import date as _d
+    motoristas_all = db.query(models.Motorista).filter(models.Motorista.ativo != False).all()
+    for mot in motoristas_all:
+        for tipo_venc, campo, label in [
+            ("CNH", mot.validade_cnh, "Validade CNH"),
+            ("Toxicológico", mot.dt_exame_toxicologico, "Exame Toxicológico"),
+        ]:
+            if not campo:
+                continue
+            try:
+                dt_campo = _d.fromisoformat(campo)
+            except Exception:
+                continue
+            dias = (dt_campo - today).days
+            if dias < 0:
+                status = "Vencido"
+            elif dias <= DIAS_NOTIF_MOTORISTA:
+                status = "Próximo"
+            else:
+                status = "Ok"
+            result.append({
+                "row_key": f"{tipo_venc.lower()}_{mot.id}",
+                "tipo_vencimento": tipo_venc,
+                "servico_id": None,
+                "manutencao_id": None,
+                "veiculo_id": None,
+                "veiculo_placa": None,
+                "veiculo_descricao": None,
+                "ultimo_km": None,
+                "servico": label,
+                "parte_veiculo": None,
+                "proximo_km_validade": None,
+                "proxima_dt_validade": dt_campo.isoformat(),
+                "km_restante": None,
+                "dt_restante_dias": dias,
+                "status_km": None,
+                "status_dt": status,
+                "status": status,
+                "motorista_id": mot.id,
+                "motorista_nome": mot.nome,
+                "motorista_codigo": mot.codigo,
+            })
+
     result.sort(key=lambda x: STATUS_ORDER.get(x["status"] or '', 3))
     return result
 
@@ -872,7 +935,8 @@ def list_vencimentos(db: Session = Depends(get_db)):
 
 @app.get("/api/motoristas", response_model=list[schemas.MotoristaOut])
 def list_motoristas(search: Optional[str] = None, db: Session = Depends(get_db)):
-    query = db.query(models.Motorista)
+    from sqlalchemy.orm import joinedload as jl2
+    query = db.query(models.Motorista).options(jl2(models.Motorista.arquivos))
     if search:
         query = query.filter(
             or_(
@@ -880,15 +944,34 @@ def list_motoristas(search: Optional[str] = None, db: Session = Depends(get_db))
                 models.Motorista.nome.ilike(f"%{search}%"),
             )
         )
-    return query.order_by(models.Motorista.nome).all()
+    motoristas = query.order_by(models.Motorista.nome).all()
+    result = []
+    for m in motoristas:
+        d = schemas.MotoristaOut.model_validate(m)
+        d.arquivos_count = len(m.arquivos)
+        result.append(d)
+    return result
 
 
 @app.post("/api/motoristas", response_model=schemas.MotoristaOut, status_code=201)
 def create_motorista(data: schemas.MotoristaCreate, db: Session = Depends(get_db)):
-    existing = db.query(models.Motorista).filter(models.Motorista.codigo == data.codigo).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="Código de motorista já cadastrado")
-    motorista = models.Motorista(**data.model_dump())
+    # Auto-gera código se não informado
+    codigo = data.codigo
+    if not codigo:
+        last = db.query(models.Motorista).order_by(models.Motorista.id.desc()).first()
+        next_num = (last.id + 1) if last else 1
+        codigo = f"MOT{next_num:03d}"
+        # Garante unicidade
+        while db.query(models.Motorista).filter(models.Motorista.codigo == codigo).first():
+            next_num += 1
+            codigo = f"MOT{next_num:03d}"
+    else:
+        existing = db.query(models.Motorista).filter(models.Motorista.codigo == codigo).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Código de motorista já cadastrado")
+    payload = data.model_dump()
+    payload['codigo'] = codigo
+    motorista = models.Motorista(**payload)
     db.add(motorista)
     db.commit()
     db.refresh(motorista)
@@ -917,6 +1000,50 @@ def delete_motorista(motorista_id: int, db: Session = Depends(get_db)):
     if not motorista:
         raise HTTPException(status_code=404, detail="Motorista não encontrado")
     db.delete(motorista)
+    db.commit()
+
+
+@app.get("/api/motoristas/{motorista_id}/arquivos")
+def list_arquivos_motorista(motorista_id: int, db: Session = Depends(get_db)):
+    return db.query(models.ArquivoMotorista).filter(models.ArquivoMotorista.motorista_id == motorista_id).order_by(models.ArquivoMotorista.created_at.desc()).all()
+
+
+@app.post("/api/motoristas/{motorista_id}/arquivos", status_code=201)
+async def upload_arquivo_motorista(
+    motorista_id: int,
+    file: UploadFile = File(...),
+    descricao: Optional[str] = Form(None),
+    db: Session = Depends(get_db),
+):
+    mot = db.query(models.Motorista).filter(models.Motorista.id == motorista_id).first()
+    if not mot:
+        raise HTTPException(status_code=404, detail="Motorista não encontrado")
+    timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S%f")
+    safe_name = f"{timestamp}_{file.filename}"
+    file_path = UPLOAD_DIR / safe_name
+    with open(file_path, "wb") as f:
+        shutil.copyfileobj(file.file, f)
+    arquivo = models.ArquivoMotorista(
+        motorista_id=motorista_id,
+        nome_arquivo=file.filename,
+        caminho=safe_name,
+        descricao=descricao,
+    )
+    db.add(arquivo)
+    db.commit()
+    db.refresh(arquivo)
+    return arquivo
+
+
+@app.delete("/api/motoristas/arquivos/{arquivo_id}", status_code=204)
+def delete_arquivo_motorista(arquivo_id: int, db: Session = Depends(get_db)):
+    arq = db.query(models.ArquivoMotorista).filter(models.ArquivoMotorista.id == arquivo_id).first()
+    if not arq:
+        raise HTTPException(status_code=404, detail="Arquivo não encontrado")
+    file_path = UPLOAD_DIR / arq.caminho
+    if file_path.exists():
+        file_path.unlink()
+    db.delete(arq)
     db.commit()
 
 

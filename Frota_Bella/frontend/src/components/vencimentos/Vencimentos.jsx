@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import axios from 'axios'
 import {
   Bell, RefreshCw, Car, Wrench, AlertTriangle, CheckCircle, Clock,
-  ArrowUp, ArrowDown, ArrowUpDown, Search, X,
+  ArrowUp, ArrowDown, ArrowUpDown, Search, X, Users,
 } from 'lucide-react'
 
 const API = 'http://localhost:8000/api'
@@ -79,7 +79,8 @@ export default function Vencimentos() {
     .filter(i => !search ||
       (i.veiculo_placa || '').toLowerCase().includes(search.toLowerCase()) ||
       (i.servico || '').toLowerCase().includes(search.toLowerCase()) ||
-      (i.parte_veiculo || '').toLowerCase().includes(search.toLowerCase())
+      (i.parte_veiculo || '').toLowerCase().includes(search.toLowerCase()) ||
+      (i.motorista_nome || '').toLowerCase().includes(search.toLowerCase())
     )
 
   const sorted = sortField
@@ -172,7 +173,8 @@ export default function Vencimentos() {
             <tr className="bg-blue-50 dark:bg-blue-900/20 border-b border-blue-100 dark:border-blue-800/40">
               {[
                 ['status', 'Status'],
-                ['veiculo_placa', 'Veículo'],
+                ['tipo_vencimento', 'Tipo'],
+                ['veiculo_placa', 'Veículo / Motorista'],
                 ['ultimo_km', 'KM Atual'],
                 ['parte_veiculo', 'Parte Veículo'],
                 ['servico', 'Serviço'],
@@ -191,23 +193,45 @@ export default function Vencimentos() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={10} className="text-center py-10 text-gray-400">
+              <tr><td colSpan={11} className="text-center py-10 text-gray-400">
                 <RefreshCw className="w-5 h-5 animate-spin inline mr-2" />Carregando...
               </td></tr>
             ) : sorted.length === 0 ? (
-              <tr><td colSpan={10} className="text-center py-10 text-gray-400">
+              <tr><td colSpan={11} className="text-center py-10 text-gray-400">
                 Nenhum vencimento encontrado.
               </td></tr>
             ) : sorted.map((item, idx) => {
               const rowBg = item.status === 'Vencido' ? 'bg-red-50 dark:bg-red-900/20' : item.status === 'Próximo' ? 'bg-orange-50 dark:bg-orange-900/20' : idx % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-700/50'
+              const isMotorista = item.tipo_vencimento === 'CNH' || item.tipo_vencimento === 'Toxicológico'
+              const tipoCfg = {
+                'Serviço':      'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+                'CNH':          'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300',
+                'Toxicológico': 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300',
+              }
               return (
-                <tr key={item.servico_id} className={`border-b border-gray-100 dark:border-gray-700 hover:brightness-95 transition-all ${rowBg}`}>
+                <tr key={item.row_key || item.servico_id} className={`border-b border-gray-100 dark:border-gray-700 hover:brightness-95 transition-all ${rowBg}`}>
                   <td className="px-3 py-2"><StatusBadge status={item.status} /></td>
                   <td className="px-3 py-2">
-                    <div className="flex items-center gap-1 font-medium text-blue-700 dark:text-blue-400">
-                      <Car className="w-3 h-3" />{item.veiculo_placa}
-                    </div>
-                    {item.veiculo_descricao && <div className="text-gray-400 dark:text-gray-500 text-[10px]">{item.veiculo_descricao}</div>}
+                    <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${tipoCfg[item.tipo_vencimento] || tipoCfg['Serviço']}`}>
+                      {item.tipo_vencimento || 'Serviço'}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2">
+                    {isMotorista ? (
+                      <div>
+                        <div className="flex items-center gap-1 font-medium text-purple-700 dark:text-purple-400">
+                          <Users className="w-3 h-3" />{item.motorista_nome}
+                        </div>
+                        {item.motorista_codigo && <div className="text-gray-400 dark:text-gray-500 text-[10px]">{item.motorista_codigo}</div>}
+                      </div>
+                    ) : (
+                      <div>
+                        <div className="flex items-center gap-1 font-medium text-blue-700 dark:text-blue-400">
+                          <Car className="w-3 h-3" />{item.veiculo_placa}
+                        </div>
+                        {item.veiculo_descricao && <div className="text-gray-400 dark:text-gray-500 text-[10px]">{item.veiculo_descricao}</div>}
+                      </div>
+                    )}
                   </td>
                   <td className="px-3 py-2 tabular-nums">{fmtKm(item.ultimo_km)}</td>
                   <td className="px-3 py-2">{item.parte_veiculo || '-'}</td>
@@ -229,10 +253,17 @@ export default function Vencimentos() {
                     ) : '-'}
                   </td>
                   <td className="px-3 py-2">
-                    <Link to={`/manutencoes/${item.manutencao_id}/editar`}
-                      className="flex items-center gap-1 text-blue-600 hover:text-blue-800 font-medium">
-                      <Wrench className="w-3 h-3" />#{item.manutencao_id}
-                    </Link>
+                    {item.manutencao_id ? (
+                      <Link to={`/manutencoes/${item.manutencao_id}/editar`}
+                        className="flex items-center gap-1 text-blue-600 hover:text-blue-800 font-medium">
+                        <Wrench className="w-3 h-3" />#{item.manutencao_id}
+                      </Link>
+                    ) : isMotorista ? (
+                      <Link to="/motoristas"
+                        className="flex items-center gap-1 text-purple-600 hover:text-purple-800 font-medium">
+                        <Users className="w-3 h-3" />Ver
+                      </Link>
+                    ) : '-'}
                   </td>
                 </tr>
               )

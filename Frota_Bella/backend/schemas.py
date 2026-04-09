@@ -174,8 +174,19 @@ class VeiculoOut(VeiculoBase):
 # ── Motorista ─────────────────────────────────────────────────────────────────
 
 class MotoristaBase(BaseModel):
-    codigo: str
+    codigo: Optional[str] = None
     nome: str
+    cpf: Optional[str] = None
+    nr_registro_cnh: Optional[str] = None
+    validade_cnh: Optional[str] = None
+    categoria_cnh: Optional[str] = None
+    telefone: Optional[str] = None
+    email: Optional[str] = None
+    cidade_emissao_cnh: Optional[str] = None
+    dt_exame_toxicologico: Optional[str] = None
+    tipo: Optional[str] = None
+    dt_nascimento: Optional[str] = None
+    ativo: Optional[bool] = True
 
 
 class MotoristaCreate(MotoristaBase):
@@ -185,11 +196,23 @@ class MotoristaCreate(MotoristaBase):
 class MotoristaUpdate(BaseModel):
     codigo: Optional[str] = None
     nome: Optional[str] = None
+    cpf: Optional[str] = None
+    nr_registro_cnh: Optional[str] = None
+    validade_cnh: Optional[str] = None
+    categoria_cnh: Optional[str] = None
+    telefone: Optional[str] = None
+    email: Optional[str] = None
+    cidade_emissao_cnh: Optional[str] = None
+    dt_exame_toxicologico: Optional[str] = None
+    tipo: Optional[str] = None
+    dt_nascimento: Optional[str] = None
+    ativo: Optional[bool] = True
 
 
 class MotoristaOut(MotoristaBase):
     id: int
     created_at: datetime
+    arquivos_count: Optional[int] = 0
 
     class Config:
         from_attributes = True
@@ -331,6 +354,7 @@ class SolicitacaoCreate(BaseModel):
     veiculo_id: Optional[int] = None
     ativo_id: Optional[int] = None
     solicitante: str
+    parte_veiculo: Optional[str] = None
     descricao: str
     prioridade: str = "Média"
     status: str = "Aberta"
@@ -343,6 +367,7 @@ class SolicitacaoUpdate(BaseModel):
     ativo_id: Optional[int] = None
     manutencao_id: Optional[int] = None
     solicitante: Optional[str] = None
+    parte_veiculo: Optional[str] = None
     descricao: Optional[str] = None
     prioridade: Optional[str] = None
     status: Optional[str] = None
