@@ -226,6 +226,8 @@ class Solicitacao(Base):
     status = Column(String(30), nullable=False, default="Aberta")
     observacao = Column(Text, nullable=True)
     imagens = Column(Text, nullable=True)  # JSON array of base64 data URLs
+    acao = Column(Text, nullable=True)
+    prazo_acao = Column(String(10), nullable=True)
     dt_solicitacao = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -272,3 +274,14 @@ class ArquivoManutencao(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     manutencao = relationship("Manutencao", back_populates="arquivos")
+
+
+class AcaoVencimento(Base):
+    __tablename__ = "acoes_vencimento"
+
+    id = Column(Integer, primary_key=True, index=True)
+    row_key = Column(String(100), unique=True, nullable=False, index=True)
+    acao = Column(Text, nullable=True)
+    prazo = Column(String(10), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

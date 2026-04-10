@@ -360,15 +360,14 @@ export default function ListagemMotoristas() {
   const fetchMotoristas = useCallback(async () => {
     setLoading(true)
     try {
-      const params = search ? { search } : {}
-      const res = await axios.get(`${API}/motoristas`, { params })
+      const res = await axios.get(`${API}/motoristas`)
       setMotoristas(res.data)
     } catch (err) {
       console.error(err)
     } finally {
       setLoading(false)
     }
-  }, [search])
+  }, [])
 
   useEffect(() => { fetchMotoristas() }, [fetchMotoristas])
 
@@ -391,14 +390,23 @@ export default function ListagemMotoristas() {
     fetchMotoristas()
   }
 
+  const filtered = search
+    ? motoristas.filter(m => {
+        const q = search.toLowerCase()
+        return (m.nome || '').toLowerCase().includes(q) ||
+               (m.tipo || '').toLowerCase().includes(q) ||
+               (m.cpf || '').includes(q)
+      })
+    : motoristas
+
   const sorted = sortField
-    ? [...motoristas].sort((a, b) => {
+    ? [...filtered].sort((a, b) => {
         const va = a[sortField] ?? ''; const vb = b[sortField] ?? ''
         return sortDir === 'asc'
           ? String(va).localeCompare(String(vb), 'pt-BR', { numeric: true })
           : String(vb).localeCompare(String(va), 'pt-BR', { numeric: true })
       })
-    : motoristas
+    : filtered
 
   const cols = [
     ['nome', 'Nome'], ['ativo', 'Status'], ['tipo', 'Tipo'], ['cpf', 'CPF'], ['dt_nascimento', 'Idade'],
@@ -488,7 +496,7 @@ export default function ListagemMotoristas() {
       </div>
 
       <div className="bg-white dark:bg-gray-800 rounded shadow-sm border border-gray-200 dark:border-gray-700">
-        <div className="section-header">Motoristas Cadastrados ({motoristas.length})</div>
+        <div className="section-header">Motoristas Cadastrados ({filtered.length}{search ? ` de ${motoristas.length}` : ''})</div>
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>

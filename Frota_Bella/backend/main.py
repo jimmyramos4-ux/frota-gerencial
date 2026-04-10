@@ -103,6 +103,8 @@ except Exception as _e:
 
 _add_column_if_missing(engine, "solicitacoes", ("ativo_id", "INTEGER REFERENCES ativos(id)"))
 _add_column_if_missing(engine, "solicitacoes", ("parte_veiculo", "VARCHAR(200)"))
+_add_column_if_missing(engine, "solicitacoes", ("acao", "TEXT"))
+_add_column_if_missing(engine, "solicitacoes", ("prazo_acao", "VARCHAR(10)"))
 
 app = FastAPI(title="Frota Bello API", version="1.0.0")
 
@@ -937,8 +939,34 @@ def list_vencimentos(db: Session = Depends(get_db)):
                 "motorista_codigo": mot.codigo,
             })
 
+    # Enriquecer com ações cadastradas
+    keys = [r["row_key"] for r in result]
+    acoes = {a.row_key: a for a in db.query(models.AcaoVencimento).filter(models.AcaoVencimento.row_key.in_(keys)).all()}
+    for r in result:
+        a = acoes.get(r["row_key"])
+        r["acao"] = a.acao if a else None
+        r["prazo_acao"] = a.prazo if a else None
+
     result.sort(key=lambda x: STATUS_ORDER.get(x["status"] or '', 3))
     return result
+
+
+# ── Ações Vencimento ──────────────────────────────────────────────────────────
+
+@app.put("/api/acoes-vencimento/{row_key:path}", status_code=200)
+def upsert_acao_vencimento(row_key: str, data: dict, db: Session = Depends(get_db)):
+    from datetime import datetime as _dt
+    acao = db.query(models.AcaoVencimento).filter(models.AcaoVencimento.row_key == row_key).first()
+    if acao:
+        acao.acao = data.get("acao")
+        acao.prazo = data.get("prazo")
+        acao.updated_at = _dt.utcnow()
+    else:
+        acao = models.AcaoVencimento(row_key=row_key, acao=data.get("acao"), prazo=data.get("prazo"))
+        db.add(acao)
+    db.commit()
+    db.refresh(acao)
+    return acao
 
 
 # ── Arquivos Veiculo ─────────────────────────────────────────────────────────

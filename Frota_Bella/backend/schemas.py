@@ -375,6 +375,8 @@ class SolicitacaoCreate(BaseModel):
     status: str = "Aberta"
     observacao: Optional[str] = None
     imagens: Optional[str] = None
+    acao: Optional[str] = None
+    prazo_acao: Optional[str] = None
     dt_solicitacao: Optional[datetime] = None
 
 class SolicitacaoUpdate(BaseModel):
@@ -388,6 +390,8 @@ class SolicitacaoUpdate(BaseModel):
     status: Optional[str] = None
     observacao: Optional[str] = None
     imagens: Optional[str] = None
+    acao: Optional[str] = None
+    prazo_acao: Optional[str] = None
 
 class SolicitacaoOut(SolicitacaoCreate):
     id: int

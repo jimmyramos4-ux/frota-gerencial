@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import axios from 'axios'
 import {
   Bell, RefreshCw, Car, Wrench, AlertTriangle, CheckCircle, Clock,
-  ArrowUp, ArrowDown, ArrowUpDown, Search, X, Users,
+  ArrowUp, ArrowDown, ArrowUpDown, Search, X, Users, Plus, Pencil, Save, Loader2, CalendarClock,
 } from 'lucide-react'
 
 const API = 'http://localhost:8000/api'
@@ -11,6 +11,75 @@ const API = 'http://localhost:8000/api'
 function SortIcon({ field, sortField, sortDir }) {
   if (sortField !== field) return <ArrowUpDown className="w-3 h-3 opacity-30" />
   return sortDir === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+}
+
+function AcaoModal({ item, onClose, onSaved }) {
+  const [acao, setAcao] = useState(item.acao || '')
+  const [prazo, setPrazo] = useState(item.prazo_acao || '')
+  const [saving, setSaving] = useState(false)
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      await axios.put(`${API}/acoes-vencimento/${encodeURIComponent(item.row_key)}`, { acao, prazo: prazo || null })
+      onSaved(item.row_key, acao, prazo || null)
+      onClose()
+    } catch { alert('Erro ao salvar ação') }
+    finally { setSaving(false) }
+  }
+
+  const titulo = item.tipo_vencimento === 'CNH' || item.tipo_vencimento === 'Toxicológico'
+    ? item.motorista_nome
+    : item.veiculo_placa
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="bg-white dark:bg-gray-800 rounded shadow-xl w-full max-w-md mx-4">
+        <div className="flex items-center justify-between bg-blue-700 text-white px-4 py-2 rounded-t">
+          <div className="flex items-center gap-2">
+            <CalendarClock className="w-4 h-4" />
+            <span className="font-semibold text-sm">Registrar Ação — {titulo}</span>
+          </div>
+          <button onClick={onClose} className="hover:text-blue-200"><X className="w-4 h-4" /></button>
+        </div>
+        <div className="p-5 space-y-4">
+          <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 rounded px-3 py-2">
+            <span className="font-medium">{item.tipo_vencimento}</span>
+            <span>·</span>
+            <span>{item.servico}</span>
+            {item.proxima_dt_validade && <><span>·</span><span>Vence {fmtDate(item.proxima_dt_validade)}</span></>}
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Ação a ser tomada</label>
+            <textarea
+              className="border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-xs w-full focus:outline-none focus:border-blue-400 bg-white dark:bg-gray-700 dark:text-gray-100 resize-none"
+              rows={3}
+              placeholder="Descreva a ação necessária..."
+              value={acao}
+              onChange={e => setAcao(e.target.value)}
+              autoFocus
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Prazo</label>
+            <input
+              type="date"
+              className="border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-xs w-full focus:outline-none focus:border-blue-400 bg-white dark:bg-gray-700 dark:text-gray-100"
+              value={prazo}
+              onChange={e => setPrazo(e.target.value)}
+            />
+          </div>
+          <div className="flex gap-2 justify-end pt-1 border-t border-gray-100 dark:border-gray-700">
+            <button onClick={onClose} className="btn-secondary btn-sm px-4 py-1.5">Cancelar</button>
+            <button onClick={handleSave} disabled={saving} className="btn-primary btn-sm px-4 py-1.5 flex items-center gap-1.5">
+              {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+              {saving ? 'Salvando...' : 'Confirmar'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 const statusConfig = {
@@ -47,6 +116,7 @@ export default function Vencimentos() {
   const [filterStatus, setFilterStatus] = useState(new Set())
   const [sortField, setSortField] = useState('status')
   const [sortDir, setSortDir] = useState('asc')
+  const [acaoModal, setAcaoModal] = useState(null)
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -62,6 +132,10 @@ export default function Vencimentos() {
   const handleSort = (field) => {
     if (sortField === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
     else { setSortField(field); setSortDir('asc') }
+  }
+
+  const handleAcaoSaved = (rowKey, acao, prazo) => {
+    setItems(prev => prev.map(i => i.row_key === rowKey ? { ...i, acao, prazo_acao: prazo } : i))
   }
 
   const toggleStatus = (status) => {
@@ -99,9 +173,9 @@ export default function Vencimentos() {
     : filtered
 
   const counts = {
-    total: items.length,
-    vencidos: items.filter(i => i.status === 'Vencido').length,
-    proximos: items.filter(i => i.status === 'Próximo').length,
+    total: sorted.length,
+    vencidos: sorted.filter(i => i.status === 'Vencido').length,
+    proximos: sorted.filter(i => i.status === 'Próximo').length,
   }
 
   return (
@@ -111,8 +185,8 @@ export default function Vencimentos() {
         <div className="flex items-center gap-3">
           <Bell className="w-6 h-6 text-blue-200" />
           <div>
-            <h1 className="text-white font-bold text-base leading-tight">Vencimentos de Serviços</h1>
-            <p className="text-blue-200 text-xs">Monitore os próximos vencimentos por KM e data</p>
+            <h1 className="text-white font-bold text-base leading-tight">Vencimentos</h1>
+            <p className="text-blue-200 text-xs">Serviços de veículos · CNH · Exame Toxicológico</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -265,12 +339,43 @@ export default function Vencimentos() {
                       </Link>
                     ) : '-'}
                   </td>
+                  {/* Ação */}
+                  <td className="px-3 py-2 min-w-[160px]">
+                    {item.acao ? (
+                      <button onClick={() => setAcaoModal(item)} className="group text-left w-full">
+                        <div className="text-xs text-gray-700 dark:text-gray-200 line-clamp-2 leading-snug">{item.acao}</div>
+                        {item.prazo_acao && (() => {
+                          const dias = Math.floor((new Date(item.prazo_acao) - new Date()) / 86400000)
+                          return (
+                            <div className={`text-[10px] font-semibold mt-0.5 flex items-center gap-1 ${dias < 0 ? 'text-red-500' : dias <= 7 ? 'text-orange-500' : 'text-green-600'}`}>
+                              <CalendarClock className="w-3 h-3" />
+                              {dias < 0 ? `${Math.abs(dias)}d vencido` : `Prazo: ${fmtDate(item.prazo_acao)}`}
+                            </div>
+                          )
+                        })()}
+                        <Pencil className="w-3 h-3 text-gray-400 opacity-0 group-hover:opacity-100 mt-0.5" />
+                      </button>
+                    ) : (
+                      <button onClick={() => setAcaoModal(item)}
+                        className="flex items-center gap-1 text-gray-400 hover:text-blue-500 transition-colors text-xs">
+                        <Plus className="w-3.5 h-3.5" /> Registrar
+                      </button>
+                    )}
+                  </td>
                 </tr>
               )
             })}
           </tbody>
         </table>
       </div>
+
+      {acaoModal && (
+        <AcaoModal
+          item={acaoModal}
+          onClose={() => setAcaoModal(null)}
+          onSaved={handleAcaoSaved}
+        />
+      )}
     </div>
   )
 }

@@ -4,7 +4,7 @@ import axios from 'axios'
 import {
   ClipboardList, Plus, Trash2, Pencil, Check, X,
   AlertTriangle, ChevronDown, Search, Car, Package, Wrench, ImagePlus, Paperclip, ChevronLeft, ChevronRight,
-  ArrowUp, ArrowDown, ArrowUpDown, FileSpreadsheet, FileText,
+  ArrowUp, ArrowDown, ArrowUpDown, FileSpreadsheet, FileText, CalendarClock, Save, Loader2,
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import jsPDF from 'jspdf'
@@ -59,6 +59,72 @@ function fmtDate(dt) {
   return new Date(dt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
+function fmtDateBR(dt) {
+  if (!dt) return ''
+  return new Date(dt + 'T00:00:00').toLocaleDateString('pt-BR')
+}
+
+function AcaoModal({ sol, onClose, onSaved }) {
+  const [acao, setAcao] = useState(sol.acao || '')
+  const [prazo, setPrazo] = useState(sol.prazo_acao || '')
+  const [saving, setSaving] = useState(false)
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      const r = await axios.put(`${API}/solicitacoes/${sol.id}`, { acao, prazo_acao: prazo || null })
+      onSaved(r.data)
+      onClose()
+    } catch { alert('Erro ao salvar ação') }
+    finally { setSaving(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="bg-white dark:bg-gray-800 rounded shadow-xl w-full max-w-md mx-4">
+        <div className="flex items-center justify-between bg-blue-700 text-white px-4 py-2 rounded-t">
+          <div className="flex items-center gap-2">
+            <CalendarClock className="w-4 h-4" />
+            <span className="font-semibold text-sm">Registrar Ação — #{sol.id}</span>
+          </div>
+          <button onClick={onClose} className="hover:text-blue-200"><X className="w-4 h-4" /></button>
+        </div>
+        <div className="p-5 space-y-4">
+          <div className="text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 rounded px-3 py-2 flex gap-2 flex-wrap">
+            <span className="font-medium text-gray-700 dark:text-gray-200">{sol.veiculo?.placa || sol.ativo?.nome}</span>
+            <span>·</span>
+            <span>{sol.descricao}</span>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Ação a ser tomada</label>
+            <textarea
+              className="border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-xs w-full focus:outline-none focus:border-blue-400 bg-white dark:bg-gray-700 dark:text-gray-100 resize-none"
+              rows={3}
+              placeholder="Descreva a ação necessária..."
+              value={acao}
+              onChange={e => setAcao(e.target.value)}
+              autoFocus
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Prazo</label>
+            <input type="date"
+              className="border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-xs w-full focus:outline-none focus:border-blue-400 bg-white dark:bg-gray-700 dark:text-gray-100"
+              value={prazo} onChange={e => setPrazo(e.target.value)} />
+          </div>
+          <div className="flex gap-2 justify-end pt-1 border-t border-gray-100 dark:border-gray-700">
+            <button onClick={onClose} className="btn-secondary btn-sm px-4 py-1.5">Cancelar</button>
+            <button onClick={handleSave} disabled={saving} className="btn-primary btn-sm px-4 py-1.5 flex items-center gap-1.5">
+              {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+              {saving ? 'Salvando...' : 'Confirmar'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function Solicitacoes() {
   const [items, setItems] = useState([])
   const [veiculos, setVeiculos] = useState([])
@@ -85,6 +151,7 @@ export default function Solicitacoes() {
   const [lightbox, setLightbox] = useState(null) // { images: [], idx: 0 }
   const [sortField, setSortField] = useState('')
   const [sortDir, setSortDir] = useState('asc')
+  const [acaoModal, setAcaoModal] = useState(null)
 
   const handleSort = (field) => {
     if (sortField === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
@@ -175,6 +242,10 @@ export default function Solicitacoes() {
       await axios.delete(`${API}/solicitacoes/${id}`)
       setItems(prev => prev.filter(x => x.id !== id))
     } catch { setError('Erro ao excluir') }
+  }
+
+  const handleAcaoSaved = (updated) => {
+    setItems(prev => prev.map(i => i.id === updated.id ? { ...i, acao: updated.acao, prazo_acao: updated.prazo_acao } : i))
   }
 
   const handleStatusChange = async (id, newStatus) => {
@@ -545,6 +616,7 @@ export default function Solicitacoes() {
           <span className="w-24 flex-shrink-0 cursor-pointer hover:text-blue-600" onClick={() => handleSort('status')}><span className="flex items-center gap-0.5">Status <SortIcon field="status" sortField={sortField} sortDir={sortDir} /></span></span>
           <span className="w-24 flex-shrink-0">Manutenção</span>
           <span className="w-10 flex-shrink-0 text-center">Anexo</span>
+          <span className="w-40 flex-shrink-0">Ação / Prazo</span>
           <span className="w-16 flex-shrink-0 text-center">Ações</span>
         </div>
 
@@ -724,6 +796,29 @@ export default function Solicitacoes() {
                     </button>
                   ) : <span className="text-gray-300 text-xs">—</span>}
                 </div>
+                {/* Ação / Prazo */}
+                <div className="w-40 flex-shrink-0">
+                  {s.acao ? (
+                    <button onClick={() => setAcaoModal(s)} className="group text-left w-full">
+                      <div className="text-xs text-gray-700 dark:text-gray-200 line-clamp-2 leading-snug">{s.acao}</div>
+                      {s.prazo_acao && (() => {
+                        const dias = Math.floor((new Date(s.prazo_acao) - new Date()) / 86400000)
+                        return (
+                          <div className={`text-[10px] font-semibold mt-0.5 flex items-center gap-1 ${dias < 0 ? 'text-red-500' : dias <= 7 ? 'text-orange-500' : 'text-green-600'}`}>
+                            <CalendarClock className="w-3 h-3" />
+                            {dias < 0 ? `${Math.abs(dias)}d vencido` : fmtDateBR(s.prazo_acao)}
+                          </div>
+                        )
+                      })()}
+                      <Pencil className="w-3 h-3 text-gray-400 opacity-0 group-hover:opacity-100 mt-0.5" />
+                    </button>
+                  ) : (
+                    <button onClick={() => setAcaoModal(s)}
+                      className="flex items-center gap-1 text-gray-400 hover:text-blue-500 text-xs transition-colors">
+                      <Plus className="w-3.5 h-3.5" /> Registrar
+                    </button>
+                  )}
+                </div>
                 <div className="w-16 flex-shrink-0 flex items-center justify-center gap-1">
                   <button onClick={() => startEdit(s)} title="Editar"
                     className="p-1 text-blue-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors">
@@ -739,6 +834,10 @@ export default function Solicitacoes() {
           </div>
         ))}
       </div>
+
+      {acaoModal && (
+        <AcaoModal sol={acaoModal} onClose={() => setAcaoModal(null)} onSaved={handleAcaoSaved} />
+      )}
 
       {/* ── LIGHTBOX ── */}
       {lightbox && (
