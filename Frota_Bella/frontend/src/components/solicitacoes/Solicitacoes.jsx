@@ -4,8 +4,11 @@ import axios from 'axios'
 import {
   ClipboardList, Plus, Trash2, Pencil, Check, X,
   AlertTriangle, ChevronDown, Search, Car, Package, Wrench, ImagePlus, Paperclip, ChevronLeft, ChevronRight,
-  ArrowUp, ArrowDown, ArrowUpDown,
+  ArrowUp, ArrowDown, ArrowUpDown, FileSpreadsheet, FileText,
 } from 'lucide-react'
+import * as XLSX from 'xlsx'
+import jsPDF from 'jspdf'
+import autoTable from 'jspdf-autotable'
 
 function SortIcon({ field, sortField, sortDir }) {
   if (sortField !== field) return <ArrowUpDown className="w-3 h-3 opacity-30" />
@@ -40,6 +43,7 @@ const emptyForm = {
   veiculo_id: '',
   ativo_id: '',
   solicitante: '',
+  parte_veiculo: '',
   descricao: '',
   prioridade: 'Média',
   status: 'Aberta',
@@ -59,6 +63,7 @@ export default function Solicitacoes() {
   const [items, setItems] = useState([])
   const [veiculos, setVeiculos] = useState([])
   const [ativos, setAtivos] = useState([])
+  const [partes, setPartes] = useState([])
   const [formTipoEntidade, setFormTipoEntidade] = useState('veiculo') // 'veiculo' | 'ativo'
   const [editTipoEntidade, setEditTipoEntidade] = useState('veiculo')
   const [form, setForm] = useState(emptyForm)
@@ -90,6 +95,7 @@ export default function Solicitacoes() {
     load()
     axios.get(`${API}/veiculos`).then(r => setVeiculos(r.data)).catch(() => {})
     axios.get(`${API}/ativos`, { params: { per_page: 200, ativo: 'true' } }).then(r => setAtivos(r.data.items)).catch(() => {})
+    axios.get(`${API}/partes-veiculo/lookup`).then(r => setPartes(r.data)).catch(() => {})
   }, [])
 
   const load = async () => {
@@ -134,6 +140,7 @@ export default function Solicitacoes() {
       veiculo_id: s.veiculo_id || '',
       ativo_id: s.ativo_id || '',
       solicitante: s.solicitante || '',
+      parte_veiculo: s.parte_veiculo || '',
       descricao: s.descricao || '',
       prioridade: s.prioridade || 'Média',
       status: s.status || 'Aberta',
@@ -195,6 +202,50 @@ export default function Solicitacoes() {
         return sortDir === 'asc' ? String(va).localeCompare(String(vb), 'pt-BR', { numeric: true }) : String(vb).localeCompare(String(va), 'pt-BR', { numeric: true })
       })
     : filtered
+
+  const fmtDt = (dt) => dt ? new Date(dt).toLocaleDateString('pt-BR') : ''
+  const calcDiasAberto = (dt) => dt ? Math.floor((Date.now() - new Date(dt)) / 86400000) : ''
+
+  const exportRows = (list) => list.map(s => ({
+    '#': s.id,
+    'Veículo/Ativo': s.veiculo?.placa || s.ativo?.nome || '',
+    'Solicitante': s.solicitante || '',
+    'Descrição': s.descricao || '',
+    'Parte': s.parte_veiculo || '',
+    'Prioridade': s.prioridade || '',
+    'Dias em Aberto': calcDiasAberto(s.dt_solicitacao),
+    'Status': s.status || '',
+    'Data Solicitação': fmtDt(s.dt_solicitacao),
+    'Observação': s.observacao || '',
+    'Manutenção': s.manutencao_id ? `#${s.manutencao_id}` : '',
+  }))
+
+  const exportExcel = () => {
+    const rows = exportRows(displayItems)
+    const ws = XLSX.utils.json_to_sheet(rows)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Solicitações')
+    XLSX.writeFile(wb, `solicitacoes_${new Date().toISOString().slice(0, 10)}.xlsx`)
+  }
+
+  const exportPdf = () => {
+    const doc = new jsPDF({ orientation: 'landscape' })
+    doc.setFontSize(13)
+    doc.text('Solicitações de Manutenção', 14, 14)
+    doc.setFontSize(8)
+    doc.text(`Gerado em ${new Date().toLocaleString('pt-BR')}`, 14, 20)
+    const rows = exportRows(displayItems)
+    const headers = Object.keys(rows[0] || {})
+    autoTable(doc, {
+      startY: 24,
+      head: [headers],
+      body: rows.map(r => headers.map(h => r[h])),
+      styles: { fontSize: 7, cellPadding: 2 },
+      headStyles: { fillColor: [30, 80, 180], textColor: 255, fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [240, 244, 255] },
+    })
+    doc.save(`solicitacoes_${new Date().toISOString().slice(0, 10)}.pdf`)
+  }
 
   const counts = { total: items.length, abertas: items.filter(x => x.status === 'Aberta').length, urgentes: items.filter(x => x.prioridade === 'Crítico' && x.status === 'Aberta').length }
 
@@ -264,7 +315,7 @@ export default function Solicitacoes() {
 
         {showForm && (
           <form onSubmit={handleSave} className="p-4 bg-white dark:bg-gray-800 space-y-3">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
               <div>
                 <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">
                   Veículo / Ativo <span className="text-red-500">*</span>
@@ -296,6 +347,13 @@ export default function Solicitacoes() {
               <div>
                 <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Solicitante</label>
                 <input className={inp} placeholder="Nome do solicitante" value={form.solicitante} onChange={setF('solicitante')} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Parte do Veículo</label>
+                <select className={sel} value={form.parte_veiculo} onChange={setF('parte_veiculo')}>
+                  <option value="">— Selecione —</option>
+                  {partes.map(p => <option key={p.id} value={p.nome}>{p.nome}</option>)}
+                </select>
               </div>
               <div>
                 <label className="flex items-center gap-2 text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">
@@ -462,7 +520,15 @@ export default function Solicitacoes() {
             <X className="w-3 h-3" /> Limpar
           </button>
         )}
-        <span className="text-xs text-gray-400 dark:text-gray-500 ml-auto">{filtered.length} registro(s)</span>
+        <div className="flex items-center gap-1.5 ml-auto">
+          <span className="text-xs text-gray-400 dark:text-gray-500">{filtered.length} registro(s)</span>
+          <button onClick={exportExcel} className="flex items-center gap-1 px-2 py-1 text-[10px] bg-emerald-600 hover:bg-emerald-700 text-white rounded font-bold transition-colors" title="Exportar Excel">
+            <FileSpreadsheet className="w-3 h-3" /> Excel
+          </button>
+          <button onClick={exportPdf} className="flex items-center gap-1 px-2 py-1 text-[10px] bg-red-600 hover:bg-red-700 text-white rounded font-bold transition-colors" title="Exportar PDF">
+            <FileText className="w-3 h-3" /> PDF
+          </button>
+        </div>
       </div>
 
       {/* ── LISTA ── */}
@@ -473,6 +539,7 @@ export default function Solicitacoes() {
           <span className="w-24 flex-shrink-0 cursor-pointer hover:text-blue-600" onClick={() => handleSort('veiculo_id')}><span className="flex items-center gap-0.5">Veículo <SortIcon field="veiculo_id" sortField={sortField} sortDir={sortDir} /></span></span>
           <span className="w-32 flex-shrink-0 cursor-pointer hover:text-blue-600" onClick={() => handleSort('solicitante')}><span className="flex items-center gap-0.5">Solicitante <SortIcon field="solicitante" sortField={sortField} sortDir={sortDir} /></span></span>
           <span className="flex-1 min-w-0 cursor-pointer hover:text-blue-600" onClick={() => handleSort('descricao')}><span className="flex items-center gap-0.5">Descrição <SortIcon field="descricao" sortField={sortField} sortDir={sortDir} /></span></span>
+          <span className="w-24 flex-shrink-0 cursor-pointer hover:text-blue-600" onClick={() => handleSort('parte_veiculo')}><span className="flex items-center gap-0.5">Parte <SortIcon field="parte_veiculo" sortField={sortField} sortDir={sortDir} /></span></span>
           <span className="w-20 flex-shrink-0 cursor-pointer hover:text-blue-600" onClick={() => handleSort('prioridade')}><span className="flex items-center gap-0.5">Prioridade <SortIcon field="prioridade" sortField={sortField} sortDir={sortDir} /></span></span>
           <span className="w-24 flex-shrink-0 text-center cursor-pointer hover:text-blue-600" onClick={() => handleSort('dt_solicitacao')}><span className="flex items-center justify-center gap-0.5">Dias em Aberto <SortIcon field="dt_solicitacao" sortField={sortField} sortDir={sortDir} /></span></span>
           <span className="w-24 flex-shrink-0 cursor-pointer hover:text-blue-600" onClick={() => handleSort('status')}><span className="flex items-center gap-0.5">Status <SortIcon field="status" sortField={sortField} sortDir={sortDir} /></span></span>
@@ -495,12 +562,21 @@ export default function Solicitacoes() {
             {editingId === s.id ? (
               /* ── MODO EDIÇÃO ── */
               <div className="p-4 bg-blue-50 dark:bg-blue-900/20 space-y-3">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
                   <div>
                     <div className="h-6 flex items-center mb-1">
                       <label className="text-xs font-semibold text-blue-800 dark:text-blue-300">Solicitante</label>
                     </div>
                     <input className={inp} value={editForm.solicitante} onChange={setEf('solicitante')} />
+                  </div>
+                  <div>
+                    <div className="h-6 flex items-center mb-1">
+                      <label className="text-xs font-semibold text-blue-800 dark:text-blue-300">Parte do Veículo</label>
+                    </div>
+                    <select className={sel} value={editForm.parte_veiculo || ''} onChange={setEf('parte_veiculo')}>
+                      <option value="">— Selecione —</option>
+                      {partes.map(p => <option key={p.id} value={p.nome}>{p.nome}</option>)}
+                    </select>
                   </div>
                   <div>
                     <div className="h-6 flex items-center gap-1 mb-1">
@@ -617,6 +693,9 @@ export default function Solicitacoes() {
                 </span>
                 <span className="w-32 flex-shrink-0 text-xs text-gray-700 dark:text-gray-300 truncate">{s.solicitante}</span>
                 <span className="flex-1 min-w-0 text-xs font-medium text-gray-800 dark:text-gray-200 truncate">{s.descricao}</span>
+                {s.parte_veiculo && (
+                  <span className="w-24 flex-shrink-0 text-xs text-blue-600 dark:text-blue-400 truncate" title={s.parte_veiculo}>{s.parte_veiculo}</span>
+                )}
                 <span className={`w-20 flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold whitespace-nowrap ${priorBadge[s.prioridade]}`}>
                   {s.prioridade === 'Crítico' && <AlertTriangle className="w-3 h-3" />}
                   {s.prioridade}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import axios from 'axios'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -20,6 +20,8 @@ import {
   History,
   FileSpreadsheet,
   FileText,
+  Paperclip,
+  Upload,
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import jsPDF from 'jspdf'
@@ -73,10 +75,55 @@ function VeiculoModal({ veiculo, onClose, onSaved }) {
   const [motoristas, setMotoristas] = useState([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [arquivos, setArquivos] = useState([])
+  const [pendingFiles, setPendingFiles] = useState([])
+  const [uploading, setUploading] = useState(false)
+  const [savedId, setSavedId] = useState(veiculo?.id || null)
+  const fileInputRef = useRef()
 
   React.useEffect(() => {
     axios.get('http://localhost:8000/api/motoristas').then(r => setMotoristas(r.data)).catch(() => {})
   }, [])
+
+  React.useEffect(() => {
+    if (savedId) {
+      axios.get(`${API}/veiculos/${savedId}/arquivos`).then(r => setArquivos(r.data)).catch(() => {})
+    }
+  }, [savedId])
+
+  React.useEffect(() => {
+    return () => { pendingFiles.forEach(pf => URL.revokeObjectURL(pf.url)) }
+  }, []) // eslint-disable-line
+
+  const handleUpload = async (file) => {
+    if (!file) return
+    if (!savedId) {
+      setPendingFiles(prev => [...prev, { file, url: URL.createObjectURL(file), name: file.name }])
+      return
+    }
+    setUploading(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const r = await axios.post(`${API}/veiculos/${savedId}/arquivos`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+      setArquivos(prev => [r.data, ...prev])
+    } catch { alert('Erro ao enviar arquivo') }
+    finally { setUploading(false) }
+  }
+
+  const handleFileInput = (e) => { handleUpload(e.target.files[0]); e.target.value = '' }
+
+  const handleDeleteArquivo = async (id) => {
+    if (!window.confirm('Remover este arquivo?')) return
+    try {
+      await axios.delete(`${API}/veiculos/arquivos/${id}`)
+      setArquivos(prev => prev.filter(a => a.id !== id))
+    } catch { alert('Erro ao remover arquivo') }
+  }
+
+  const handleRemovePending = (idx) => {
+    setPendingFiles(prev => { URL.revokeObjectURL(prev[idx].url); return prev.filter((_, i) => i !== idx) })
+  }
 
   const setF = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }))
 
@@ -92,10 +139,17 @@ function VeiculoModal({ veiculo, onClose, onSaved }) {
       const payload = { ...form, ano: form.ano ? Number(form.ano) : null, ultimo_km: form.ultimo_km ? Number(form.ultimo_km) : null, motorista_id: form.motorista_id ? Number(form.motorista_id) : null }
       if (isEdit) {
         await axios.put(`${API}/veiculos/${veiculo.id}`, payload)
+        onSaved()
       } else {
-        await axios.post(`${API}/veiculos`, payload)
+        const r = await axios.post(`${API}/veiculos`, payload)
+        const newId = r.data.id
+        for (const pf of pendingFiles) {
+          const fd = new FormData()
+          fd.append('file', pf.file)
+          await axios.post(`${API}/veiculos/${newId}/arquivos`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+        }
+        onSaved()
       }
-      onSaved()
     } catch (err) {
       const d = err.response?.data?.detail
       setError(typeof d === 'string' ? d : Array.isArray(d) ? d.map(e => e.msg).join(', ') : 'Erro ao salvar veículo')
@@ -193,6 +247,58 @@ function VeiculoModal({ veiculo, onClose, onSaved }) {
               ))}
             </select>
           </div>
+
+          {/* Documentos */}
+          <div className="border-t border-gray-200 dark:border-gray-600 pt-3">
+            <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Documentos</label>
+            <div
+              className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-3 bg-gray-50 dark:bg-gray-700/50 hover:border-blue-400 transition-colors cursor-pointer min-h-[72px]"
+              onClick={() => fileInputRef.current?.click()}
+              onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleUpload(f) }}
+              onDragOver={e => e.preventDefault()}
+            >
+              <input ref={fileInputRef} type="file" accept=".pdf,image/*" className="hidden" onChange={handleFileInput} disabled={uploading} />
+              {(() => {
+                const allFiles = savedId
+                  ? arquivos.map(a => ({ key: `s-${a.id}`, isPdf: a.nome_arquivo.toLowerCase().endsWith('.pdf'), url: `http://localhost:8000/api/uploads/${a.caminho}`, name: a.nome_arquivo, onRemove: () => handleDeleteArquivo(a.id) }))
+                  : pendingFiles.map((pf, i) => ({ key: `p-${i}`, isPdf: pf.name.toLowerCase().endsWith('.pdf'), url: pf.url, name: pf.name, onRemove: () => handleRemovePending(i) }))
+                if (allFiles.length === 0) return (
+                  <div className="flex flex-col items-center justify-center gap-1 text-gray-400 dark:text-gray-500 py-2">
+                    {uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
+                    <span className="text-xs">{uploading ? 'Enviando...' : 'Clique ou arraste PDF / imagem aqui'}</span>
+                  </div>
+                )
+                return (
+                  <div className="flex flex-wrap gap-2">
+                    {allFiles.map(f => (
+                      <div key={f.key} className="relative group flex flex-col items-center" onClick={e => e.stopPropagation()}>
+                        {f.isPdf ? (
+                          <a href={f.url} target="_blank" rel="noreferrer" className="h-16 w-16 border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-800 flex flex-col items-center justify-center gap-1 hover:border-blue-400">
+                            <FileText className="w-7 h-7 text-red-500" />
+                            <span className="text-[9px] text-gray-500 truncate w-14 text-center px-1">{f.name}</span>
+                          </a>
+                        ) : (
+                          <a href={f.url} target="_blank" rel="noreferrer">
+                            <img src={f.url} alt={f.name} className="h-16 w-16 object-cover rounded border border-gray-200 dark:border-gray-600 hover:border-blue-400" />
+                          </a>
+                        )}
+                        <button type="button" onClick={f.onRemove}
+                          className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                          <X className="w-2.5 h-2.5" />
+                        </button>
+                      </div>
+                    ))}
+                    {!uploading && (
+                      <div className="h-16 w-16 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded flex items-center justify-center text-gray-400 hover:border-blue-400">
+                        <Upload className="w-5 h-5" />
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
+            </div>
+          </div>
+
           <div className="flex gap-2 justify-end pt-1">
             <button type="button" className="btn-secondary btn-sm px-4 py-1.5" onClick={onClose}>
               Cancelar
@@ -422,6 +528,7 @@ export default function ListagemVeiculos() {
                     <span className="flex items-center gap-1">{l} <SortIcon field={f} sorts={sorts} /></span>
                   </th>
                 ))}
+                <th className="px-3 py-2 text-center text-blue-800 dark:text-blue-300 font-semibold w-8">Doc.</th>
                 <th className="px-3 py-2 text-center text-blue-800 dark:text-blue-300 font-semibold">Ações</th>
               </tr>
             </thead>
@@ -458,6 +565,15 @@ export default function ListagemVeiculos() {
                         : <span className="text-gray-300">-</span>}
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap text-gray-500 dark:text-gray-400">{fmt(v.created_at)}</td>
+                    <td className="px-3 py-2 text-center">
+                      {v.arquivos_count > 0 ? (
+                        <button onClick={() => setModal(v)} title={`${v.arquivos_count} documento(s)`}
+                          className="inline-flex items-center gap-0.5 text-blue-500 hover:text-blue-700">
+                          <Paperclip className="w-3.5 h-3.5" />
+                          <span className="text-[10px] font-semibold">{v.arquivos_count}</span>
+                        </button>
+                      ) : '—'}
+                    </td>
                     <td className="px-3 py-2">
                       <div className="flex items-center justify-center gap-1.5">
                         <button className="p-0.5 text-gray-500 hover:text-blue-600" title="Histórico" onClick={() => navigate(`/veiculos/${v.id}/historico`)}>

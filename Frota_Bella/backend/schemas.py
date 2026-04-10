@@ -124,6 +124,20 @@ class PaginatedOficinasPrestadores(BaseModel):
     total_pages: int
 
 
+# ── ArquivoVeiculo ───────────────────────────────────────────────────────────
+
+class ArquivoVeiculoOut(BaseModel):
+    id: int
+    veiculo_id: int
+    nome_arquivo: str
+    caminho: str
+    descricao: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 # ── Veiculo ──────────────────────────────────────────────────────────────────
 
 class VeiculoBase(BaseModel):
@@ -166,6 +180,7 @@ class VeiculoOut(VeiculoBase):
     ultimo_km_data: Optional[datetime] = None
     created_at: datetime
     motorista: Optional['MotoristaOut'] = None
+    arquivos_count: Optional[int] = 0
 
     class Config:
         from_attributes = True

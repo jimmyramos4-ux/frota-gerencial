@@ -36,6 +36,22 @@ function calcAge(dt) {
 }
 
 const inp = 'border border-gray-300 dark:border-gray-600 rounded px-2 py-1.5 text-xs w-full focus:outline-none focus:border-blue-400 bg-white dark:bg-gray-700 dark:text-gray-100'
+
+function maskCpf(value) {
+  const d = value.replace(/\D/g, '').slice(0, 11)
+  if (d.length <= 3) return d
+  if (d.length <= 6) return `${d.slice(0,3)}.${d.slice(3)}`
+  if (d.length <= 9) return `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6)}`
+  return `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6,9)}-${d.slice(9)}`
+}
+
+function maskTelefone(value) {
+  const d = value.replace(/\D/g, '').slice(0, 11)
+  if (d.length <= 2) return d.length ? `(${d}` : ''
+  if (d.length <= 6) return `(${d.slice(0,2)}) ${d.slice(2)}`
+  if (d.length <= 10) return `(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`
+  return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`
+}
 const sel = 'border border-gray-300 dark:border-gray-600 rounded px-2 py-1.5 text-xs w-full focus:outline-none focus:border-blue-400 bg-white dark:bg-gray-700 dark:text-gray-100'
 const lbl = 'block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1'
 
@@ -216,7 +232,7 @@ function MotoristaModal({ motorista, onClose, onSaved }) {
           <div className="grid grid-cols-4 gap-3">
             <div>
               <label className={lbl}>CPF</label>
-              <input className={inp} value={form.cpf} onChange={setF('cpf')} placeholder="000.000.000-00" maxLength={14} />
+              <input className={inp} value={form.cpf} onChange={e => setForm(f => ({ ...f, cpf: maskCpf(e.target.value) }))} placeholder="000.000.000-00" maxLength={14} />
             </div>
             <div>
               <label className={lbl}>Nascimento</label>
@@ -228,7 +244,7 @@ function MotoristaModal({ motorista, onClose, onSaved }) {
             </div>
             <div>
               <label className={lbl}>Telefone</label>
-              <input className={inp} value={form.telefone} onChange={setF('telefone')} placeholder="(00) 90000-0000" maxLength={20} />
+              <input className={inp} value={form.telefone} onChange={e => setForm(f => ({ ...f, telefone: maskTelefone(e.target.value) }))} placeholder="(00) 90000-0000" maxLength={16} />
             </div>
           </div>
 
@@ -388,7 +404,7 @@ export default function ListagemMotoristas() {
     ['nome', 'Nome'], ['ativo', 'Status'], ['tipo', 'Tipo'], ['cpf', 'CPF'], ['dt_nascimento', 'Idade'],
     ['nr_registro_cnh', 'Nº CNH'], ['categoria_cnh', 'Cat.'],
     ['validade_cnh', 'Validade CNH'], ['telefone', 'Telefone'],
-    ['cidade_emissao_cnh', 'Cidade Emissão'], ['dt_exame_toxicologico', 'Exame Toxicológico'],
+    ['cidade_emissao_cnh', 'Cidade Emissão'], ['dt_exame_toxicologico', 'Toxicológico'],
   ]
 
   const exportRows = (list) => list.map(m => ({
@@ -464,7 +480,7 @@ export default function ListagemMotoristas() {
         <Search className="w-4 h-4 text-gray-400 flex-shrink-0" />
         <input
           className="flex-1 text-sm outline-none dark:text-gray-100 dark:placeholder-gray-400 bg-transparent"
-          placeholder="Pesquisar por código ou nome..."
+          placeholder="Pesquisar por nome ou tipo..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -482,7 +498,6 @@ export default function ListagemMotoristas() {
                     <span className="flex items-center gap-1">{l} <SortIcon field={f} sortField={sortField} sortDir={sortDir} /></span>
                   </th>
                 ))}
-                <th className="px-3 py-2 text-center text-blue-800 dark:text-blue-300 font-semibold w-8">Doc.</th>
                 <th className="px-3 py-2 text-center text-blue-800 dark:text-blue-300 font-semibold">Ações</th>
               </tr>
             </thead>
@@ -525,17 +540,17 @@ export default function ListagemMotoristas() {
                   <td className={`px-3 py-2 whitespace-nowrap font-medium ${m.dt_exame_toxicologico && new Date(m.dt_exame_toxicologico) < new Date() ? 'text-red-600' : 'text-gray-600 dark:text-gray-400'}`}>
                     {fmtCNHValidade(m.dt_exame_toxicologico)}
                   </td>
-                  <td className="px-3 py-2 text-center">
-                    {m.arquivos_count > 0 ? (
-                      <button onClick={() => setModal(m)} title={`${m.arquivos_count} documento(s)`}
-                        className="inline-flex items-center gap-0.5 text-blue-500 hover:text-blue-700">
-                        <Paperclip className="w-3.5 h-3.5" />
-                        <span className="text-[10px] font-semibold">{m.arquivos_count}</span>
-                      </button>
-                    ) : '—'}
-                  </td>
-                  <td className="px-3 py-2">
+                  <td className="px-3 py-2 w-24">
                     <div className="flex items-center justify-center gap-1.5">
+                      <div className="w-8 flex items-center justify-center">
+                        {m.arquivos_count > 0 ? (
+                          <button onClick={() => setModal(m)} title={`${m.arquivos_count} documento(s)`}
+                            className="inline-flex items-center gap-0.5 text-blue-500 hover:text-blue-700">
+                            <Paperclip className="w-3.5 h-3.5" />
+                            <span className="text-[10px] font-semibold">{m.arquivos_count}</span>
+                          </button>
+                        ) : <span className="w-3.5" />}
+                      </div>
                       <button className="p-0.5 text-gray-500 hover:text-yellow-600" title="Editar" onClick={() => setModal(m)}>
                         <Pencil className="w-3.5 h-3.5" />
                       </button>

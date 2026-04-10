@@ -511,7 +511,11 @@ def delete_tipo_servico(item_id: int, db: Session = Depends(get_db)):
 
 @app.get("/api/veiculos", response_model=list[schemas.VeiculoOut])
 def list_veiculos(search: Optional[str] = None, db: Session = Depends(get_db)):
-    query = db.query(models.Veiculo).options(joinedload(models.Veiculo.motorista))
+    from sqlalchemy.orm import joinedload as jlv
+    query = db.query(models.Veiculo).options(
+        joinedload(models.Veiculo.motorista),
+        jlv(models.Veiculo.arquivos),
+    )
     if search:
         query = query.filter(
             or_(
@@ -519,7 +523,13 @@ def list_veiculos(search: Optional[str] = None, db: Session = Depends(get_db)):
                 models.Veiculo.descricao.ilike(f"%{search}%"),
             )
         )
-    return query.order_by(models.Veiculo.placa).all()
+    veiculos = query.order_by(models.Veiculo.placa).all()
+    result = []
+    for v in veiculos:
+        d = schemas.VeiculoOut.model_validate(v)
+        d.arquivos_count = len(v.arquivos)
+        result.append(d)
+    return result
 
 
 @app.post("/api/veiculos", response_model=schemas.VeiculoOut, status_code=201)
@@ -931,6 +941,53 @@ def list_vencimentos(db: Session = Depends(get_db)):
     return result
 
 
+# ── Arquivos Veiculo ─────────────────────────────────────────────────────────
+
+@app.get("/api/veiculos/{veiculo_id}/arquivos")
+def list_arquivos_veiculo(veiculo_id: int, db: Session = Depends(get_db)):
+    return db.query(models.ArquivoVeiculo).filter(models.ArquivoVeiculo.veiculo_id == veiculo_id).order_by(models.ArquivoVeiculo.created_at.desc()).all()
+
+
+@app.post("/api/veiculos/{veiculo_id}/arquivos", status_code=201)
+async def upload_arquivo_veiculo(
+    veiculo_id: int,
+    file: UploadFile = File(...),
+    descricao: Optional[str] = Form(None),
+    db: Session = Depends(get_db),
+):
+    veiculo = db.query(models.Veiculo).filter(models.Veiculo.id == veiculo_id).first()
+    if not veiculo:
+        raise HTTPException(status_code=404, detail="Veículo não encontrado")
+    import time, re
+    ts = int(time.time() * 1000000)
+    safe_name = f"{ts}_{re.sub(r'[^a-zA-Z0-9._-]', '_', file.filename)}"
+    file_path = UPLOAD_DIR / safe_name
+    with open(file_path, "wb") as f:
+        shutil.copyfileobj(file.file, f)
+    arquivo = models.ArquivoVeiculo(
+        veiculo_id=veiculo_id,
+        nome_arquivo=file.filename,
+        caminho=safe_name,
+        descricao=descricao,
+    )
+    db.add(arquivo)
+    db.commit()
+    db.refresh(arquivo)
+    return arquivo
+
+
+@app.delete("/api/veiculos/arquivos/{arquivo_id}", status_code=204)
+def delete_arquivo_veiculo(arquivo_id: int, db: Session = Depends(get_db)):
+    arq = db.query(models.ArquivoVeiculo).filter(models.ArquivoVeiculo.id == arquivo_id).first()
+    if not arq:
+        raise HTTPException(status_code=404, detail="Arquivo não encontrado")
+    file_path = UPLOAD_DIR / arq.caminho
+    if file_path.exists():
+        file_path.unlink()
+    db.delete(arq)
+    db.commit()
+
+
 # ── Motoristas ────────────────────────────────────────────────────────────────
 
 @app.get("/api/motoristas", response_model=list[schemas.MotoristaOut])
@@ -940,8 +997,8 @@ def list_motoristas(search: Optional[str] = None, db: Session = Depends(get_db))
     if search:
         query = query.filter(
             or_(
-                models.Motorista.codigo.ilike(f"%{search}%"),
                 models.Motorista.nome.ilike(f"%{search}%"),
+                models.Motorista.tipo.ilike(f"%{search}%"),
             )
         )
     motoristas = query.order_by(models.Motorista.nome).all()

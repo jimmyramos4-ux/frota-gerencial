@@ -54,6 +54,7 @@ class Veiculo(Base):
 
     manutencoes = relationship("Manutencao", back_populates="veiculo")
     motorista = relationship("Motorista")
+    arquivos = relationship("ArquivoVeiculo", back_populates="veiculo", cascade="all, delete-orphan")
 
 
 class Motorista(Base):
@@ -244,6 +245,19 @@ class ArquivoMotorista(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     motorista = relationship("Motorista", back_populates="arquivos")
+
+
+class ArquivoVeiculo(Base):
+    __tablename__ = "arquivos_veiculo"
+
+    id = Column(Integer, primary_key=True, index=True)
+    veiculo_id = Column(Integer, ForeignKey("veiculos.id"), nullable=False)
+    nome_arquivo = Column(String(300), nullable=False)
+    caminho = Column(String(500), nullable=False)
+    descricao = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    veiculo = relationship("Veiculo", back_populates="arquivos")
 
 
 class ArquivoManutencao(Base):
