@@ -542,8 +542,8 @@ export default function ListagemManutencoes() {
   const [appliedFilters, setAppliedFilters] = useState(initApplied)
   const [emailModal, setEmailModal] = useState(null)
   const [deleteModal, setDeleteModal] = useState(null)
-  const [sortField, setSortField] = useState('')
-  const [sortDir, setSortDir] = useState('asc')
+  const [sortField, setSortField] = useState('dt_inicio')
+  const [sortDir, setSortDir] = useState('desc')
   const [showFilters, setShowFilters] = useState(() => {
     const tipo = searchParams.get('tipo') || ''
     const gte = searchParams.get('dt_inicio_gte') || ''
@@ -751,7 +751,7 @@ export default function ListagemManutencoes() {
           <table className="w-full text-xs">
             <thead>
               <tr className="bg-blue-50 dark:bg-blue-900/20 border-b border-blue-100 dark:border-blue-800/40">
-                {[['id','Man.'],['veiculo_placa','Veículo'],['motorista_nome','Motorista'],['responsavel_manutencao','Responsável Man.'],['km_entrada','Km Entrada'],['dt_inicio','Dt. Início'],['dt_previsao','Dt. Previsão'],['dt_termino','Dt. Término'],['prioridade','Prioridade'],['tipo','Tipo'],['status','Status']].map(([f,l]) => (
+                {[['id','Man.'],['veiculo_placa','Veículo'],['motorista_nome','Motorista'],['responsavel_manutencao','Oficina / Prestador'],['km_entrada','Km Entrada'],['dt_inicio','Dt. Início'],['dt_previsao','Dt. Previsão'],['dt_termino','Dt. Término'],['prioridade','Prioridade'],['tipo','Tipo'],['status','Status']].map(([f,l]) => (
                   <th key={f} className="px-2 py-2 text-left text-blue-800 dark:text-blue-300 font-semibold whitespace-nowrap cursor-pointer select-none hover:bg-blue-100 dark:hover:bg-blue-900/30" onClick={() => handleSort(f)}>
                     <span className="flex items-center gap-1">{l} <SortIcon field={f} sortField={sortField} sortDir={sortDir} /></span>
                   </th>

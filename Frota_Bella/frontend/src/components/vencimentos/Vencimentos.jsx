@@ -267,11 +267,11 @@ export default function Vencimentos() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={11} className="text-center py-10 text-gray-400">
+              <tr><td colSpan={10} className="text-center py-10 text-gray-400">
                 <RefreshCw className="w-5 h-5 animate-spin inline mr-2" />Carregando...
               </td></tr>
             ) : sorted.length === 0 ? (
-              <tr><td colSpan={11} className="text-center py-10 text-gray-400">
+              <tr><td colSpan={10} className="text-center py-10 text-gray-400">
                 Nenhum vencimento encontrado.
               </td></tr>
             ) : sorted.map((item, idx) => {
@@ -338,29 +338,6 @@ export default function Vencimentos() {
                         <Users className="w-3 h-3" />Ver
                       </Link>
                     ) : '-'}
-                  </td>
-                  {/* Ação */}
-                  <td className="px-3 py-2 min-w-[160px]">
-                    {item.acao ? (
-                      <button onClick={() => setAcaoModal(item)} className="group text-left w-full">
-                        <div className="text-xs text-gray-700 dark:text-gray-200 line-clamp-2 leading-snug">{item.acao}</div>
-                        {item.prazo_acao && (() => {
-                          const dias = Math.floor((new Date(item.prazo_acao) - new Date()) / 86400000)
-                          return (
-                            <div className={`text-[10px] font-semibold mt-0.5 flex items-center gap-1 ${dias < 0 ? 'text-red-500' : dias <= 7 ? 'text-orange-500' : 'text-green-600'}`}>
-                              <CalendarClock className="w-3 h-3" />
-                              {dias < 0 ? `${Math.abs(dias)}d vencido` : `Prazo: ${fmtDate(item.prazo_acao)}`}
-                            </div>
-                          )
-                        })()}
-                        <Pencil className="w-3 h-3 text-gray-400 opacity-0 group-hover:opacity-100 mt-0.5" />
-                      </button>
-                    ) : (
-                      <button onClick={() => setAcaoModal(item)}
-                        className="flex items-center gap-1 text-gray-400 hover:text-blue-500 transition-colors text-xs">
-                        <Plus className="w-3.5 h-3.5" /> Registrar
-                      </button>
-                    )}
                   </td>
                 </tr>
               )

@@ -46,6 +46,7 @@ class Veiculo(Base):
     ano = Column(Integer)
     chassi = Column(String(50))
     capacidade = Column(String(100), nullable=True)
+    centro_custo = Column(String(100), nullable=True)
     vinculo = Column(String(50), nullable=True)
     ultimo_km = Column(Integer, nullable=True)
     ultimo_km_data = Column(DateTime, nullable=True)

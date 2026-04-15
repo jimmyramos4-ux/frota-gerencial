@@ -50,6 +50,7 @@ const emptyForm = {
   ano: '',
   chassi: '',
   capacidade: '',
+  centro_custo: '',
   vinculo: '',
   ultimo_km: '',
   motorista_id: '',
@@ -69,7 +70,7 @@ function VeiculoModal({ veiculo, onClose, onSaved }) {
   const isEdit = Boolean(veiculo?.id)
   const [form, setForm] = useState(
     veiculo
-      ? { placa: veiculo.placa, marca: veiculo.marca || '', modelo: veiculo.modelo || '', tipo: veiculo.tipo || '', grupo: veiculo.grupo || '', ano: veiculo.ano || '', chassi: veiculo.chassi || '', capacidade: veiculo.capacidade || '', vinculo: veiculo.vinculo || '', ultimo_km: veiculo.ultimo_km || '', motorista_id: veiculo.motorista_id || '' }
+      ? { placa: veiculo.placa, marca: veiculo.marca || '', modelo: veiculo.modelo || '', tipo: veiculo.tipo || '', grupo: veiculo.grupo || '', ano: veiculo.ano || '', chassi: veiculo.chassi || '', capacidade: veiculo.capacidade || '', centro_custo: veiculo.centro_custo || '', vinculo: veiculo.vinculo || '', ultimo_km: veiculo.ultimo_km || '', motorista_id: veiculo.motorista_id || '' }
       : emptyForm
   )
   const [motoristas, setMotoristas] = useState([])
@@ -160,7 +161,7 @@ function VeiculoModal({ veiculo, onClose, onSaved }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white dark:bg-gray-800 rounded shadow-xl w-full max-w-lg mx-4">
+      <div className="bg-white dark:bg-gray-800 rounded shadow-xl w-full max-w-2xl mx-4 flex flex-col max-h-[95vh]">
         <div className="flex items-center justify-between bg-blue-700 text-white px-4 py-2 rounded-t">
           <div className="flex items-center gap-2">
             <Car className="w-4 h-4" />
@@ -172,24 +173,19 @@ function VeiculoModal({ veiculo, onClose, onSaved }) {
             <X className="w-4 h-4" />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="p-5 space-y-3">
+        <form id="veiculo-form" onSubmit={handleSubmit} className="p-4 space-y-3 overflow-y-auto flex-1">
           {error && (
             <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-3 py-2 rounded flex items-center gap-2 text-sm">
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
               {error}
             </div>
           )}
-          <div className="grid grid-cols-2 gap-3">
+          {/* Linha 1: Placa | Marca | Modelo | Ano */}
+          <div className="grid grid-cols-4 gap-3">
             <div>
               <label className="form-label">Placa <span className="text-red-500">*</span></label>
               <input className="form-input" value={form.placa} onChange={setF('placa')} placeholder="ABC-1234" />
             </div>
-            <div>
-              <label className="form-label">Ano Fabricação</label>
-              <input className="form-input" type="number" value={form.ano} onChange={setF('ano')} placeholder="2020" />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="form-label">Marca <span className="text-red-500">*</span></label>
               <input className="form-input" value={form.marca} onChange={setF('marca')} placeholder="Ex: Volkswagen" />
@@ -198,8 +194,13 @@ function VeiculoModal({ veiculo, onClose, onSaved }) {
               <label className="form-label">Modelo <span className="text-red-500">*</span></label>
               <input className="form-input" value={form.modelo} onChange={setF('modelo')} placeholder="Ex: Gol" />
             </div>
+            <div>
+              <label className="form-label">Ano Fabricação</label>
+              <input className="form-input" type="number" value={form.ano} onChange={setF('ano')} placeholder="2020" />
+            </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          {/* Linha 2: Tipo | Grupo | Chassi | Último KM */}
+          <div className="grid grid-cols-4 gap-3">
             <div>
               <label className="form-label">Tipo</label>
               <input className="form-input" value={form.tipo} onChange={setF('tipo')} placeholder="Ex: Caminhão" />
@@ -212,8 +213,6 @@ function VeiculoModal({ veiculo, onClose, onSaved }) {
                 <option>Pesado</option>
               </select>
             </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="form-label">Chassi</label>
               <input className="form-input" value={form.chassi} onChange={setF('chassi')} placeholder="Nº do chassi" />
@@ -223,13 +222,18 @@ function VeiculoModal({ veiculo, onClose, onSaved }) {
               <input className="form-input" type="number" value={form.ultimo_km} onChange={setF('ultimo_km')} placeholder="Ex: 125000" />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          {/* Linha 3: Capacidade | Centro de Custo | Vínculo | Motorista */}
+          <div className="grid grid-cols-4 gap-3">
             <div>
               <label className="form-label">Capacidade</label>
               <input className="form-input" value={form.capacidade} onChange={setF('capacidade')} placeholder="Ex: 14.000 kg" />
             </div>
             <div>
-              <label className="form-label">Vínculo do Veículo</label>
+              <label className="form-label">Centro de Custo</label>
+              <input className="form-input" type="number" value={form.centro_custo} onChange={setF('centro_custo')} placeholder="Ex: 1001" />
+            </div>
+            <div>
+              <label className="form-label">Vínculo</label>
               <select className="form-select" value={form.vinculo} onChange={setF('vinculo')}>
                 <option value="">-</option>
                 <option>Próprio</option>
@@ -237,15 +241,15 @@ function VeiculoModal({ veiculo, onClose, onSaved }) {
                 <option>Terceiro</option>
               </select>
             </div>
-          </div>
-          <div>
-            <label className="form-label">Motorista Responsável</label>
-            <select className="form-select" value={form.motorista_id} onChange={setF('motorista_id')}>
-              <option value="">— Nenhum —</option>
-              {motoristas.map(m => (
-                <option key={m.id} value={m.id}>{m.codigo} — {m.nome}</option>
-              ))}
-            </select>
+            <div>
+              <label className="form-label">Motorista Responsável</label>
+              <select className="form-select" value={form.motorista_id} onChange={setF('motorista_id')}>
+                <option value="">— Nenhum —</option>
+                {motoristas.map(m => (
+                  <option key={m.id} value={m.id}>{m.codigo} — {m.nome}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {/* Documentos */}
@@ -299,16 +303,16 @@ function VeiculoModal({ veiculo, onClose, onSaved }) {
             </div>
           </div>
 
-          <div className="flex gap-2 justify-end pt-1">
+        </form>
+        <div className="flex gap-2 justify-end px-4 py-3 border-t border-gray-200 dark:border-gray-600 flex-shrink-0">
             <button type="button" className="btn-secondary btn-sm px-4 py-1.5" onClick={onClose}>
               Cancelar
             </button>
-            <button type="submit" className="btn-primary btn-sm px-4 py-1.5 flex items-center gap-1.5" disabled={saving}>
+            <button type="submit" form="veiculo-form" className="btn-primary btn-sm px-4 py-1.5 flex items-center gap-1.5" disabled={saving}>
               {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
               {saving ? 'Salvando...' : 'Confirmar'}
             </button>
           </div>
-        </form>
       </div>
     </div>
   )
@@ -396,7 +400,7 @@ export default function ListagemVeiculos() {
   }
 
   const cols = [
-    ['placa','Placa'],['marca','Marca'],['modelo','Modelo'],['tipo','Tipo'],
+    ['placa','Placa'],['marca','Marca'],['modelo','Modelo'],['centro_custo','CC'],['tipo','Tipo'],
     ['grupo','Grupo'],['ano','Ano'],['capacidade','Capacidade'],['vinculo','Vínculo'],
     ['chassi','Chassi'],['ultimo_km','Último KM'],['motorista','Motorista'],['created_at','Cadastro']
   ]
@@ -405,6 +409,7 @@ export default function ListagemVeiculos() {
     'Placa': v.placa,
     'Marca': v.marca || '',
     'Modelo': v.modelo || '',
+    'CC': v.centro_custo || '',
     'Tipo': v.tipo || '',
     'Grupo': v.grupo || '',
     'Ano': v.ano || '',
@@ -528,7 +533,6 @@ export default function ListagemVeiculos() {
                     <span className="flex items-center gap-1">{l} <SortIcon field={f} sorts={sorts} /></span>
                   </th>
                 ))}
-                <th className="px-3 py-2 text-center text-blue-800 dark:text-blue-300 font-semibold w-8">Doc.</th>
                 <th className="px-3 py-2 text-center text-blue-800 dark:text-blue-300 font-semibold">Ações</th>
               </tr>
             </thead>
@@ -545,6 +549,7 @@ export default function ListagemVeiculos() {
                     <td className="px-3 py-2 font-medium text-blue-700 dark:text-blue-400">{v.placa}</td>
                     <td className="px-3 py-2">{v.marca || '-'}</td>
                     <td className="px-3 py-2">{v.modelo || '-'}</td>
+                    <td className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400" title={v.centro_custo || ''}>{v.centro_custo || '-'}</td>
                     <td className="px-3 py-2">{v.tipo || '-'}</td>
                     <td className="px-3 py-2">{v.grupo || '-'}</td>
                     <td className="px-3 py-2">{v.ano || '-'}</td>
@@ -565,17 +570,15 @@ export default function ListagemVeiculos() {
                         : <span className="text-gray-300">-</span>}
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap text-gray-500 dark:text-gray-400">{fmt(v.created_at)}</td>
-                    <td className="px-3 py-2 text-center">
-                      {v.arquivos_count > 0 ? (
-                        <button onClick={() => setModal(v)} title={`${v.arquivos_count} documento(s)`}
-                          className="inline-flex items-center gap-0.5 text-blue-500 hover:text-blue-700">
-                          <Paperclip className="w-3.5 h-3.5" />
-                          <span className="text-[10px] font-semibold">{v.arquivos_count}</span>
-                        </button>
-                      ) : '—'}
-                    </td>
                     <td className="px-3 py-2">
                       <div className="flex items-center justify-center gap-1.5">
+                        {v.arquivos_count > 0 ? (
+                          <button onClick={() => setModal(v)} title={`${v.arquivos_count} documento(s)`}
+                            className="p-0.5 inline-flex items-center gap-0.5 text-blue-500 hover:text-blue-700">
+                            <Paperclip className="w-3.5 h-3.5" />
+                            <span className="text-[10px] font-semibold">{v.arquivos_count}</span>
+                          </button>
+                        ) : null}
                         <button className="p-0.5 text-gray-500 hover:text-blue-600" title="Histórico" onClick={() => navigate(`/veiculos/${v.id}/historico`)}>
                           <History className="w-3.5 h-3.5" />
                         </button>

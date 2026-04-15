@@ -140,6 +140,7 @@ export default function Solicitacoes() {
   const [filterPrior, setFilterPrior] = useState('')
   const [filterMes, setFilterMes] = useState(() => searchParams.get('mes') || '')
   const [search, setSearch] = useState('')
+  const [filterEntidade, setFilterEntidade] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [showResumo, setShowResumo] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -259,6 +260,7 @@ export default function Solicitacoes() {
     .filter(s => !filterStatus || s.status === filterStatus)
     .filter(s => !filterPrior || s.prioridade === filterPrior)
     .filter(s => !filterMes || (s.dt_solicitacao || '').startsWith(filterMes))
+    .filter(s => !filterEntidade || (s.veiculo?.placa === filterEntidade || s.ativo?.nome === filterEntidade))
     .filter(s => !search ||
       s.descricao.toLowerCase().includes(search.toLowerCase()) ||
       s.solicitante.toLowerCase().includes(search.toLowerCase()) ||
@@ -535,7 +537,7 @@ export default function Solicitacoes() {
             {showResumo && <div className="flex overflow-x-auto gap-2 p-3">
               {grupos.map(g => (
                 <div key={g.key}
-                  onClick={() => { setSearch(g.key); setFilterStatus('') }}
+                  onClick={() => { setFilterEntidade(g.key); setFilterStatus('Aberta') }}
                   className={`flex-shrink-0 w-40 border rounded-lg p-2.5 cursor-pointer hover:shadow-md transition-all ${g.isAtivo ? 'border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20 hover:border-purple-400' : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20'}`}>
                   <div className="flex items-center justify-between mb-1.5">
                     <span className={`font-bold text-xs truncate ${g.isAtivo ? 'text-purple-700 dark:text-purple-300' : 'text-blue-700 dark:text-blue-300'}`}>{g.key}</span>
@@ -585,8 +587,14 @@ export default function Solicitacoes() {
             <button onClick={() => setFilterMes('')} className="hover:text-red-500"><X className="w-3 h-3" /></button>
           </span>
         )}
-        {(filterStatus || filterPrior || search || filterMes) && (
-          <button onClick={() => { setFilterStatus(''); setFilterPrior(''); setSearch(''); setFilterMes('') }}
+        {filterEntidade && (
+          <span className="flex items-center gap-1 text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full">
+            {filterEntidade}
+            <button onClick={() => setFilterEntidade('')} className="hover:text-red-500"><X className="w-3 h-3" /></button>
+          </span>
+        )}
+        {(filterStatus || filterPrior || search || filterMes || filterEntidade) && (
+          <button onClick={() => { setFilterStatus(''); setFilterPrior(''); setSearch(''); setFilterMes(''); setFilterEntidade('') }}
             className="text-xs text-red-500 hover:text-red-700 flex items-center gap-1">
             <X className="w-3 h-3" /> Limpar
           </button>
@@ -764,7 +772,12 @@ export default function Solicitacoes() {
                   ) : <span className="text-xs text-gray-300 dark:text-gray-600">—</span>}
                 </span>
                 <span className="w-32 flex-shrink-0 text-xs text-gray-700 dark:text-gray-300 truncate">{s.solicitante}</span>
-                <span className="flex-1 min-w-0 text-xs font-medium text-gray-800 dark:text-gray-200 truncate">{s.descricao}</span>
+                <span className="flex-1 min-w-0 text-xs font-medium text-gray-800 dark:text-gray-200 truncate relative group cursor-default" title={s.descricao}>
+                  {s.descricao}
+                  <span className="pointer-events-none absolute left-0 top-full mt-1 z-50 hidden group-hover:block w-72 bg-gray-900 text-gray-100 text-xs rounded shadow-lg px-3 py-2 whitespace-normal break-words">
+                    {s.descricao}
+                  </span>
+                </span>
                 {s.parte_veiculo && (
                   <span className="w-24 flex-shrink-0 text-xs text-blue-600 dark:text-blue-400 truncate" title={s.parte_veiculo}>{s.parte_veiculo}</span>
                 )}

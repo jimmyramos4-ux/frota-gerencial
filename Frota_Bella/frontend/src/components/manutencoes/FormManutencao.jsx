@@ -720,7 +720,7 @@ export default function FormManutencao() {
                   const miniInp = "border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 text-xs w-full focus:outline-none dark:bg-gray-700 dark:text-gray-100"
 
                   if (isEditing) return (
-                    <tr key={s.id} className="border-b border-blue-200 dark:border-blue-800/40 bg-blue-50 dark:bg-blue-900/20">
+                    <tr key={s.id} className="border-b border-blue-200 dark:border-blue-800/40 bg-blue-50 dark:bg-blue-900/20 align-middle">
                       <td className="px-1 py-1.5">
                         <select className={miniSel} value={editForm.status} onChange={setEf('status')}>
                           <option>Em Andamento</option><option>Finalizado</option><option>Cancelado</option>
@@ -737,7 +737,7 @@ export default function FormManutencao() {
                       <td className="px-1 py-1.5"><input className={miniInp} type="date" value={editForm.proxima_dt_validade} onChange={setEf('proxima_dt_validade')} /></td>
                       <td className="px-1 py-1.5"><input className={`${miniInp} w-20 text-right`} type="number" value={editForm.proximo_km_validade} onChange={setEf('proximo_km_validade')} /></td>
                       <td className="px-1 py-1.5"><input className={miniInp} value={editForm.pessoa_responsavel} onChange={setEf('pessoa_responsavel')} placeholder="Resp." /></td>
-                      <td className="px-1 py-1.5"><input className={miniInp} value={editForm.descricao} onChange={setEf('descricao')} placeholder="Desc." /></td>
+                      <td className="px-1 py-1.5"><textarea className={`${miniInp} resize`} style={{minHeight:'26px',height:'26px'}} value={editForm.descricao} onChange={setEf('descricao')} placeholder="Desc." /></td>
                       <td className="px-1 py-1.5"><CurrencyInput className={`${miniInp} w-28 text-right`} value={editForm.valor} onChange={v => setEditForm(f => ({ ...f, valor: v }))} /></td>
                       <td className="px-1 py-1.5"><input className={`${miniInp} w-16`} value={editForm.horas_trabalhadas} onChange={setEf('horas_trabalhadas')} placeholder="h:mm" /></td>
                       <td className="px-1 py-1.5 text-center">
@@ -787,7 +787,7 @@ export default function FormManutencao() {
                 })}
 
                 {/* Linha nova */}
-                <tr className="bg-yellow-50 dark:bg-yellow-900/10 border-t-2 border-yellow-300 dark:border-yellow-800/40">
+                <tr className="bg-yellow-50 dark:bg-yellow-900/10 border-t-2 border-yellow-300 dark:border-yellow-800/40 align-middle">
                   <td className="px-1 py-1.5">
                     <select className="border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 text-xs bg-white dark:bg-gray-700 dark:text-gray-100 focus:outline-none w-full" value={newServico.status} onChange={setSf('status')}>
                       <option>Em Andamento</option><option>Finalizado</option><option>Cancelado</option>
@@ -804,7 +804,7 @@ export default function FormManutencao() {
                   <td className="px-1 py-1.5"><input className="border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 text-xs w-full dark:bg-gray-700 dark:text-gray-100" type="date" value={newServico.proxima_dt_validade} onChange={setSf('proxima_dt_validade')} /></td>
                   <td className="px-1 py-1.5"><input className="border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 text-xs w-20 text-right dark:bg-gray-700 dark:text-gray-100" type="number" value={newServico.proximo_km_validade} onChange={setSf('proximo_km_validade')} /></td>
                   <td className="px-1 py-1.5"><input className="border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 text-xs w-full dark:bg-gray-700 dark:text-gray-100" value={newServico.pessoa_responsavel} onChange={setSf('pessoa_responsavel')} placeholder="Resp." /></td>
-                  <td className="px-1 py-1.5"><input className="border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 text-xs w-full dark:bg-gray-700 dark:text-gray-100" value={newServico.descricao} onChange={setSf('descricao')} placeholder="Desc." /></td>
+                  <td className="px-1 py-1.5"><textarea className="border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 text-xs w-full dark:bg-gray-700 dark:text-gray-100 resize" style={{minHeight:'26px',height:'26px'}} value={newServico.descricao} onChange={setSf('descricao')} placeholder="Desc." /></td>
                   <td className="px-1 py-1.5"><CurrencyInput className="border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 text-xs w-28 text-right dark:bg-gray-700 dark:text-gray-100" value={newServico.valor} onChange={v => setNewServico(s => ({ ...s, valor: v }))} /></td>
                   <td className="px-1 py-1.5"><input className="border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 text-xs w-16 dark:bg-gray-700 dark:text-gray-100" value={newServico.horas_trabalhadas} onChange={setSf('horas_trabalhadas')} placeholder="h:mm" /></td>
                   <td className="px-1 py-1.5 text-center">

@@ -150,6 +150,7 @@ class VeiculoBase(BaseModel):
     ano: Optional[int] = None
     chassi: Optional[str] = None
     capacidade: Optional[str] = None
+    centro_custo: Optional[str] = None
     vinculo: Optional[str] = None
     motorista_id: Optional[int] = None
 
@@ -168,6 +169,7 @@ class VeiculoUpdate(BaseModel):
     ano: Optional[int] = None
     chassi: Optional[str] = None
     capacidade: Optional[str] = None
+    centro_custo: Optional[str] = None
     vinculo: Optional[str] = None
     motorista_id: Optional[int] = None
     ultimo_km: Optional[int] = None
