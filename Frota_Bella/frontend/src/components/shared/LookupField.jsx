@@ -2,8 +2,8 @@ import React, { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import axios from 'axios'
 import { Search, Plus, X, Loader2, Check } from 'lucide-react'
+import { API } from '../../lib/config'
 
-const API = 'http://localhost:8000/api'
 
 export default function LookupField({ endpoint, value, onChange, placeholder = 'Selecione...', onCadastrarNovo, onItemSelected, extraParams }) {
   const [inputText, setInputText] = useState(value || '')

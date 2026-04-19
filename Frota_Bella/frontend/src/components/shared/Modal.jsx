@@ -1,8 +1,8 @@
 import React, { useState } from 'react'
 import axios from 'axios'
 import { X, Mail, Send } from 'lucide-react'
+import { API } from '../../lib/config'
 
-const API = 'http://localhost:8000/api'
 
 export function EmailModal({ manutencaoId, onClose }) {
   const [email, setEmail] = useState('')

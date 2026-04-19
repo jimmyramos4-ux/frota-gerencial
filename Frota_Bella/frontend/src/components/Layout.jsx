@@ -24,8 +24,8 @@ import {
   Loader2,
 } from 'lucide-react'
 import novalogo from '../assets/novalogo.png'
+import { API } from '../lib/config'
 
-const API = 'http://localhost:8000/api'
 
 const navItems = [
   { label: 'Dashboard', icon: LayoutDashboard, to: '/dashboard' },

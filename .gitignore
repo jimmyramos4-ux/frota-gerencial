@@ -7,4 +7,7 @@ Frota_Bella/frontend/node_modules/
 Frota_Bella/backend/__pycache__/
 Frota_Bella/backend/*.db
 Frota_Bella/backend/uvicorn.log
+Frota_Bella/backend/.env
+Frota_Bella/frontend/.env.local
+Frota_Bella/frontend/.env.production
 .claude/

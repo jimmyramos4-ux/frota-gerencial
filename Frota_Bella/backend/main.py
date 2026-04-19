@@ -10,6 +10,9 @@ from pathlib import Path
 from datetime import datetime
 from typing import Optional
 
+from dotenv import load_dotenv
+load_dotenv()
+
 # ── Configuração de E-mail ────────────────────────────────────────────────────
 EMAIL_REMETENTE = "jimmyramos4@gmail.com"
 EMAIL_SENHA_APP = "gvyvopdn pizufsqb".replace(" ", "")
@@ -29,14 +32,18 @@ from database import engine, get_db, Base
 
 Base.metadata.create_all(bind=engine)
 
-# Migration: adiciona colunas novo se não existirem
+# Migration: adiciona colunas novas se não existirem (SQLite e PostgreSQL)
 def _add_column_if_missing(engine, table, col_def):
     from sqlalchemy import text, inspect
     insp = inspect(engine)
     cols = [c["name"] for c in insp.get_columns(table)]
     if col_def[0] not in cols:
         with engine.connect() as conn:
-            conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col_def[0]} {col_def[1]}"))
+            dialect = engine.dialect.name
+            if dialect == "postgresql":
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col_def[0]} {col_def[1]}"))
+            else:
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col_def[0]} {col_def[1]}"))
             conn.commit()
 
 _add_column_if_missing(engine, "veiculos", ("ultimo_km", "INTEGER"))

@@ -2,8 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import axios from 'axios'
 import { Pencil, RefreshCw, AlertCircle, CheckCircle, X } from 'lucide-react'
+import { API } from '../../lib/config'
 
-const API = 'http://localhost:8000/api'
 const EMPTY = {
   nome: '', cnpj_cpf: '', telefone: '', email: '',
   endereco: '', cidade: '', especialidade: '', observacao: '', ativo: true,

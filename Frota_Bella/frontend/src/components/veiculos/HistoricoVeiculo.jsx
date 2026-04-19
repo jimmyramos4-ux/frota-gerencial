@@ -5,8 +5,8 @@ import {
   ArrowLeft, Car, Wrench, DollarSign, ChevronDown, ChevronRight,
   CheckCircle, Clock, XCircle, AlertTriangle, BarChart2, TrendingUp,
 } from 'lucide-react'
+import { API } from '../../lib/config'
 
-const API = 'http://localhost:8000/api'
 
 function fmtVal(v) {
   if (!v && v !== 0) return '—'

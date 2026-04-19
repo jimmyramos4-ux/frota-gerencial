@@ -5,8 +5,8 @@ import {
   Loader2, Package, AlertCircle, CheckCircle,
   ArrowUp, ArrowDown, ArrowUpDown,
 } from 'lucide-react'
+import { API } from '../../lib/config'
 
-const API = 'http://localhost:8000/api'
 
 const EMPTY = {
   nome: '', tipo: '', codigo: '', localizacao: '',

@@ -2,8 +2,8 @@ import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import axios from 'axios'
 import { Pencil, RefreshCw, AlertCircle, CheckCircle, X } from 'lucide-react'
+import { API } from '../../lib/config'
 
-const API = 'http://localhost:8000/api'
 const EMPTY = { nome: '', email_notificacao: '', ativo: true }
 
 const inp = "border border-gray-300 dark:border-gray-600 rounded px-2 py-0.5 text-xs w-full focus:outline-none focus:border-blue-400 dark:bg-gray-700 dark:text-gray-100"

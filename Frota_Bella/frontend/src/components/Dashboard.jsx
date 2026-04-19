@@ -6,8 +6,8 @@ import {
   AlertTriangle, CheckCircle2, Eye, Bell, TrendingUp, DollarSign,
   ClipboardList, Clock, CheckCheck, BarChart2,
 } from 'lucide-react'
+import { API } from '../lib/config'
 
-const API = 'http://localhost:8000/api'
 
 // ── Formatadores ──────────────────────────────────────────────────────────────
 

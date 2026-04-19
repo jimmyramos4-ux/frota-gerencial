@@ -26,6 +26,7 @@ import {
 import * as XLSX from 'xlsx'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
+import { API } from '../../lib/config'
 
 function SortIcon({ field, sorts }) {
   const idx = sorts.findIndex(s => s.field === field)
@@ -39,7 +40,6 @@ function SortIcon({ field, sorts }) {
   )
 }
 
-const API = 'http://localhost:8000/api'
 
 const emptyForm = {
   placa: '',

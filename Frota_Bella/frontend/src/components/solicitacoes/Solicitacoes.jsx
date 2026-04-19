@@ -9,13 +9,13 @@ import {
 import * as XLSX from 'xlsx'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
+import { API } from '../../lib/config'
 
 function SortIcon({ field, sortField, sortDir }) {
   if (sortField !== field) return <ArrowUpDown className="w-3 h-3 opacity-30" />
   return sortDir === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
 }
 
-const API = 'http://localhost:8000/api'
 
 const PRIORIDADES = ['Crítico', 'Alta', 'Média', 'Baixa']
 const STATUS_LIST = ['Aberta', 'Em Análise', 'Finalizada', 'Rejeitada']

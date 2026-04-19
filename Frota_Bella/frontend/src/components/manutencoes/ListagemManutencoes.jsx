@@ -28,8 +28,8 @@ function SortIcon({ field, sortField, sortDir }) {
 }
 import Pagination from '../shared/Pagination.jsx'
 import { EmailModal, ConfirmModal } from '../shared/Modal.jsx'
+import { API } from '../../lib/config'
 
-const API = 'http://localhost:8000/api'
 
 const statusColor = {
   'Em Andamento': 'bg-blue-100 text-blue-800',

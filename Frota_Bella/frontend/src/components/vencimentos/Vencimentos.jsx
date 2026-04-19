@@ -5,8 +5,8 @@ import {
   Bell, RefreshCw, Car, Wrench, AlertTriangle, CheckCircle, Clock,
   ArrowUp, ArrowDown, ArrowUpDown, Search, X, Users, Plus, Pencil, Save, Loader2, CalendarClock,
 } from 'lucide-react'
+import { API } from '../../lib/config'
 
-const API = 'http://localhost:8000/api'
 
 function SortIcon({ field, sortField, sortDir }) {
   if (sortField !== field) return <ArrowUpDown className="w-3 h-3 opacity-30" />

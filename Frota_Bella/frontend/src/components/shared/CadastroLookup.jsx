@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
 import { Plus, Pencil, Trash2, RefreshCw, Search, X, Save, Loader2, AlertCircle, CheckCircle } from 'lucide-react'
+import { API } from '../../lib/config'
 
-const API = 'http://localhost:8000/api'
 
 function fmt(dt) {
   if (!dt) return '-'

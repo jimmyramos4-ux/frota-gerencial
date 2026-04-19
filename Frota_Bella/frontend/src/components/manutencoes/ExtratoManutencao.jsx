@@ -3,8 +3,8 @@ import { Link, useParams, useSearchParams } from 'react-router-dom'
 import axios from 'axios'
 import { Loader2, Printer, ChevronLeft } from 'lucide-react'
 import novalogo from '../../assets/novalogo.png'
+import { API } from '../../lib/config'
 
-const API = 'http://localhost:8000/api'
 
 function fmt(dt) {
   if (!dt) return '-'

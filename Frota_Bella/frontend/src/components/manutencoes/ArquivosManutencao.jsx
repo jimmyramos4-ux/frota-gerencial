@@ -13,8 +13,8 @@ import {
   Download,
   Pencil,
 } from 'lucide-react'
+import { API } from '../../lib/config'
 
-const API = 'http://localhost:8000/api'
 
 function fmt(dt) {
   if (!dt) return '-'

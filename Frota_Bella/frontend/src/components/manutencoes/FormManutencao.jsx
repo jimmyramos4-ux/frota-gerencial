@@ -12,8 +12,8 @@ import { TipoServicoModal } from '../tiposservico/CadastroTipoServico.jsx'
 import { ParteVeiculoModal } from '../partesveiculo/CadastroParteVeiculo.jsx'
 import { OficinaPrestadorModal } from '../oficinasprestadores/CadastroOficinaPrestador.jsx'
 import { AtivoModal } from '../ativos/CadastroAtivos.jsx'
+import { API } from '../../lib/config'
 
-const API = 'http://localhost:8000/api'
 
 const emptyForm = {
   veiculo_id: '', ativo_id: '', motorista_id: '',
