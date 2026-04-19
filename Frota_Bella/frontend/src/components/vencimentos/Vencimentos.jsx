@@ -117,6 +117,7 @@ export default function Vencimentos() {
   const [sortField, setSortField] = useState('status')
   const [sortDir, setSortDir] = useState('asc')
   const [acaoModal, setAcaoModal] = useState(null)
+  const [filterServico, setFilterServico] = useState('')
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -148,8 +149,11 @@ export default function Vencimentos() {
     })
   }
 
+  const servicosUnicos = [...new Set(items.map(i => i.servico).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'))
+
   const filtered = items
     .filter(i => filterStatus.size === 0 || filterStatus.has(i.status))
+    .filter(i => !filterServico || i.servico === filterServico)
     .filter(i => !search ||
       (i.veiculo_placa || '').toLowerCase().includes(search.toLowerCase()) ||
       (i.servico || '').toLowerCase().includes(search.toLowerCase()) ||
@@ -231,8 +235,16 @@ export default function Vencimentos() {
             </button>
           ))}
         </div>
-        {(search || filterStatus.size > 0) && (
-          <button onClick={() => { setSearch(''); setFilterStatus(new Set()) }}
+        <select
+          value={filterServico}
+          onChange={e => setFilterServico(e.target.value)}
+          className="text-xs border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 dark:text-gray-100 focus:outline-none focus:border-blue-400"
+        >
+          <option value="">Todos os serviços</option>
+          {servicosUnicos.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+        {(search || filterStatus.size > 0 || filterServico) && (
+          <button onClick={() => { setSearch(''); setFilterStatus(new Set()); setFilterServico('') }}
             className="text-xs text-red-500 hover:text-red-700 flex items-center gap-1">
             <X className="w-3 h-3" /> Limpar
           </button>

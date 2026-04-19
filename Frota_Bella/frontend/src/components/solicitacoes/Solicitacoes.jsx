@@ -622,10 +622,8 @@ export default function Solicitacoes() {
           <span className="w-20 flex-shrink-0 cursor-pointer hover:text-blue-600" onClick={() => handleSort('prioridade')}><span className="flex items-center gap-0.5">Prioridade <SortIcon field="prioridade" sortField={sortField} sortDir={sortDir} /></span></span>
           <span className="w-24 flex-shrink-0 text-center cursor-pointer hover:text-blue-600" onClick={() => handleSort('dt_solicitacao')}><span className="flex items-center justify-center gap-0.5">Dias em Aberto <SortIcon field="dt_solicitacao" sortField={sortField} sortDir={sortDir} /></span></span>
           <span className="w-24 flex-shrink-0 cursor-pointer hover:text-blue-600" onClick={() => handleSort('status')}><span className="flex items-center gap-0.5">Status <SortIcon field="status" sortField={sortField} sortDir={sortDir} /></span></span>
-          <span className="w-24 flex-shrink-0">Manutenção</span>
-          <span className="w-10 flex-shrink-0 text-center">Anexo</span>
           <span className="w-40 flex-shrink-0">Ação / Prazo</span>
-          <span className="w-16 flex-shrink-0 text-center">Ações</span>
+          <span className="w-24 flex-shrink-0 text-center">Ações</span>
         </div>
 
         {filtered.length === 0 ? (
@@ -642,22 +640,8 @@ export default function Solicitacoes() {
             {editingId === s.id ? (
               /* ── MODO EDIÇÃO ── */
               <div className="p-4 bg-blue-50 dark:bg-blue-900/20 space-y-3">
-                <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
-                  <div>
-                    <div className="h-6 flex items-center mb-1">
-                      <label className="text-xs font-semibold text-blue-800 dark:text-blue-300">Solicitante</label>
-                    </div>
-                    <input className={inp} value={editForm.solicitante} onChange={setEf('solicitante')} />
-                  </div>
-                  <div>
-                    <div className="h-6 flex items-center mb-1">
-                      <label className="text-xs font-semibold text-blue-800 dark:text-blue-300">Parte do Veículo</label>
-                    </div>
-                    <select className={sel} value={editForm.parte_veiculo || ''} onChange={setEf('parte_veiculo')}>
-                      <option value="">— Selecione —</option>
-                      {partes.map(p => <option key={p.id} value={p.nome}>{p.nome}</option>)}
-                    </select>
-                  </div>
+                {/* Linha 1: Veículo/Ativo | Solicitante | Prioridade | Data | Status | Parte do Veículo */}
+                <div className="grid grid-cols-6 gap-3 items-end">
                   <div>
                     <div className="h-6 flex items-center gap-1 mb-1">
                       <label className="text-xs font-semibold text-blue-800 dark:text-blue-300">Veículo / Ativo</label>
@@ -687,21 +671,19 @@ export default function Solicitacoes() {
                     )}
                   </div>
                   <div>
-                    <div className="h-6 flex items-center mb-1">
-                      <label className="text-xs font-semibold text-blue-800 dark:text-blue-300">Prioridade</label>
-                    </div>
+                    <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Solicitante</label>
+                    <input className={inp} value={editForm.solicitante} onChange={setEf('solicitante')} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Prioridade</label>
                     <select className={sel} value={editForm.prioridade} onChange={setEf('prioridade')}>
                       {PRIORIDADES.map(p => <option key={p}>{p}</option>)}
                     </select>
                   </div>
                   <div>
-                    <div className="h-6 flex items-center mb-1">
-                      <label className="text-xs font-semibold text-blue-800 dark:text-blue-300">Data da Solicitação</label>
-                    </div>
+                    <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Data da Solicitação</label>
                     <input type="date" className={inp} value={editForm.dt_solicitacao || ''} onChange={setEf('dt_solicitacao')} />
                   </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Status</label>
                     <select className={sel} value={editForm.status} onChange={setEf('status')}>
@@ -709,13 +691,23 @@ export default function Solicitacoes() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Observação</label>
-                    <input className={inp} value={editForm.observacao} onChange={setEf('observacao')} />
+                    <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Parte do Veículo</label>
+                    <select className={sel} value={editForm.parte_veiculo} onChange={setEf('parte_veiculo')}>
+                      <option value="">— Selecione —</option>
+                      {partes.map(p => <option key={p.id} value={p.nome}>{p.nome}</option>)}
+                    </select>
                   </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Descrição</label>
-                  <textarea className={`${inp} resize-none`} rows={2} value={editForm.descricao} onChange={setEf('descricao')} />
+                {/* Linha 2: Descrição | Observação */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Descrição</label>
+                    <textarea className={`${inp} resize-none`} rows={2} value={editForm.descricao} onChange={setEf('descricao')} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Observação</label>
+                    <textarea className={`${inp} resize-none`} rows={2} value={editForm.observacao} onChange={setEf('observacao')} />
+                  </div>
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Imagens</label>
@@ -772,15 +764,10 @@ export default function Solicitacoes() {
                   ) : <span className="text-xs text-gray-300 dark:text-gray-600">—</span>}
                 </span>
                 <span className="w-32 flex-shrink-0 text-xs text-gray-700 dark:text-gray-300 truncate">{s.solicitante}</span>
-                <span className="flex-1 min-w-0 text-xs font-medium text-gray-800 dark:text-gray-200 truncate relative group cursor-default" title={s.descricao}>
+                <span className="flex-1 min-w-0 text-xs font-medium text-gray-800 dark:text-gray-200 break-words">
                   {s.descricao}
-                  <span className="pointer-events-none absolute left-0 top-full mt-1 z-50 hidden group-hover:block w-72 bg-gray-900 text-gray-100 text-xs rounded shadow-lg px-3 py-2 whitespace-normal break-words">
-                    {s.descricao}
-                  </span>
                 </span>
-                {s.parte_veiculo && (
-                  <span className="w-24 flex-shrink-0 text-xs text-blue-600 dark:text-blue-400 truncate" title={s.parte_veiculo}>{s.parte_veiculo}</span>
-                )}
+                <span className="w-24 flex-shrink-0 text-xs text-gray-600 dark:text-gray-400 truncate" title={s.parte_veiculo}>{s.parte_veiculo || '—'}</span>
                 <span className={`w-20 flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold whitespace-nowrap ${priorBadge[s.prioridade]}`}>
                   {s.prioridade === 'Crítico' && <AlertTriangle className="w-3 h-3" />}
                   {s.prioridade}
@@ -789,31 +776,11 @@ export default function Solicitacoes() {
                   {(() => { const d = diasAberto(s.dt_solicitacao); return d === null ? '-' : `${d} dia${d !== 1 ? 's' : ''}` })()}
                 </span>
                 <span className={`w-24 flex-shrink-0 inline-block px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap ${statusBadge[s.status] || ''}`}>{s.status}</span>
-                <span className="w-24 flex-shrink-0">
-                  {s.manutencao_id ? (
-                    <Link to={`/manutencoes/${s.manutencao_id}/editar`}
-                      className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 font-medium whitespace-nowrap">
-                      <Wrench className="w-3 h-3" /> #{s.manutencao_id}
-                    </Link>
-                  ) : <span className="text-xs text-gray-300 dark:text-gray-600">—</span>}
-                </span>
-                <div className="w-10 flex-shrink-0 flex items-center justify-center">
-                  {s.imagens && JSON.parse(s.imagens).length > 0 ? (
-                    <button onClick={() => setLightbox({ images: JSON.parse(s.imagens), idx: 0 })}
-                      title={`${JSON.parse(s.imagens).length} anexo(s)`}
-                      className="relative p-1 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors">
-                      <Paperclip className="w-3.5 h-3.5" />
-                      <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-[9px] rounded-full w-3.5 h-3.5 flex items-center justify-center font-bold leading-none">
-                        {JSON.parse(s.imagens).length}
-                      </span>
-                    </button>
-                  ) : <span className="text-gray-300 text-xs">—</span>}
-                </div>
                 {/* Ação / Prazo */}
-                <div className="w-40 flex-shrink-0">
+                <div className="w-48 flex-shrink-0">
                   {s.acao ? (
                     <button onClick={() => setAcaoModal(s)} className="group text-left w-full">
-                      <div className="text-xs text-gray-700 dark:text-gray-200 line-clamp-2 leading-snug">{s.acao}</div>
+                      <div className="text-xs text-gray-700 dark:text-gray-200 leading-snug break-words">{s.acao}</div>
                       {s.prazo_acao && (() => {
                         const dias = Math.floor((new Date(s.prazo_acao) - new Date()) / 86400000)
                         return (
@@ -832,7 +799,26 @@ export default function Solicitacoes() {
                     </button>
                   )}
                 </div>
-                <div className="w-16 flex-shrink-0 flex items-center justify-center gap-1">
+                <div className="w-24 flex-shrink-0 flex items-center justify-center gap-1">
+                  {s.manutencao_id ? (
+                    <Link to={`/manutencoes/${s.manutencao_id}/editar`}
+                      title={`Manutenção #${s.manutencao_id}`}
+                      className="p-1 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors">
+                      <Wrench className="w-3.5 h-3.5" />
+                    </Link>
+                  ) : <span className="w-6" />}
+                  <div className="w-6 flex items-center justify-center flex-shrink-0">
+                    {s.imagens && JSON.parse(s.imagens).length > 0 ? (
+                      <button onClick={() => setLightbox({ images: JSON.parse(s.imagens), idx: 0 })}
+                        title={`${JSON.parse(s.imagens).length} anexo(s)`}
+                        className="relative p-1 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors">
+                        <Paperclip className="w-3.5 h-3.5" />
+                        <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-[9px] rounded-full w-3.5 h-3.5 flex items-center justify-center font-bold leading-none">
+                          {JSON.parse(s.imagens).length}
+                        </span>
+                      </button>
+                    ) : <span className="w-6" />}
+                  </div>
                   <button onClick={() => startEdit(s)} title="Editar"
                     className="p-1 text-blue-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors">
                     <Pencil className="w-3.5 h-3.5" />
