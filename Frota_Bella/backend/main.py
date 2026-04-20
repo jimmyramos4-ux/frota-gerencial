@@ -18,6 +18,7 @@ EMAIL_REMETENTE = "jimmyramos4@gmail.com"
 EMAIL_SENHA_APP = "gvyvopdn pizufsqb".replace(" ", "")
 
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, Query
+from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
