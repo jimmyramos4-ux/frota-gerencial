@@ -334,11 +334,11 @@ export default function Solicitacoes() {
           <ClipboardList className="w-6 h-6 text-blue-200" />
           <div>
             <h1 className="text-white font-bold text-base leading-tight">Solicitações de Manutenção</h1>
-            <p className="text-blue-200 text-xs">Registre e acompanhe as demandas da frota</p>
+            <p className="text-blue-200 text-xs hidden sm:block">Registre e acompanhe as demandas da frota</p>
           </div>
         </div>
-        {/* Legenda de prioridades */}
-        <div className="flex items-center gap-3 flex-1 justify-center">
+        {/* Legenda de prioridades — só desktop */}
+        <div className="hidden lg:flex items-center gap-3 flex-1 justify-center">
           <span className="text-blue-300 text-[10px] font-semibold uppercase tracking-wide shrink-0">Prioridade:</span>
           {[
             { color: '#ef4444', label: 'Crítico', desc: 'Parado / Risco operacional' },
@@ -353,18 +353,18 @@ export default function Solicitacoes() {
             </span>
           ))}
         </div>
-        <div className="flex gap-3 text-xs shrink-0">
-          <div className="bg-blue-700 rounded px-3 py-1.5 text-center">
-            <div className="text-white font-bold text-lg leading-none">{counts.total}</div>
-            <div className="text-blue-300">Total</div>
+        <div className="flex gap-2 text-xs shrink-0">
+          <div className="bg-blue-700 rounded px-2 py-1.5 text-center min-w-[44px]">
+            <div className="text-white font-bold text-base leading-none">{counts.total}</div>
+            <div className="text-blue-300 text-[10px]">Total</div>
           </div>
-          <div className="bg-blue-700 rounded px-3 py-1.5 text-center">
-            <div className="text-yellow-300 font-bold text-lg leading-none">{counts.abertas}</div>
-            <div className="text-blue-300">Abertas</div>
+          <div className="bg-blue-700 rounded px-2 py-1.5 text-center min-w-[44px]">
+            <div className="text-yellow-300 font-bold text-base leading-none">{counts.abertas}</div>
+            <div className="text-blue-300 text-[10px]">Abertas</div>
           </div>
-          <div className="bg-blue-700 rounded px-3 py-1.5 text-center">
-            <div className="text-red-300 font-bold text-lg leading-none">{counts.urgentes}</div>
-            <div className="text-blue-300">Críticos</div>
+          <div className="bg-blue-700 rounded px-2 py-1.5 text-center min-w-[44px]">
+            <div className="text-red-300 font-bold text-base leading-none">{counts.urgentes}</div>
+            <div className="text-blue-300 text-[10px]">Críticos</div>
           </div>
         </div>
       </div>
@@ -613,8 +613,70 @@ export default function Solicitacoes() {
         </div>
       </div>
 
-      {/* ── LISTA ── */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+      {/* ── LISTA MOBILE (cards) ── */}
+      <div className="md:hidden space-y-2">
+        {loading ? (
+          <div className="p-8 text-center text-gray-400 text-sm flex items-center justify-center gap-2">
+            <Loader2 className="w-4 h-4 animate-spin" /> Carregando...
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="p-8 text-center text-gray-400 text-sm">Nenhuma solicitação encontrada.</div>
+        ) : displayItems.map(s => (
+          <div key={s.id} className={`bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden border-l-4 ${
+            s.prioridade === 'Crítico' ? 'border-l-red-500' :
+            s.prioridade === 'Alta'    ? 'border-l-orange-400' :
+            s.prioridade === 'Média'   ? 'border-l-yellow-400' : 'border-l-green-400'
+          }`}>
+            <div className="px-3 py-2 space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-400 font-medium">#{s.id}</span>
+                  {s.veiculo ? (
+                    <span className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 font-semibold">
+                      <Car className="w-3 h-3" /> {s.veiculo.placa}
+                    </span>
+                  ) : s.ativo ? (
+                    <span className="flex items-center gap-1 text-xs text-purple-600 dark:text-purple-400 font-semibold">
+                      <Package className="w-3 h-3" /> {s.ativo.nome}
+                    </span>
+                  ) : null}
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${priorBadge[s.prioridade]}`}>
+                    {s.prioridade === 'Crítico' && <AlertTriangle className="w-2.5 h-2.5" />}
+                    {s.prioridade}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => startEdit(s)} className="p-1 text-blue-400 hover:text-blue-600 rounded">
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                  <button onClick={() => handleDelete(s.id)} className="p-1 text-red-400 hover:text-red-600 rounded">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+              <p className="text-xs font-medium text-gray-800 dark:text-gray-200">{s.descricao}</p>
+              <div className="flex items-center gap-3 flex-wrap">
+                <span className="text-xs text-gray-500 dark:text-gray-400">{s.solicitante}</span>
+                {s.parte_veiculo && <span className="text-xs text-gray-400">· {s.parte_veiculo}</span>}
+                <span className="text-xs text-gray-400">· {(() => { const d = diasAberto(s.dt_solicitacao); return d === null ? '-' : `${d}d` })()}</span>
+                <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${statusBadge[s.status] || ''}`}>{s.status}</span>
+              </div>
+              {s.acao && (
+                <div className="text-[11px] text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 rounded px-2 py-1">
+                  {s.acao}
+                  {s.prazo_acao && (() => {
+                    const dias = Math.floor((new Date(s.prazo_acao) - new Date()) / 86400000)
+                    return <span className={`ml-2 font-semibold ${dias < 0 ? 'text-red-500' : 'text-orange-500'}`}>{dias < 0 ? `${Math.abs(dias)}d vencido` : fmtDateBR(s.prazo_acao)}</span>
+                  })()}
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── LISTA DESKTOP (tabela) ── */}
+      <div className="hidden md:block bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
         <div className="min-w-[920px]">
         {/* Cabeçalho */}
@@ -843,7 +905,7 @@ export default function Solicitacoes() {
         ))}
         </div>{/* min-w */}
         </div>{/* overflow-x-auto */}
-      </div>
+      </div>{/* desktop table */}
 
       {acaoModal && (
         <AcaoModal sol={acaoModal} onClose={() => setAcaoModal(null)} onSaved={handleAcaoSaved} />
