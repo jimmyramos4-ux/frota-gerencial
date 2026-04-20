@@ -80,11 +80,19 @@ export default function Layout() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-100 dark:bg-gray-900">
+      {/* Backdrop mobile */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/40 z-30 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
       <aside
         className={`${
           sidebarOpen ? 'w-56' : 'w-0'
-        } bg-blue-900 text-white flex-shrink-0 transition-all duration-200 flex flex-col overflow-hidden`}
+        } fixed md:relative inset-y-0 left-0 z-40 bg-blue-900 text-white flex-shrink-0 transition-all duration-200 flex flex-col overflow-hidden`}
       >
         {/* Nav */}
         <nav className="flex-1 py-2 overflow-y-auto w-56 min-w-[224px]">
@@ -214,7 +222,7 @@ export default function Layout() {
           </button>
           <div className="flex items-center gap-2">
             <img src={novalogo} alt="Logo" className="h-8 object-contain" />
-            <span className="text-gray-400 text-xs ml-1">| Gestão de Frotas</span>
+            <span className="hidden sm:inline text-gray-400 text-xs ml-1">| Gestão de Frotas</span>
           </div>
           <div className="ml-auto flex items-center gap-3 text-xs text-gray-500 dark:text-gray-300">
             <button
@@ -225,12 +233,12 @@ export default function Layout() {
               {theme === 'dark' ? <Sun className="w-4 h-4 text-yellow-400" /> : <Moon className="w-4 h-4 text-gray-500" />}
             </button>
             <span className="bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-400 px-2 py-0.5 rounded font-medium">Online</span>
-            <span className="dark:text-gray-400">Sistema de Manutenção</span>
+            <span className="hidden sm:inline dark:text-gray-400">Sistema de Manutenção</span>
           </div>
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto p-4">
+        <main className="flex-1 overflow-y-auto p-2 sm:p-4">
           <Outlet />
         </main>
       </div>
@@ -238,7 +246,7 @@ export default function Layout() {
       {/* Toast de vencimentos críticos */}
       {toast && (
         <div className="fixed bottom-5 right-5 z-50 flex flex-col gap-1 animate-slide-up">
-          <div className="bg-white dark:bg-gray-800 border border-red-200 dark:border-red-700 rounded-xl shadow-xl p-4 w-80 flex gap-3">
+          <div className="bg-white dark:bg-gray-800 border border-red-200 dark:border-red-700 rounded-xl shadow-xl p-4 w-72 sm:w-80 max-w-[calc(100vw-2.5rem)] flex gap-3">
             <div className="flex-shrink-0 w-9 h-9 rounded-full bg-red-100 dark:bg-red-900/40 flex items-center justify-center">
               <Bell className="w-5 h-5 text-red-500" />
             </div>

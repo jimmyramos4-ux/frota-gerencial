@@ -612,6 +612,8 @@ export default function Solicitacoes() {
 
       {/* ── LISTA ── */}
       <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+        <div className="min-w-[920px]">
         {/* Cabeçalho */}
         <div className="bg-blue-50 dark:bg-blue-900/20 border-b border-blue-100 dark:border-blue-800/40 px-3 py-2 flex items-center gap-2 text-xs font-semibold text-blue-800 dark:text-blue-300 select-none">
           <span className="w-8 flex-shrink-0 cursor-pointer hover:text-blue-600" onClick={() => handleSort('id')}><span className="flex items-center gap-0.5"># <SortIcon field="id" sortField={sortField} sortDir={sortDir} /></span></span>
@@ -641,7 +643,7 @@ export default function Solicitacoes() {
               /* ── MODO EDIÇÃO ── */
               <div className="p-4 bg-blue-50 dark:bg-blue-900/20 space-y-3">
                 {/* Linha 1: Veículo/Ativo | Solicitante | Prioridade | Data | Status | Parte do Veículo */}
-                <div className="grid grid-cols-6 gap-3 items-end">
+                <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3 items-end">
                   <div>
                     <div className="h-6 flex items-center gap-1 mb-1">
                       <label className="text-xs font-semibold text-blue-800 dark:text-blue-300">Veículo / Ativo</label>
@@ -699,7 +701,7 @@ export default function Solicitacoes() {
                   </div>
                 </div>
                 {/* Linha 2: Descrição | Observação */}
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Descrição</label>
                     <textarea className={`${inp} resize-none`} rows={2} value={editForm.descricao} onChange={setEf('descricao')} />
@@ -832,6 +834,8 @@ export default function Solicitacoes() {
             )}
           </div>
         ))}
+        </div>{/* min-w */}
+        </div>{/* overflow-x-auto */}
       </div>
 
       {acaoModal && (
