@@ -323,7 +323,7 @@ export default function Solicitacoes() {
   const counts = { total: items.length, abertas: items.filter(x => x.status === 'Aberta').length, urgentes: items.filter(x => x.prioridade === 'Crítico' && x.status === 'Aberta').length }
 
   return (
-    <div className="space-y-4 max-w-7xl mx-auto">
+    <div className="space-y-4 w-full">
 
       {/* ── CABEÇALHO ── */}
       <div className="bg-gradient-to-r from-blue-800 to-blue-600 rounded-lg shadow px-4 py-3 flex items-center justify-between gap-4">
