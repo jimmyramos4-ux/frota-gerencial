@@ -1807,7 +1807,9 @@ def dashboard_stats(
     from datetime import date as dt_date, timedelta
     from sqlalchemy import text
     import calendar
+    from database import DATABASE_URL
 
+    is_pg = DATABASE_URL.startswith("postgresql")
     today = dt_date.today()
 
     # Resolve range de datas
@@ -1823,11 +1825,15 @@ def dashboard_stats(
     dt_fim_str = d_fim.isoformat()
 
     # 1. Manutenções por mês no período
-    meses_raw = db.execute(text("""
-        SELECT strftime('%Y-%m', dt_inicio) as mes, tipo, COUNT(*) as total
+    if is_pg:
+        mes_expr = "TO_CHAR(dt_inicio, 'YYYY-MM')"
+    else:
+        mes_expr = "strftime('%Y-%m', dt_inicio)"
+    meses_raw = db.execute(text(f"""
+        SELECT {mes_expr} as mes, tipo, COUNT(*) as total
         FROM manutencoes
         WHERE dt_inicio >= :di AND dt_inicio <= :df AND dt_inicio IS NOT NULL
-        GROUP BY strftime('%Y-%m', dt_inicio), tipo
+        GROUP BY {mes_expr}, tipo
         ORDER BY mes
     """), {"di": dt_ini_str, "df": dt_fim_str}).fetchall()
 
@@ -1873,7 +1879,7 @@ def dashboard_stats(
         LEFT JOIN manutencoes m ON m.veiculo_id = v.id AND m.dt_inicio >= :di AND m.dt_inicio <= :df
         LEFT JOIN servicos_veiculo sv ON sv.manutencao_id = m.id AND sv.valor IS NOT NULL
         GROUP BY v.id, v.placa, v.descricao
-        HAVING total_manutencoes > 0
+        HAVING COUNT(DISTINCT m.id) > 0
         ORDER BY total_custo DESC
         LIMIT 10
     """), {"di": dt_ini_str, "df": dt_fim_str}).fetchall()
