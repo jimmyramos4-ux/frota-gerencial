@@ -323,6 +323,7 @@ export default function ListagemVeiculos() {
   const [veiculos, setVeiculos] = useState([])
   const [loading, setLoading] = useState(false)
   const [syncing, setSyncing] = useState(false)
+  const syncFileRef = useRef(null)
   const [search, setSearch] = useState('')
   const [modal, setModal] = useState(null)
   const [toast, setToast] = useState(null)
@@ -383,10 +384,21 @@ export default function ListagemVeiculos() {
     fetchVeiculos()
   }
 
-  const handleSyncKm = async () => {
+  const handleSyncKm = () => {
+    syncFileRef.current.value = ''
+    syncFileRef.current.click()
+  }
+
+  const handleSyncFileSelected = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
     setSyncing(true)
     try {
-      const res = await axios.post(`${API}/veiculos/sync-km`)
+      const form = new FormData()
+      form.append('file', file)
+      const res = await axios.post(`${API}/veiculos/sync-km`, form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
       const { atualizados, nao_encontrados } = res.data
       let msg = `${atualizados} veículo(s) atualizados com KM do Excel.`
       if (nao_encontrados.length > 0) msg += ` Não encontrados: ${nao_encontrados.join(', ')}.`
@@ -476,6 +488,13 @@ export default function ListagemVeiculos() {
           <button onClick={fetchVeiculos} className="text-gray-500 hover:text-blue-600 transition-colors" title="Atualizar">
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
+          <input
+            ref={syncFileRef}
+            type="file"
+            accept=".xlsx,.xls"
+            className="hidden"
+            onChange={handleSyncFileSelected}
+          />
           <button
             onClick={handleSyncKm}
             disabled={syncing}

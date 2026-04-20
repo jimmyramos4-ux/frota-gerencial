@@ -569,15 +569,15 @@ def ultimo_sync_km(db: Session = Depends(get_db)):
 
 # ── Sync KM Excel ─────────────────────────────────────────────────────────────
 
-EXCEL_KM_PATH = r"C:\Users\jimmy.ramos\OneDrive - Bello Alimentos LTDA\Bello\ULTIMOS KM.xlsx"
-
 @app.post("/api/veiculos/sync-km")
-def sync_km(db: Session = Depends(get_db)):
+def sync_km(file: UploadFile = File(...), db: Session = Depends(get_db)):
     global _last_sync_dt
     import openpyxl
+    import io
     from datetime import datetime as dt
     try:
-        wb = openpyxl.load_workbook(EXCEL_KM_PATH)
+        contents = file.file.read()
+        wb = openpyxl.load_workbook(io.BytesIO(contents))
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Erro ao abrir Excel: {e}")
 
