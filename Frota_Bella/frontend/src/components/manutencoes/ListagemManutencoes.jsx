@@ -1090,7 +1090,7 @@ export default function ListagemManutencoes() {
       {lightbox && (() => {
         const arq = lightbox.arquivos[lightbox.idx]
         const isImg = arq && /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(arq.nome_arquivo)
-        const url = arq ? `http://localhost:8000/api/uploads/${arq.caminho}` : null
+        const url = arq ? (arq.conteudo || (arq.caminho ? `${API}/uploads/${arq.caminho}` : null)) : null
         const imgArquivos = lightbox.arquivos.filter(a => /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(a.nome_arquivo))
         return (
           <div className="fixed inset-0 z-50 bg-black/80 flex flex-col items-center justify-center" onClick={() => setLightbox(null)}>
@@ -1100,7 +1100,7 @@ export default function ListagemManutencoes() {
             {/* Thumbnails */}
             <div className="absolute top-4 left-1/2 -translate-x-1/2 flex gap-2" onClick={e => e.stopPropagation()}>
               {lightbox.arquivos.map((a, i) => {
-                const aUrl = `http://localhost:8000/api/uploads/${a.caminho}`
+                const aUrl = a.conteudo || (a.caminho ? `${API}/uploads/${a.caminho}` : null)
                 const aImg = /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(a.nome_arquivo)
                 return (
                   <button key={a.id} onClick={() => setLightbox(lb => ({ ...lb, idx: i }))}
@@ -1119,10 +1119,12 @@ export default function ListagemManutencoes() {
                 : <div className="bg-white rounded-xl p-8 flex flex-col items-center gap-4 shadow-2xl">
                     <FileText className="w-16 h-16 text-blue-400" />
                     <div className="text-gray-700 font-medium text-sm">{arq?.nome_arquivo}</div>
-                    <a href={url} target="_blank" rel="noreferrer"
-                      className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
-                      <Download className="w-4 h-4" /> Baixar arquivo
-                    </a>
+                    {url && (
+                      <a href={url} target="_blank" rel="noreferrer" download={arq?.nome_arquivo}
+                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
+                        <Download className="w-4 h-4" /> Baixar arquivo
+                      </a>
+                    )}
                   </div>
               }
             </div>
