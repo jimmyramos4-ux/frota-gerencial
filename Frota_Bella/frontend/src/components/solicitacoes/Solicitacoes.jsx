@@ -143,6 +143,7 @@ export default function Solicitacoes() {
   const [filterEntidade, setFilterEntidade] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [showResumo, setShowResumo] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [formImages, setFormImages] = useState([])
@@ -167,10 +168,12 @@ export default function Solicitacoes() {
   }, [])
 
   const load = async () => {
+    setLoading(true)
     try {
       const r = await axios.get(`${API}/solicitacoes`, { params: { per_page: 200 } })
       setItems(r.data.items)
     } catch { setError('Erro ao carregar solicitações') }
+    finally { setLoading(false) }
   }
 
   const setF = k => e => setForm(f => ({ ...f, [k]: e.target.value }))
@@ -628,7 +631,11 @@ export default function Solicitacoes() {
           <span className="w-24 flex-shrink-0 text-center">Ações</span>
         </div>
 
-        {filtered.length === 0 ? (
+        {loading ? (
+          <div className="p-8 text-center text-gray-400 dark:text-gray-500 text-sm flex items-center justify-center gap-2">
+            <Loader2 className="w-4 h-4 animate-spin" /> Carregando...
+          </div>
+        ) : filtered.length === 0 ? (
           <div className="p-8 text-center text-gray-400 dark:text-gray-500 text-sm">
             Nenhuma solicitação encontrada.
           </div>
