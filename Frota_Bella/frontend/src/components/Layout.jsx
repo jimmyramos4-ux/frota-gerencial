@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Outlet, Link, useLocation } from 'react-router-dom'
 import axios from 'axios'
+import { useUser, useClerk } from '@clerk/clerk-react'
 import {
   LayoutDashboard,
   Wrench,
@@ -22,6 +23,7 @@ import {
   CheckCircle,
   AlertTriangle,
   Loader2,
+  LogOut,
 } from 'lucide-react'
 import novalogo from '../assets/novalogo.png'
 import { API } from '../lib/config'
@@ -43,6 +45,8 @@ const navItems = [
 
 
 export default function Layout() {
+  const { user } = useUser()
+  const { signOut } = useClerk()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light')
   const [vencBadge, setVencBadge] = useState({ vencido: 0, proximo: 0 })
@@ -224,7 +228,7 @@ export default function Layout() {
             <img src={novalogo} alt="Logo" className="h-8 object-contain" />
             <span className="hidden sm:inline text-gray-400 text-xs ml-1">| Gestão de Frotas</span>
           </div>
-          <div className="ml-auto flex items-center gap-3 text-xs text-gray-500 dark:text-gray-300">
+          <div className="ml-auto flex items-center gap-2 text-xs text-gray-500 dark:text-gray-300">
             <button
               onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
               className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
@@ -233,7 +237,29 @@ export default function Layout() {
               {theme === 'dark' ? <Sun className="w-4 h-4 text-yellow-400" /> : <Moon className="w-4 h-4 text-gray-500" />}
             </button>
             <span className="bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-400 px-2 py-0.5 rounded font-medium">Online</span>
-            <span className="hidden sm:inline dark:text-gray-400">Sistema de Manutenção</span>
+
+            {/* Usuário logado */}
+            {user && (
+              <div className="flex items-center gap-2 pl-2 border-l border-gray-200 dark:border-gray-600">
+                {user.imageUrl ? (
+                  <img src={user.imageUrl} alt="" className="w-6 h-6 rounded-full object-cover flex-shrink-0" />
+                ) : (
+                  <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
+                    {(user.firstName?.[0] || user.emailAddresses?.[0]?.emailAddress?.[0] || '?').toUpperCase()}
+                  </div>
+                )}
+                <span className="hidden sm:inline text-gray-700 dark:text-gray-200 font-medium max-w-[120px] truncate">
+                  {user.firstName || user.emailAddresses?.[0]?.emailAddress}
+                </span>
+                <button
+                  onClick={() => signOut()}
+                  title="Sair"
+                  className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-500 transition-colors"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
+            )}
           </div>
         </header>
 
