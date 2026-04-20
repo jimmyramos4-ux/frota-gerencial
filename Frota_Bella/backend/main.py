@@ -1784,6 +1784,20 @@ async def upload_arquivo(
     return arquivo
 
 
+class ArquivoConteudoUpdate(BaseModel):
+    conteudo: str
+
+@app.patch("/api/arquivos/{arquivo_id}/conteudo", response_model=schemas.ArquivoManutencaoOut)
+def patch_arquivo_conteudo(arquivo_id: int, data: ArquivoConteudoUpdate, db: Session = Depends(get_db)):
+    arquivo = db.query(models.ArquivoManutencao).filter(models.ArquivoManutencao.id == arquivo_id).first()
+    if not arquivo:
+        raise HTTPException(status_code=404, detail="Arquivo não encontrado")
+    arquivo.conteudo = data.conteudo
+    db.commit()
+    db.refresh(arquivo)
+    return arquivo
+
+
 @app.delete("/api/arquivos/{arquivo_id}", status_code=204)
 def delete_arquivo(arquivo_id: int, db: Session = Depends(get_db)):
     arquivo = db.query(models.ArquivoManutencao).filter(models.ArquivoManutencao.id == arquivo_id).first()
