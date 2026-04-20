@@ -11,14 +11,18 @@ import {
   AlertCircle,
   CheckCircle,
   Download,
-  Pencil,
+  X,
+  ChevronRight,
 } from 'lucide-react'
 import { API } from '../../lib/config'
-
 
 function fmt(dt) {
   if (!dt) return '-'
   return new Date(dt).toLocaleDateString('pt-BR') + ' ' + new Date(dt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+}
+
+function isImage(nome) {
+  return /\.(png|jpg|jpeg|gif|webp|bmp|svg)$/i.test(nome)
 }
 
 export default function ArquivosManutencao() {
@@ -35,7 +39,7 @@ export default function ArquivosManutencao() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [selectedFile, setSelectedFile] = useState(null)
-  const [editId, setEditId] = useState(null)
+  const [lightbox, setLightbox] = useState(null) // { arquivos: [], idx: 0 }
 
   useEffect(() => {
     Promise.all([
@@ -65,22 +69,25 @@ export default function ArquivosManutencao() {
     if (f) setSelectedFile(f)
   }
 
+  const readAsBase64 = (file) =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = (ev) => resolve(ev.target.result)
+      reader.onerror = reject
+      reader.readAsDataURL(file)
+    })
+
   const handleUpload = async (e) => {
     e.preventDefault()
-    if (!selectedFile) {
-      setError('Selecione um arquivo')
-      return
-    }
-    setUploading(true)
-    setError('')
-    setSuccess('')
+    if (!selectedFile) { setError('Selecione um arquivo'); return }
+    setUploading(true); setError(''); setSuccess('')
     try {
-      const formData = new FormData()
-      formData.append('file', selectedFile)
-      formData.append('descricao', descricao)
-      formData.append('usuario', 'Sistema')
-      await axios.post(`${API}/manutencoes/${id}/arquivos`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+      const conteudo = await readAsBase64(selectedFile)
+      await axios.post(`${API}/manutencoes/${id}/arquivos`, {
+        nome_arquivo: selectedFile.name,
+        conteudo,
+        descricao,
+        usuario: 'Sistema',
       })
       setSuccess('Arquivo enviado com sucesso!')
       setSelectedFile(null)
@@ -107,6 +114,8 @@ export default function ArquivosManutencao() {
     }
   }
 
+  const imagens = arquivos.filter((a) => a.conteudo && isImage(a.nome_arquivo))
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-40 text-gray-400">
@@ -124,7 +133,7 @@ export default function ArquivosManutencao() {
           <ChevronLeft className="w-5 h-5" />
         </Link>
         <h1 className="text-base font-semibold text-gray-800 dark:text-gray-100">
-          Manutenção de Arquivos da Manutenção de Veículos
+          Arquivos da Manutenção #{id}
         </h1>
       </div>
 
@@ -169,7 +178,6 @@ export default function ArquivosManutencao() {
           Adicionar Arquivo
         </div>
         <form onSubmit={handleUpload} className="p-4 space-y-3">
-          {/* Drop zone */}
           <div
             ref={dropRef}
             onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
@@ -205,15 +213,8 @@ export default function ArquivosManutencao() {
               </>
             )}
           </div>
-          <input
-            ref={fileRef}
-            type="file"
-            className="hidden"
-            onChange={handleFileChange}
-            accept="*/*"
-          />
+          <input ref={fileRef} type="file" className="hidden" onChange={handleFileChange} accept="*/*" />
 
-          {/* Descricao */}
           <div>
             <label className="form-label">Descrição</label>
             <input
@@ -226,31 +227,36 @@ export default function ArquivosManutencao() {
 
           <div className="flex gap-2 justify-end">
             {selectedFile && (
-              <button
-                type="button"
-                className="btn-secondary btn-sm"
-                onClick={() => { setSelectedFile(null); if (fileRef.current) fileRef.current.value = '' }}
-              >
+              <button type="button" className="btn-secondary btn-sm"
+                onClick={() => { setSelectedFile(null); if (fileRef.current) fileRef.current.value = '' }}>
                 Limpar
               </button>
             )}
-            <button
-              type="submit"
-              className="btn-primary flex items-center gap-1.5"
-              disabled={uploading || !selectedFile}
-            >
-              {uploading ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <Upload className="w-3.5 h-3.5" />
-              )}
+            <button type="submit" className="btn-primary flex items-center gap-1.5" disabled={uploading || !selectedFile}>
+              {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
               {uploading ? 'Enviando...' : 'Confirmar'}
             </button>
           </div>
         </form>
       </div>
 
-      {/* Arquivos list */}
+      {/* Miniaturas de imagens */}
+      {imagens.length > 0 && (
+        <div className="bg-white dark:bg-gray-800 rounded shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+          <p className="text-xs font-semibold text-blue-800 dark:text-blue-300 mb-3">Imagens ({imagens.length})</p>
+          <div className="flex flex-wrap gap-2">
+            {imagens.map((a, idx) => (
+              <div key={a.id} className="relative group cursor-pointer"
+                onClick={() => setLightbox({ arquivos: imagens, idx })}>
+                <img src={a.conteudo} alt={a.nome_arquivo}
+                  className="h-20 w-20 object-cover rounded border border-gray-200 dark:border-gray-600 hover:opacity-90 transition-opacity" />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Lista de arquivos */}
       <div className="bg-white dark:bg-gray-800 rounded shadow-sm border border-gray-200 dark:border-gray-700">
         <div className="section-header">
           Arquivos Anexados ({arquivos.length})
@@ -275,35 +281,40 @@ export default function ArquivosManutencao() {
                 {arquivos.map((a, idx) => (
                   <tr key={a.id} className={`border-b border-gray-100 dark:border-gray-700 ${idx % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-700/50'}`}>
                     <td className="px-3 py-2">
-                      <a
-                        href={`http://localhost:8000/api/uploads/${a.caminho}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400 hover:text-blue-800 hover:underline"
-                      >
-                        <Paperclip className="w-3 h-3 flex-shrink-0" />
-                        {a.nome_arquivo}
-                      </a>
+                      {a.conteudo ? (
+                        isImage(a.nome_arquivo) ? (
+                          <button onClick={() => setLightbox({ arquivos: imagens, idx: imagens.findIndex(i => i.id === a.id) })}
+                            className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400 hover:text-blue-800 hover:underline">
+                            <Paperclip className="w-3 h-3 flex-shrink-0" />
+                            {a.nome_arquivo}
+                          </button>
+                        ) : (
+                          <a href={a.conteudo} download={a.nome_arquivo}
+                            className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400 hover:text-blue-800 hover:underline">
+                            <Paperclip className="w-3 h-3 flex-shrink-0" />
+                            {a.nome_arquivo}
+                          </a>
+                        )
+                      ) : (
+                        <span className="flex items-center gap-1.5 text-gray-500">
+                          <Paperclip className="w-3 h-3 flex-shrink-0" />
+                          {a.nome_arquivo}
+                        </span>
+                      )}
                     </td>
                     <td className="px-3 py-2 text-gray-600 dark:text-gray-400">{a.descricao || '-'}</td>
                     <td className="px-3 py-2 text-gray-600 dark:text-gray-400">{a.usuario || '-'}</td>
                     <td className="px-3 py-2 whitespace-nowrap text-gray-500 dark:text-gray-400">{fmt(a.created_at)}</td>
                     <td className="px-3 py-2">
                       <div className="flex items-center justify-center gap-1.5">
-                        <a
-                          href={`http://localhost:8000/api/uploads/${a.caminho}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="p-0.5 text-gray-500 hover:text-blue-600"
-                          title="Download"
-                        >
-                          <Download className="w-3.5 h-3.5" />
-                        </a>
-                        <button
-                          className="p-0.5 text-gray-500 hover:text-red-600"
-                          title="Excluir"
-                          onClick={() => handleDelete(a.id)}
-                        >
+                        {a.conteudo && (
+                          <a href={a.conteudo} download={a.nome_arquivo}
+                            className="p-0.5 text-gray-500 hover:text-blue-600" title="Download">
+                            <Download className="w-3.5 h-3.5" />
+                          </a>
+                        )}
+                        <button className="p-0.5 text-gray-500 hover:text-red-600" title="Excluir"
+                          onClick={() => handleDelete(a.id)}>
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
@@ -322,6 +333,35 @@ export default function ArquivosManutencao() {
           &laquo; Listagem de Manutenções do Veículo
         </Link>
       </div>
+
+      {/* Lightbox */}
+      {lightbox && (
+        <div className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center"
+          onClick={() => setLightbox(null)}>
+          <button className="absolute top-4 right-4 text-white hover:text-gray-300" onClick={() => setLightbox(null)}>
+            <X className="w-6 h-6" />
+          </button>
+          <button className="absolute left-4 text-white hover:text-gray-300 disabled:opacity-30"
+            disabled={lightbox.idx === 0}
+            onClick={e => { e.stopPropagation(); setLightbox(lb => ({ ...lb, idx: lb.idx - 1 })) }}>
+            <ChevronLeft className="w-8 h-8" />
+          </button>
+          <div className="flex flex-col items-center gap-2" onClick={e => e.stopPropagation()}>
+            <img src={lightbox.arquivos[lightbox.idx].conteudo}
+              alt={lightbox.arquivos[lightbox.idx].nome_arquivo}
+              className="max-h-[82vh] max-w-[85vw] rounded shadow-2xl object-contain" />
+            <span className="text-white text-xs opacity-70">{lightbox.arquivos[lightbox.idx].nome_arquivo}</span>
+          </div>
+          <button className="absolute right-4 text-white hover:text-gray-300 disabled:opacity-30"
+            disabled={lightbox.idx === lightbox.arquivos.length - 1}
+            onClick={e => { e.stopPropagation(); setLightbox(lb => ({ ...lb, idx: lb.idx + 1 })) }}>
+            <ChevronRight className="w-8 h-8" />
+          </button>
+          <div className="absolute bottom-4 text-white text-sm">
+            {lightbox.idx + 1} / {lightbox.arquivos.length}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

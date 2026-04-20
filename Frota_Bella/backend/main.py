@@ -113,6 +113,7 @@ _add_column_if_missing(engine, "solicitacoes", ("ativo_id", "INTEGER REFERENCES 
 _add_column_if_missing(engine, "solicitacoes", ("parte_veiculo", "VARCHAR(200)"))
 _add_column_if_missing(engine, "solicitacoes", ("acao", "TEXT"))
 _add_column_if_missing(engine, "solicitacoes", ("prazo_acao", "VARCHAR(10)"))
+_add_column_if_missing(engine, "arquivos_manutencao", ("conteudo", "TEXT"))
 
 app = FastAPI(title="Frota Bello API", version="1.0.0")
 
@@ -1752,31 +1753,29 @@ def list_arquivos(manutencao_id: int, db: Session = Depends(get_db)):
     )
 
 
+class ArquivoBase64Create(BaseModel):
+    nome_arquivo: str
+    conteudo: str  # base64 data URL
+    descricao: Optional[str] = None
+    usuario: Optional[str] = None
+
 @app.post("/api/manutencoes/{manutencao_id}/arquivos", response_model=schemas.ArquivoManutencaoOut, status_code=201)
 async def upload_arquivo(
     manutencao_id: int,
-    file: UploadFile = File(...),
-    descricao: Optional[str] = Form(None),
-    usuario: Optional[str] = Form(None),
+    data: ArquivoBase64Create,
     db: Session = Depends(get_db),
 ):
     man = db.query(models.Manutencao).filter(models.Manutencao.id == manutencao_id).first()
     if not man:
         raise HTTPException(status_code=404, detail="Manutenção não encontrada")
 
-    timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S%f")
-    safe_name = f"{timestamp}_{file.filename}"
-    file_path = UPLOAD_DIR / safe_name
-
-    with open(file_path, "wb") as f:
-        shutil.copyfileobj(file.file, f)
-
     arquivo = models.ArquivoManutencao(
         manutencao_id=manutencao_id,
-        nome_arquivo=file.filename,
-        caminho=safe_name,
-        descricao=descricao,
-        usuario=usuario or "Sistema",
+        nome_arquivo=data.nome_arquivo,
+        caminho=None,
+        conteudo=data.conteudo,
+        descricao=data.descricao,
+        usuario=data.usuario or "Sistema",
     )
     db.add(arquivo)
     db.commit()
@@ -1789,9 +1788,10 @@ def delete_arquivo(arquivo_id: int, db: Session = Depends(get_db)):
     arquivo = db.query(models.ArquivoManutencao).filter(models.ArquivoManutencao.id == arquivo_id).first()
     if not arquivo:
         raise HTTPException(status_code=404, detail="Arquivo não encontrado")
-    file_path = UPLOAD_DIR / arquivo.caminho
-    if file_path.exists():
-        file_path.unlink()
+    if arquivo.caminho:
+        file_path = UPLOAD_DIR / arquivo.caminho
+        if file_path.exists():
+            file_path.unlink()
     db.delete(arquivo)
     db.commit()
 

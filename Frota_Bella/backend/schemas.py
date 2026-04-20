@@ -275,7 +275,8 @@ class ArquivoManutencaoOut(BaseModel):
     id: int
     manutencao_id: int
     nome_arquivo: str
-    caminho: str
+    caminho: Optional[str] = None
+    conteudo: Optional[str] = None
     descricao: Optional[str] = None
     usuario: Optional[str] = None
     created_at: datetime

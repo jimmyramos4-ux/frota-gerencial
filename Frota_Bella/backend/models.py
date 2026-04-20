@@ -269,7 +269,8 @@ class ArquivoManutencao(Base):
     id = Column(Integer, primary_key=True, index=True)
     manutencao_id = Column(Integer, ForeignKey("manutencoes.id"), nullable=False)
     nome_arquivo = Column(String(300), nullable=False)
-    caminho = Column(String(500), nullable=False)
+    caminho = Column(String(500), nullable=True)
+    conteudo = Column(Text, nullable=True)  # base64 data URL
     descricao = Column(Text)
     usuario = Column(String(200))
     created_at = Column(DateTime, default=datetime.utcnow)
