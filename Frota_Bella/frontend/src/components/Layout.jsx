@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Outlet, Link, useLocation } from 'react-router-dom'
 import axios from 'axios'
 import { useUser, useClerk } from '@clerk/clerk-react'
@@ -47,6 +47,7 @@ const navItems = [
 export default function Layout() {
   const { user } = useUser()
   const { signOut } = useClerk()
+  const syncFileRef = useRef()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light')
   const [vencBadge, setVencBadge] = useState({ vencido: 0, proximo: 0 })
@@ -142,21 +143,31 @@ export default function Layout() {
         {/* Footer com sync e backup */}
         <div className="px-3 py-3 border-t border-blue-700 space-y-2 w-56 min-w-[224px]">
           {/* Botão Sync KM */}
-          <button
-            onClick={async () => {
+          <input
+            ref={syncFileRef}
+            type="file"
+            accept=".xlsx,.xls"
+            className="hidden"
+            onChange={async (e) => {
+              const file = e.target.files?.[0]
+              e.target.value = ''
+              if (!file) return
               setSyncState('loading')
               try {
-                const r = await axios.post(`${API}/veiculos/sync-km`)
+                const fd = new FormData()
+                fd.append('file', file)
+                const r = await axios.post(`${API}/veiculos/sync-km`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
                 const msg = `${r.data.atualizados} veículo(s) atualizado(s)`
-                const extra = r.data.nao_encontrados?.length
-                  ? ` · ${r.data.nao_encontrados.length} não encontrado(s)`
-                  : ''
+                const extra = r.data.nao_encontrados?.length ? ` · ${r.data.nao_encontrados.length} não encontrado(s)` : ''
                 setSyncState({ ok: true, msg: msg + extra })
               } catch (e) {
                 setSyncState({ ok: false, msg: e.response?.data?.detail || 'Erro ao sincronizar' })
               }
               setTimeout(() => setSyncState(null), 6000)
             }}
+          />
+          <button
+            onClick={() => syncFileRef.current?.click()}
             disabled={syncState === 'loading'}
             className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-blue-800 hover:bg-blue-700 text-blue-200 hover:text-white text-xs transition-colors disabled:opacity-60"
           >
