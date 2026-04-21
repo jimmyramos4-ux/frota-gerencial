@@ -145,6 +145,7 @@ export default function Solicitacoes() {
   const [showResumo, setShowResumo] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [editSaving, setEditSaving] = useState(false)
   const [error, setError] = useState('')
   const [formImages, setFormImages] = useState([])
   const fileInputRef = useRef()
@@ -224,12 +225,14 @@ export default function Solicitacoes() {
   const cancelEdit = () => { setEditingId(null); setEditForm({}); setEditImages([]) }
 
   const handleSaveEdit = async (id) => {
+    setEditSaving(true)
     try {
       const payload = { ...editForm, veiculo_id: editForm.veiculo_id ? Number(editForm.veiculo_id) : null, ativo_id: editForm.ativo_id ? Number(editForm.ativo_id) : null, imagens: editImages.length ? JSON.stringify(editImages) : null, dt_solicitacao: editForm.dt_solicitacao ? editForm.dt_solicitacao + 'T00:00:00' : null }
       const r = await axios.put(`${API}/solicitacoes/${id}`, payload)
       setItems(prev => prev.map(x => x.id === id ? r.data : x))
       cancelEdit()
     } catch { setError('Erro ao salvar') }
+    finally { setEditSaving(false) }
   }
 
   const addImages = (files, setter) => {
@@ -814,8 +817,9 @@ export default function Solicitacoes() {
                 </div>
                 <div className="flex gap-2 justify-end">
                   <button type="button" onClick={cancelEdit} className="px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 font-medium">Cancelar</button>
-                  <button type="button" onClick={() => handleSaveEdit(s.id)} className="px-4 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold flex items-center gap-1.5">
-                    <Check className="w-3.5 h-3.5" /> Salvar
+                  <button type="button" onClick={() => handleSaveEdit(s.id)} disabled={editSaving} className="px-4 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white rounded-lg font-bold flex items-center gap-1.5">
+                    {editSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                    {editSaving ? 'Salvando...' : 'Salvar'}
                   </button>
                 </div>
               </div>
