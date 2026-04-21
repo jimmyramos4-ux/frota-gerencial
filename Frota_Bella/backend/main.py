@@ -2091,6 +2091,9 @@ BACKUP_ONEDRIVE = Path(r"C:\Users\jimmy.ramos\OneDrive - Bello Alimentos LTDA\Be
 
 @app.post("/api/backup")
 def fazer_backup():
+    db_url = os.environ.get("DATABASE_URL", "")
+    if "postgresql" in db_url or "postgres" in db_url:
+        return {"arquivo": None, "destinos": [], "avisos": ["Backup não disponível no ambiente cloud (PostgreSQL). Use o painel do Render para fazer backup."], "tamanho_kb": 0, "cloud": True}
     if not DB_PATH.exists():
         raise HTTPException(status_code=404, detail="Banco de dados não encontrado")
 

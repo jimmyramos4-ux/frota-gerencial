@@ -192,11 +192,15 @@ export default function Layout() {
               setBackupState('loading')
               try {
                 const r = await axios.post(`${API}/backup`)
-                const destinos = r.data.destinos || []
-                const local = destinos.find(d => !d.includes('OneDrive')) ? '✓ Local' : ''
-                const od = destinos.find(d => d.includes('OneDrive')) ? '✓ OneDrive' : ''
-                const aviso = r.data.avisos?.length ? ' (OneDrive indisponível)' : ''
-                setBackupState({ ok: true, msg: `${r.data.arquivo} · ${r.data.tamanho_kb} KB\n${[local, od].filter(Boolean).join(' · ')}${aviso}` })
+                if (r.data.cloud) {
+                  setBackupState({ ok: false, msg: 'Indisponível no cloud — use o painel do Render' })
+                } else {
+                  const destinos = r.data.destinos || []
+                  const local = destinos.find(d => !d.includes('OneDrive')) ? '✓ Local' : ''
+                  const od = destinos.find(d => d.includes('OneDrive')) ? '✓ OneDrive' : ''
+                  const aviso = r.data.avisos?.length ? ' (OneDrive indisponível)' : ''
+                  setBackupState({ ok: true, msg: `${r.data.arquivo} · ${r.data.tamanho_kb} KB\n${[local, od].filter(Boolean).join(' · ')}${aviso}` })
+                }
               } catch (e) {
                 setBackupState({ ok: false, msg: e.response?.data?.detail || 'Erro ao fazer backup' })
               }
