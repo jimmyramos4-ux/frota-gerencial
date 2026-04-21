@@ -432,7 +432,7 @@ export default function FormManutencao() {
   }
 
   return (
-    <div className="space-y-4 max-w-7xl mx-auto">
+    <div className="space-y-4 w-full">
 
       {/* ── TÍTULO ── */}
       <div className="bg-gradient-to-r from-blue-800 to-blue-600 rounded-lg shadow px-4 py-3 flex items-center justify-between">
