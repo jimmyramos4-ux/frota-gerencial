@@ -372,11 +372,12 @@ export default function FormManutencao() {
     setUploading(true)
     try {
       for (const file of files) {
+        if (file.size > 8 * 1024 * 1024) { setError(`Arquivo "${file.name}" muito grande (máx. 8MB)`); continue }
         const conteudo = await new Promise((resolve, reject) => { const r = new FileReader(); r.onload = e => resolve(e.target.result); r.onerror = reject; r.readAsDataURL(file) })
         const res = await axios.post(`${API}/manutencoes/${id}/arquivos`, { nome_arquivo: file.name, conteudo, usuario: 'Sistema' })
         setArquivos(a => [...a, res.data])
       }
-    } catch { setError('Erro ao fazer upload do arquivo') }
+    } catch (err) { setError(err.response?.data?.detail || `Erro ao fazer upload: ${err.message}`) }
     finally { setUploading(false) }
   }
 
@@ -389,13 +390,16 @@ export default function FormManutencao() {
       return
     }
     setUploading(true)
-    Promise.all(imageFiles.map(file =>
+    Promise.all(imageFiles.filter(file => {
+      if (file.size > 8 * 1024 * 1024) { setError(`Arquivo muito grande (máx. 8MB)`); return false }
+      return true
+    }).map(file =>
       new Promise((resolve, reject) => { const r = new FileReader(); r.onload = e => resolve(e.target.result); r.onerror = reject; r.readAsDataURL(file) })
         .then(conteudo => axios.post(`${API}/manutencoes/${id}/arquivos`, { nome_arquivo: file.name, conteudo, usuario: 'Sistema' }))
         .then(res => res.data)
     ))
       .then(saved => setArquivos(a => [...a, ...saved]))
-      .catch(() => setError('Erro ao fazer upload do arquivo'))
+      .catch(err => setError(err.response?.data?.detail || `Erro ao fazer upload: ${err.message}`))
       .finally(() => setUploading(false))
   }
 
