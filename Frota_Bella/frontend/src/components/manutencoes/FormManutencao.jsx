@@ -329,9 +329,8 @@ export default function FormManutencao() {
           await axios.post(`${API}/manutencoes/${res.data.id}/servicos`, { ...sRaw, tipo_uso: sRaw.tipo_uso || null, status: sRaw.status || 'Em Andamento', valor: sRaw.valor ? Number(sRaw.valor) : null, proximo_km_validade: sRaw.proximo_km_validade ? Number(sRaw.proximo_km_validade) : null, dt_servico: sRaw.dt_servico || null, proxima_dt_validade: sRaw.proxima_dt_validade || null })
         }
         for (const { file } of pendingFiles) {
-          const fd = new FormData()
-          fd.append('file', file)
-          await axios.post(`${API}/manutencoes/${res.data.id}/arquivos`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+          const conteudo = await new Promise((resolve, reject) => { const r = new FileReader(); r.onload = e => resolve(e.target.result); r.onerror = reject; r.readAsDataURL(file) })
+          await axios.post(`${API}/manutencoes/${res.data.id}/arquivos`, { nome_arquivo: file.name, conteudo, usuario: 'Sistema' })
         }
       }
       // Sync linked solicitations status based on maintenance status
@@ -373,9 +372,8 @@ export default function FormManutencao() {
     setUploading(true)
     try {
       for (const file of files) {
-        const fd = new FormData()
-        fd.append('file', file)
-        const res = await axios.post(`${API}/manutencoes/${id}/arquivos`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+        const conteudo = await new Promise((resolve, reject) => { const r = new FileReader(); r.onload = e => resolve(e.target.result); r.onerror = reject; r.readAsDataURL(file) })
+        const res = await axios.post(`${API}/manutencoes/${id}/arquivos`, { nome_arquivo: file.name, conteudo, usuario: 'Sistema' })
         setArquivos(a => [...a, res.data])
       }
     } catch { setError('Erro ao fazer upload do arquivo') }
@@ -391,12 +389,11 @@ export default function FormManutencao() {
       return
     }
     setUploading(true)
-    Promise.all(imageFiles.map(file => {
-      const fd = new FormData()
-      fd.append('file', file)
-      return axios.post(`${API}/manutencoes/${id}/arquivos`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+    Promise.all(imageFiles.map(file =>
+      new Promise((resolve, reject) => { const r = new FileReader(); r.onload = e => resolve(e.target.result); r.onerror = reject; r.readAsDataURL(file) })
+        .then(conteudo => axios.post(`${API}/manutencoes/${id}/arquivos`, { nome_arquivo: file.name, conteudo, usuario: 'Sistema' }))
         .then(res => res.data)
-    }))
+    ))
       .then(saved => setArquivos(a => [...a, ...saved]))
       .catch(() => setError('Erro ao fazer upload do arquivo'))
       .finally(() => setUploading(false))
@@ -850,14 +847,14 @@ export default function FormManutencao() {
                   {/* Arquivos já salvos no servidor */}
                   {arquivos.map(arq => {
                     const isImg = /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(arq.nome_arquivo)
-                    const url = `http://localhost:8000/api/uploads/${arq.caminho}`
+                    const url = arq.conteudo || (arq.caminho ? `${API}/uploads/${arq.caminho}` : null)
                     return (
                       <div key={arq.id} className="relative group" onClick={e => e.stopPropagation()}>
                         {isImg ? (
                           <img src={url} alt={arq.nome_arquivo}
                             className="h-16 w-16 object-cover rounded border border-gray-200 cursor-pointer"
                             onClick={() => {
-                              const imgs = arquivos.filter(a => /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(a.nome_arquivo)).map(a => `http://localhost:8000/api/uploads/${a.caminho}`)
+                              const imgs = arquivos.filter(a => /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(a.nome_arquivo)).map(a => a.conteudo || (a.caminho ? `${API}/uploads/${a.caminho}` : null)).filter(Boolean)
                               const idx = imgs.indexOf(url)
                               setLightbox({ images: imgs, idx: idx >= 0 ? idx : 0 })
                             }} />
