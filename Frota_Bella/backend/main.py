@@ -129,6 +129,10 @@ app.add_middleware(
 UPLOAD_DIR = Path(__file__).parent / "uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)
 
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
 app.mount("/api/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
 
 # ── Frontend static files ──────────────────────────────────────────────────────
