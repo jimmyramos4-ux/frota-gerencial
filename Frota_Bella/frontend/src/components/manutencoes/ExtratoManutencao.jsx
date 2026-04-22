@@ -243,7 +243,7 @@ export default function ExtratoManutencao() {
             </div>
             <div className="p-3 flex flex-wrap gap-2">
               {man.arquivos.map((a) => (
-                <a key={a.id} href={`http://localhost:8000/api/uploads/${a.caminho}`} target="_blank" rel="noreferrer"
+                <a key={a.id} href={a.conteudo || (a.caminho ? `${API}/uploads/${a.caminho}` : '#')} target="_blank" rel="noreferrer"
                   className="flex items-center gap-1.5 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/40 rounded px-2 py-1 text-xs text-blue-700 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors">
                   📎 {a.nome_arquivo}
                 </a>

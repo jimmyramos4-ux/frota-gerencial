@@ -115,6 +115,8 @@ _add_column_if_missing(engine, "solicitacoes", ("parte_veiculo", "VARCHAR(200)")
 _add_column_if_missing(engine, "solicitacoes", ("acao", "TEXT"))
 _add_column_if_missing(engine, "solicitacoes", ("prazo_acao", "VARCHAR(10)"))
 _add_column_if_missing(engine, "arquivos_manutencao", ("conteudo", "TEXT"))
+_add_column_if_missing(engine, "arquivos_motorista", ("conteudo", "TEXT"))
+_add_column_if_missing(engine, "arquivos_veiculo", ("conteudo", "TEXT"))
 
 app = FastAPI(title="Frota Bello API", version="1.0.0")
 
@@ -990,27 +992,17 @@ def list_arquivos_veiculo(veiculo_id: int, db: Session = Depends(get_db)):
     return db.query(models.ArquivoVeiculo).filter(models.ArquivoVeiculo.veiculo_id == veiculo_id).order_by(models.ArquivoVeiculo.created_at.desc()).all()
 
 
-@app.post("/api/veiculos/{veiculo_id}/arquivos", status_code=201)
-async def upload_arquivo_veiculo(
-    veiculo_id: int,
-    file: UploadFile = File(...),
-    descricao: Optional[str] = Form(None),
-    db: Session = Depends(get_db),
-):
+@app.post("/api/veiculos/{veiculo_id}/arquivos", status_code=201, response_model=schemas.ArquivoVeiculoOut)
+async def upload_arquivo_veiculo(veiculo_id: int, data: ArquivoBase64Create, db: Session = Depends(get_db)):
     veiculo = db.query(models.Veiculo).filter(models.Veiculo.id == veiculo_id).first()
     if not veiculo:
         raise HTTPException(status_code=404, detail="Veículo não encontrado")
-    import time, re
-    ts = int(time.time() * 1000000)
-    safe_name = f"{ts}_{re.sub(r'[^a-zA-Z0-9._-]', '_', file.filename)}"
-    file_path = UPLOAD_DIR / safe_name
-    with open(file_path, "wb") as f:
-        shutil.copyfileobj(file.file, f)
     arquivo = models.ArquivoVeiculo(
         veiculo_id=veiculo_id,
-        nome_arquivo=file.filename,
-        caminho=safe_name,
-        descricao=descricao,
+        nome_arquivo=data.nome_arquivo,
+        caminho=None,
+        conteudo=data.conteudo,
+        descricao=data.descricao,
     )
     db.add(arquivo)
     db.commit()
@@ -1018,14 +1010,26 @@ async def upload_arquivo_veiculo(
     return arquivo
 
 
+@app.patch("/api/veiculos/arquivos/{arquivo_id}/conteudo", response_model=schemas.ArquivoVeiculoOut)
+def patch_veiculo_arquivo_conteudo(arquivo_id: int, data: ArquivoConteudoUpdate, db: Session = Depends(get_db)):
+    arq = db.query(models.ArquivoVeiculo).filter(models.ArquivoVeiculo.id == arquivo_id).first()
+    if not arq:
+        raise HTTPException(status_code=404, detail="Arquivo não encontrado")
+    arq.conteudo = data.conteudo
+    db.commit()
+    db.refresh(arq)
+    return arq
+
+
 @app.delete("/api/veiculos/arquivos/{arquivo_id}", status_code=204)
 def delete_arquivo_veiculo(arquivo_id: int, db: Session = Depends(get_db)):
     arq = db.query(models.ArquivoVeiculo).filter(models.ArquivoVeiculo.id == arquivo_id).first()
     if not arq:
         raise HTTPException(status_code=404, detail="Arquivo não encontrado")
-    file_path = UPLOAD_DIR / arq.caminho
-    if file_path.exists():
-        file_path.unlink()
+    if arq.caminho:
+        file_path = UPLOAD_DIR / arq.caminho
+        if file_path.exists():
+            file_path.unlink()
     db.delete(arq)
     db.commit()
 
@@ -1107,26 +1111,17 @@ def list_arquivos_motorista(motorista_id: int, db: Session = Depends(get_db)):
     return db.query(models.ArquivoMotorista).filter(models.ArquivoMotorista.motorista_id == motorista_id).order_by(models.ArquivoMotorista.created_at.desc()).all()
 
 
-@app.post("/api/motoristas/{motorista_id}/arquivos", status_code=201)
-async def upload_arquivo_motorista(
-    motorista_id: int,
-    file: UploadFile = File(...),
-    descricao: Optional[str] = Form(None),
-    db: Session = Depends(get_db),
-):
+@app.post("/api/motoristas/{motorista_id}/arquivos", status_code=201, response_model=schemas.ArquivoMotoristaOut)
+async def upload_arquivo_motorista(motorista_id: int, data: ArquivoBase64Create, db: Session = Depends(get_db)):
     mot = db.query(models.Motorista).filter(models.Motorista.id == motorista_id).first()
     if not mot:
         raise HTTPException(status_code=404, detail="Motorista não encontrado")
-    timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S%f")
-    safe_name = f"{timestamp}_{file.filename}"
-    file_path = UPLOAD_DIR / safe_name
-    with open(file_path, "wb") as f:
-        shutil.copyfileobj(file.file, f)
     arquivo = models.ArquivoMotorista(
         motorista_id=motorista_id,
-        nome_arquivo=file.filename,
-        caminho=safe_name,
-        descricao=descricao,
+        nome_arquivo=data.nome_arquivo,
+        caminho=None,
+        conteudo=data.conteudo,
+        descricao=data.descricao,
     )
     db.add(arquivo)
     db.commit()
@@ -1134,14 +1129,26 @@ async def upload_arquivo_motorista(
     return arquivo
 
 
+@app.patch("/api/motoristas/arquivos/{arquivo_id}/conteudo", response_model=schemas.ArquivoMotoristaOut)
+def patch_motorista_arquivo_conteudo(arquivo_id: int, data: ArquivoConteudoUpdate, db: Session = Depends(get_db)):
+    arq = db.query(models.ArquivoMotorista).filter(models.ArquivoMotorista.id == arquivo_id).first()
+    if not arq:
+        raise HTTPException(status_code=404, detail="Arquivo não encontrado")
+    arq.conteudo = data.conteudo
+    db.commit()
+    db.refresh(arq)
+    return arq
+
+
 @app.delete("/api/motoristas/arquivos/{arquivo_id}", status_code=204)
 def delete_arquivo_motorista(arquivo_id: int, db: Session = Depends(get_db)):
     arq = db.query(models.ArquivoMotorista).filter(models.ArquivoMotorista.id == arquivo_id).first()
     if not arq:
         raise HTTPException(status_code=404, detail="Arquivo não encontrado")
-    file_path = UPLOAD_DIR / arq.caminho
-    if file_path.exists():
-        file_path.unlink()
+    if arq.caminho:
+        file_path = UPLOAD_DIR / arq.caminho
+        if file_path.exists():
+            file_path.unlink()
     db.delete(arq)
     db.commit()
 

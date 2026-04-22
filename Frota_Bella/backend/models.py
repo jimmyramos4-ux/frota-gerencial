@@ -243,7 +243,8 @@ class ArquivoMotorista(Base):
     id = Column(Integer, primary_key=True, index=True)
     motorista_id = Column(Integer, ForeignKey("motoristas.id"), nullable=False)
     nome_arquivo = Column(String(300), nullable=False)
-    caminho = Column(String(500), nullable=False)
+    caminho = Column(String(500), nullable=True)
+    conteudo = Column(Text, nullable=True)  # base64 data URL
     descricao = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -256,7 +257,8 @@ class ArquivoVeiculo(Base):
     id = Column(Integer, primary_key=True, index=True)
     veiculo_id = Column(Integer, ForeignKey("veiculos.id"), nullable=False)
     nome_arquivo = Column(String(300), nullable=False)
-    caminho = Column(String(500), nullable=False)
+    caminho = Column(String(500), nullable=True)
+    conteudo = Column(Text, nullable=True)  # base64 data URL
     descricao = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
 

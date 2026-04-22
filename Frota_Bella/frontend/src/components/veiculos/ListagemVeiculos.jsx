@@ -83,7 +83,7 @@ function VeiculoModal({ veiculo, onClose, onSaved }) {
   const fileInputRef = useRef()
 
   React.useEffect(() => {
-    axios.get('http://localhost:8000/api/motoristas').then(r => setMotoristas(r.data)).catch(() => {})
+    axios.get(`${API}/motoristas`).then(r => setMotoristas(r.data)).catch(() => {})
   }, [])
 
   React.useEffect(() => {
@@ -96,17 +96,19 @@ function VeiculoModal({ veiculo, onClose, onSaved }) {
     return () => { pendingFiles.forEach(pf => URL.revokeObjectURL(pf.url)) }
   }, []) // eslint-disable-line
 
+  const toBase64 = (file) => new Promise((res, rej) => { const r = new FileReader(); r.onload = e => res(e.target.result); r.onerror = rej; r.readAsDataURL(file) })
+
   const handleUpload = async (file) => {
     if (!file) return
     if (!savedId) {
-      setPendingFiles(prev => [...prev, { file, url: URL.createObjectURL(file), name: file.name }])
+      const url = await toBase64(file)
+      setPendingFiles(prev => [...prev, { file, url, name: file.name }])
       return
     }
     setUploading(true)
     try {
-      const fd = new FormData()
-      fd.append('file', file)
-      const r = await axios.post(`${API}/veiculos/${savedId}/arquivos`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+      const conteudo = await toBase64(file)
+      const r = await axios.post(`${API}/veiculos/${savedId}/arquivos`, { nome_arquivo: file.name, conteudo })
       setArquivos(prev => [r.data, ...prev])
     } catch { alert('Erro ao enviar arquivo') }
     finally { setUploading(false) }
@@ -145,9 +147,7 @@ function VeiculoModal({ veiculo, onClose, onSaved }) {
         const r = await axios.post(`${API}/veiculos`, payload)
         const newId = r.data.id
         for (const pf of pendingFiles) {
-          const fd = new FormData()
-          fd.append('file', pf.file)
-          await axios.post(`${API}/veiculos/${newId}/arquivos`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+          await axios.post(`${API}/veiculos/${newId}/arquivos`, { nome_arquivo: pf.name, conteudo: pf.url })
         }
         onSaved()
       }
@@ -264,7 +264,7 @@ function VeiculoModal({ veiculo, onClose, onSaved }) {
               <input ref={fileInputRef} type="file" accept=".pdf,image/*" className="hidden" onChange={handleFileInput} disabled={uploading} />
               {(() => {
                 const allFiles = savedId
-                  ? arquivos.map(a => ({ key: `s-${a.id}`, isPdf: a.nome_arquivo.toLowerCase().endsWith('.pdf'), url: `http://localhost:8000/api/uploads/${a.caminho}`, name: a.nome_arquivo, onRemove: () => handleDeleteArquivo(a.id) }))
+                  ? arquivos.map(a => ({ key: `s-${a.id}`, isPdf: a.nome_arquivo.toLowerCase().endsWith('.pdf'), url: a.conteudo || (a.caminho ? `${API}/uploads/${a.caminho}` : null), name: a.nome_arquivo, onRemove: () => handleDeleteArquivo(a.id) }))
                   : pendingFiles.map((pf, i) => ({ key: `p-${i}`, isPdf: pf.name.toLowerCase().endsWith('.pdf'), url: pf.url, name: pf.name, onRemove: () => handleRemovePending(i) }))
                 if (allFiles.length === 0) return (
                   <div className="flex flex-col items-center justify-center gap-1 text-gray-400 dark:text-gray-500 py-2">

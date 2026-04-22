@@ -130,7 +130,21 @@ class ArquivoVeiculoOut(BaseModel):
     id: int
     veiculo_id: int
     nome_arquivo: str
-    caminho: str
+    caminho: Optional[str] = None
+    conteudo: Optional[str] = None
+    descricao: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ArquivoMotoristaOut(BaseModel):
+    id: int
+    motorista_id: int
+    nome_arquivo: str
+    caminho: Optional[str] = None
+    conteudo: Optional[str] = None
     descricao: Optional[str] = None
     created_at: datetime
 
