@@ -603,13 +603,15 @@ export default function ListagemVeiculos() {
                     <td className="px-3 py-2 whitespace-nowrap text-gray-500 dark:text-gray-400">{fmt(v.created_at)}</td>
                     <td className="px-3 py-2">
                       <div className="flex items-center justify-center gap-1.5">
-                        {v.arquivos_count > 0 ? (
-                          <button onClick={() => setModal(v)} title={`${v.arquivos_count} documento(s)`}
-                            className="p-0.5 inline-flex items-center gap-0.5 text-blue-500 hover:text-blue-700">
-                            <Paperclip className="w-3.5 h-3.5" />
-                            <span className="text-[10px] font-semibold">{v.arquivos_count}</span>
-                          </button>
-                        ) : null}
+                        <div className="w-8 flex items-center justify-center">
+                          {v.arquivos_count > 0 ? (
+                            <button onClick={() => setModal(v)} title={`${v.arquivos_count} documento(s)`}
+                              className="p-0.5 inline-flex items-center gap-0.5 text-blue-500 hover:text-blue-700">
+                              <Paperclip className="w-3.5 h-3.5" />
+                              <span className="text-[10px] font-semibold">{v.arquivos_count}</span>
+                            </button>
+                          ) : null}
+                        </div>
                         <button className="p-0.5 text-gray-500 hover:text-blue-600" title="Histórico" onClick={() => navigate(`/veiculos/${v.id}/historico`)}>
                           <History className="w-3.5 h-3.5" />
                         </button>
