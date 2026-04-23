@@ -859,7 +859,7 @@ export default function Solicitacoes() {
                       {s.prazo_acao && (() => {
                         const dias = Math.floor((new Date(s.prazo_acao) - new Date()) / 86400000)
                         return (
-                          <div className={`text-[10px] font-semibold mt-0.5 flex items-center gap-1 ${dias < 0 ? 'text-red-500' : dias <= 7 ? 'text-orange-500' : 'text-green-600'}`}>
+                          <div className={`text-[10px] font-semibold mt-0.5 flex items-center gap-1 ${dias < 0 ? 'text-red-500' : dias <= 3 ? 'text-orange-500' : 'text-green-600'}`}>
                             <CalendarClock className="w-3 h-3" />
                             {dias < 0 ? `${Math.abs(dias)}d vencido` : fmtDateBR(s.prazo_acao)}
                           </div>
