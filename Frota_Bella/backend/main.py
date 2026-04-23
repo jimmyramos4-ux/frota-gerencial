@@ -985,6 +985,18 @@ def upsert_acao_vencimento(row_key: str, data: dict, db: Session = Depends(get_d
     return acao
 
 
+# ── Modelos base64 compartilhados ────────────────────────────────────────────
+
+class ArquivoBase64Create(BaseModel):
+    nome_arquivo: str
+    conteudo: str  # base64 data URL
+    descricao: Optional[str] = None
+    usuario: Optional[str] = None
+
+class ArquivoConteudoUpdate(BaseModel):
+    conteudo: str
+
+
 # ── Arquivos Veiculo ─────────────────────────────────────────────────────────
 
 @app.get("/api/veiculos/{veiculo_id}/arquivos")
@@ -1765,12 +1777,6 @@ def list_arquivos(manutencao_id: int, db: Session = Depends(get_db)):
     )
 
 
-class ArquivoBase64Create(BaseModel):
-    nome_arquivo: str
-    conteudo: str  # base64 data URL
-    descricao: Optional[str] = None
-    usuario: Optional[str] = None
-
 @app.post("/api/manutencoes/{manutencao_id}/arquivos", response_model=schemas.ArquivoManutencaoOut, status_code=201)
 async def upload_arquivo(
     manutencao_id: int,
@@ -1794,9 +1800,6 @@ async def upload_arquivo(
     db.refresh(arquivo)
     return arquivo
 
-
-class ArquivoConteudoUpdate(BaseModel):
-    conteudo: str
 
 @app.patch("/api/arquivos/{arquivo_id}/conteudo", response_model=schemas.ArquivoManutencaoOut)
 def patch_arquivo_conteudo(arquivo_id: int, data: ArquivoConteudoUpdate, db: Session = Depends(get_db)):
