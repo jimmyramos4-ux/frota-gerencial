@@ -1009,17 +1009,21 @@ async def upload_arquivo_veiculo(veiculo_id: int, data: ArquivoBase64Create, db:
     veiculo = db.query(models.Veiculo).filter(models.Veiculo.id == veiculo_id).first()
     if not veiculo:
         raise HTTPException(status_code=404, detail="Veículo não encontrado")
-    arquivo = models.ArquivoVeiculo(
-        veiculo_id=veiculo_id,
-        nome_arquivo=data.nome_arquivo,
-        caminho=None,
-        conteudo=data.conteudo,
-        descricao=data.descricao,
-    )
-    db.add(arquivo)
-    db.commit()
-    db.refresh(arquivo)
-    return arquivo
+    try:
+        arquivo = models.ArquivoVeiculo(
+            veiculo_id=veiculo_id,
+            nome_arquivo=data.nome_arquivo,
+            caminho=None,
+            conteudo=data.conteudo,
+            descricao=data.descricao,
+        )
+        db.add(arquivo)
+        db.commit()
+        db.refresh(arquivo)
+        return arquivo
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Erro ao salvar arquivo: {str(e)}")
 
 
 @app.patch("/api/veiculos/arquivos/{arquivo_id}/conteudo", response_model=schemas.ArquivoVeiculoOut)
@@ -1128,17 +1132,21 @@ async def upload_arquivo_motorista(motorista_id: int, data: ArquivoBase64Create,
     mot = db.query(models.Motorista).filter(models.Motorista.id == motorista_id).first()
     if not mot:
         raise HTTPException(status_code=404, detail="Motorista não encontrado")
-    arquivo = models.ArquivoMotorista(
-        motorista_id=motorista_id,
-        nome_arquivo=data.nome_arquivo,
-        caminho=None,
-        conteudo=data.conteudo,
-        descricao=data.descricao,
-    )
-    db.add(arquivo)
-    db.commit()
-    db.refresh(arquivo)
-    return arquivo
+    try:
+        arquivo = models.ArquivoMotorista(
+            motorista_id=motorista_id,
+            nome_arquivo=data.nome_arquivo,
+            caminho=None,
+            conteudo=data.conteudo,
+            descricao=data.descricao,
+        )
+        db.add(arquivo)
+        db.commit()
+        db.refresh(arquivo)
+        return arquivo
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Erro ao salvar arquivo: {str(e)}")
 
 
 @app.patch("/api/motoristas/arquivos/{arquivo_id}/conteudo", response_model=schemas.ArquivoMotoristaOut)
