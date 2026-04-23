@@ -118,6 +118,21 @@ _add_column_if_missing(engine, "arquivos_manutencao", ("conteudo", "TEXT"))
 _add_column_if_missing(engine, "arquivos_motorista", ("conteudo", "TEXT"))
 _add_column_if_missing(engine, "arquivos_veiculo", ("conteudo", "TEXT"))
 
+
+def _make_column_nullable(engine, table, column):
+    from sqlalchemy import text, inspect
+    if engine.dialect.name != "postgresql":
+        return
+    insp = inspect(engine)
+    cols = {c["name"]: c for c in insp.get_columns(table)}
+    if column in cols and not cols[column]["nullable"]:
+        with engine.connect() as conn:
+            conn.execute(text(f"ALTER TABLE {table} ALTER COLUMN {column} DROP NOT NULL"))
+            conn.commit()
+
+_make_column_nullable(engine, "arquivos_veiculo", "caminho")
+_make_column_nullable(engine, "arquivos_motorista", "caminho")
+
 app = FastAPI(title="Frota Bello API", version="1.0.0")
 
 app.add_middleware(
