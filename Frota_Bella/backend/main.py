@@ -132,6 +132,7 @@ def _make_column_nullable(engine, table, column):
 
 _make_column_nullable(engine, "arquivos_veiculo", "caminho")
 _make_column_nullable(engine, "arquivos_motorista", "caminho")
+_make_column_nullable(engine, "arquivos_manutencao", "caminho")
 
 app = FastAPI(title="Frota Bello API", version="1.0.0")
 
