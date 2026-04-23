@@ -98,6 +98,18 @@ function VeiculoModal({ veiculo, onClose, onSaved }) {
 
   const toBase64 = (file) => new Promise((res, rej) => { const r = new FileReader(); r.onload = e => res(e.target.result); r.onerror = rej; r.readAsDataURL(file) })
 
+  const openFile = (url) => {
+    if (!url) return
+    if (url.startsWith('data:')) {
+      fetch(url).then(r => r.blob()).then(blob => {
+        const blobUrl = URL.createObjectURL(blob)
+        window.open(blobUrl, '_blank')
+      })
+    } else {
+      window.open(url, '_blank')
+    }
+  }
+
   const handleUpload = async (file) => {
     if (!file) return
     if (!savedId) {
@@ -277,14 +289,14 @@ function VeiculoModal({ veiculo, onClose, onSaved }) {
                     {allFiles.map(f => (
                       <div key={f.key} className="relative group flex flex-col items-center" onClick={e => e.stopPropagation()}>
                         {f.isPdf ? (
-                          <a href={f.url} target="_blank" rel="noreferrer" className="h-16 w-16 border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-800 flex flex-col items-center justify-center gap-1 hover:border-blue-400">
+                          <button type="button" onClick={() => openFile(f.url)} className="h-16 w-16 border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-800 flex flex-col items-center justify-center gap-1 hover:border-blue-400">
                             <FileText className="w-7 h-7 text-red-500" />
                             <span className="text-[9px] text-gray-500 truncate w-14 text-center px-1">{f.name}</span>
-                          </a>
+                          </button>
                         ) : (
-                          <a href={f.url} target="_blank" rel="noreferrer">
+                          <button type="button" onClick={() => openFile(f.url)}>
                             <img src={f.url} alt={f.name} className="h-16 w-16 object-cover rounded border border-gray-200 dark:border-gray-600 hover:border-blue-400" />
-                          </a>
+                          </button>
                         )}
                         <button type="button" onClick={f.onRemove}
                           className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
