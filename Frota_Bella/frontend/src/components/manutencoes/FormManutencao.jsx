@@ -709,7 +709,6 @@ export default function FormManutencao() {
                   <th className="px-2 py-2 text-left text-blue-800 dark:text-blue-300 font-semibold">Responsável</th>
                   <th className="px-2 py-2 text-left text-blue-800 dark:text-blue-300 font-semibold">Descrição</th>
                   <th className="px-2 py-2 text-right text-blue-800 dark:text-blue-300 font-semibold">Valor R$</th>
-                  <th className="px-2 py-2 text-left text-blue-800 dark:text-blue-300 font-semibold">Horas</th>
                   <th className="px-2 py-2 text-center text-blue-800 dark:text-blue-300 font-semibold">Ação</th>
                 </tr>
               </thead>
@@ -740,7 +739,6 @@ export default function FormManutencao() {
                       <td className="px-1 py-1.5"><input className={miniInp} value={editForm.pessoa_responsavel} onChange={setEf('pessoa_responsavel')} placeholder="Resp." /></td>
                       <td className="px-1 py-1.5"><textarea className={`${miniInp} resize`} style={{minHeight:'26px',height:'26px'}} value={editForm.descricao} onChange={setEf('descricao')} placeholder="Desc." /></td>
                       <td className="px-1 py-1.5"><CurrencyInput className={`${miniInp} w-28 text-right`} value={editForm.valor} onChange={v => setEditForm(f => ({ ...f, valor: v }))} /></td>
-                      <td className="px-1 py-1.5"><input className={`${miniInp} w-16`} value={editForm.horas_trabalhadas} onChange={setEf('horas_trabalhadas')} placeholder="h:mm" /></td>
                       <td className="px-1 py-1.5 text-center">
                         <div className="flex items-center justify-center gap-1">
                           <button type="button" onClick={() => handleSaveEdit(s)} title="Salvar"
@@ -770,7 +768,6 @@ export default function FormManutencao() {
                       <td className="px-2 py-2 text-gray-600 dark:text-gray-400">{s.pessoa_responsavel || '-'}</td>
                       <td className="px-2 py-2 text-gray-500 dark:text-gray-400">{s.descricao || '-'}</td>
                       <td className="px-2 py-2 text-right tabular-nums font-semibold text-gray-700 dark:text-gray-300">{s.valor ? `R$ ${fmtMoney(s.valor)}` : '-'}</td>
-                      <td className="px-2 py-2 text-gray-600 dark:text-gray-400">{s.horas_trabalhadas || '-'}</td>
                       <td className="px-2 py-2 text-center">
                         <div className="flex items-center justify-center gap-1">
                           <button type="button" onClick={() => startEdit(s)} title="Editar"
@@ -807,7 +804,6 @@ export default function FormManutencao() {
                   <td className="px-1 py-1.5"><input className="border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 text-xs w-full dark:bg-gray-700 dark:text-gray-100" value={newServico.pessoa_responsavel} onChange={setSf('pessoa_responsavel')} placeholder="Resp." /></td>
                   <td className="px-1 py-1.5"><textarea className="border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 text-xs w-full dark:bg-gray-700 dark:text-gray-100 resize" style={{minHeight:'26px',height:'26px'}} value={newServico.descricao} onChange={setSf('descricao')} placeholder="Desc." /></td>
                   <td className="px-1 py-1.5"><CurrencyInput className="border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 text-xs w-28 text-right dark:bg-gray-700 dark:text-gray-100" value={newServico.valor} onChange={v => setNewServico(s => ({ ...s, valor: v }))} /></td>
-                  <td className="px-1 py-1.5"><input className="border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 text-xs w-16 dark:bg-gray-700 dark:text-gray-100" value={newServico.horas_trabalhadas} onChange={setSf('horas_trabalhadas')} placeholder="h:mm" /></td>
                   <td className="px-1 py-1.5 text-center">
                     <button type="button" onClick={handleAddServico} title="Adicionar serviço"
                       className="p-1 text-green-600 hover:text-green-800 hover:bg-green-50 border border-green-400 rounded transition-colors">
