@@ -409,6 +409,7 @@ class SolicitacaoUpdate(BaseModel):
     imagens: Optional[str] = None
     acao: Optional[str] = None
     prazo_acao: Optional[str] = None
+    dt_solicitacao: Optional[datetime] = None
 
 class SolicitacaoOut(SolicitacaoCreate):
     id: int
