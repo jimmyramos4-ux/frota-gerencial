@@ -152,13 +152,15 @@ export default function Layout() {
           >
             <div className="flex items-center gap-2">
               <RefreshCw className="w-3.5 h-3.5 flex-shrink-0" />
-              <span>Sincronizar KM</span>
+              <div className="flex flex-col items-start">
+                <span>Sincronizar KM</span>
+                {ultimoSync && (
+                  <span className="text-[10px] text-blue-400">
+                    Último: {fmtSyncDate(ultimoSync)}
+                  </span>
+                )}
+              </div>
             </div>
-            {ultimoSync && (
-              <span className="text-[10px] text-blue-400 pl-[22px]">
-                Último: {fmtSyncDate(ultimoSync)}
-              </span>
-            )}
           </button>
 
           <div className="text-xs text-blue-400">v1.1.0 · by Jimmy Ricardo</div>
