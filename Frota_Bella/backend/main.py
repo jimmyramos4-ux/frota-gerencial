@@ -307,6 +307,19 @@ def on_startup():
     finally:
         db.close()
 
+    import threading, time, urllib.request
+    def _keep_alive():
+        # auto-ping a cada 4 minutos para evitar sleep no Render free tier
+        time.sleep(60)
+        while True:
+            try:
+                urllib.request.urlopen("http://localhost:8000/health", timeout=10)
+            except Exception:
+                pass
+            time.sleep(240)
+    t = threading.Thread(target=_keep_alive, daemon=True)
+    t.start()
+
 
 # ── Partes Veiculo ────────────────────────────────────────────────────────────
 
