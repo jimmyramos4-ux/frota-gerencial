@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react'
-import { Outlet, Link, useLocation } from 'react-router-dom'
+import React, { useState, useEffect } from 'react'
+import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import { useUser, useClerk } from '@clerk/clerk-react'
 import {
@@ -19,10 +19,6 @@ import {
   Sun,
   Store,
   Package,
-  DatabaseBackup,
-  CheckCircle,
-  AlertTriangle,
-  Loader2,
   LogOut,
 } from 'lucide-react'
 import novalogo from '../assets/novalogo.png'
@@ -43,17 +39,21 @@ const navItems = [
   { label: 'Ativos / Equipamentos', icon: Package, to: '/ativos' },
 ]
 
+function fmtSyncDate(iso) {
+  if (!iso) return null
+  const d = new Date(iso)
+  return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
 
 export default function Layout() {
   const { user } = useUser()
   const { signOut } = useClerk()
-  const syncFileRef = useRef()
+  const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light')
   const [vencBadge, setVencBadge] = useState({ vencido: 0, proximo: 0 })
-  const [toast, setToast] = useState(null) // { vencido, proximo }
-  const [backupState, setBackupState] = useState(null) // null | 'loading' | { ok, msg }
-  const [syncState, setSyncState] = useState(null) // null | 'loading' | { ok, msg }
+  const [toast, setToast] = useState(null)
+  const [ultimoSync, setUltimoSync] = useState(null)
   const location = useLocation()
 
   useEffect(() => {
@@ -65,8 +65,6 @@ export default function Layout() {
     localStorage.setItem('theme', theme)
   }, [theme])
 
-
-  // Busca vencimentos para badge e toast
   useEffect(() => {
     axios.get(`${API}/vencimentos`)
       .then(r => {
@@ -74,12 +72,17 @@ export default function Layout() {
         const vencido = items.filter(i => i.status === 'Vencido').length
         const proximo = items.filter(i => i.status === 'Próximo').length
         setVencBadge({ vencido, proximo })
-        // Toast apenas uma vez por sessão e só se houver vencidos
         if (vencido > 0 && !sessionStorage.getItem('toast_venc_shown')) {
           setTimeout(() => setToast({ vencido, proximo }), 800)
           sessionStorage.setItem('toast_venc_shown', '1')
         }
       })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    axios.get(`${API}/veiculos/ultimo-sync`)
+      .then(r => setUltimoSync(r.data.ultima_sync || null))
       .catch(() => {})
   }, [])
 
@@ -140,88 +143,22 @@ export default function Layout() {
           })}
         </nav>
 
-        {/* Footer com sync e backup */}
+        {/* Footer */}
         <div className="px-3 py-3 border-t border-blue-700 space-y-2 w-56 min-w-[224px]">
           {/* Botão Sync KM */}
-          <input
-            ref={syncFileRef}
-            type="file"
-            accept=".xlsx,.xls"
-            className="hidden"
-            onChange={async (e) => {
-              const file = e.target.files?.[0]
-              e.target.value = ''
-              if (!file) return
-              setSyncState('loading')
-              try {
-                const fd = new FormData()
-                fd.append('file', file)
-                const r = await axios.post(`${API}/veiculos/sync-km`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
-                const msg = `${r.data.atualizados} veículo(s) atualizado(s)`
-                const extra = r.data.nao_encontrados?.length ? ` · ${r.data.nao_encontrados.length} não encontrado(s)` : ''
-                setSyncState({ ok: true, msg: msg + extra })
-              } catch (e) {
-                setSyncState({ ok: false, msg: e.response?.data?.detail || 'Erro ao sincronizar' })
-              }
-              setTimeout(() => setSyncState(null), 6000)
-            }}
-          />
           <button
-            onClick={() => syncFileRef.current?.click()}
-            disabled={syncState === 'loading'}
-            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-blue-800 hover:bg-blue-700 text-blue-200 hover:text-white text-xs transition-colors disabled:opacity-60"
+            onClick={() => { setSidebarOpen(false); navigate('/veiculos') }}
+            className="w-full flex flex-col gap-0.5 px-2.5 py-1.5 rounded-lg bg-blue-800 hover:bg-blue-700 text-blue-200 hover:text-white text-xs transition-colors"
           >
-            {syncState === 'loading'
-              ? <Loader2 className="w-3.5 h-3.5 animate-spin flex-shrink-0" />
-              : syncState?.ok === true
-              ? <CheckCircle className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />
-              : syncState?.ok === false
-              ? <AlertTriangle className="w-3.5 h-3.5 text-red-400 flex-shrink-0" />
-              : <RefreshCw className="w-3.5 h-3.5 flex-shrink-0" />}
-            <span className="leading-tight">
-              {syncState === 'loading' ? 'Sincronizando KM...'
-                : syncState?.ok === true ? <span className="text-green-300">{syncState.msg}</span>
-                : syncState?.ok === false ? <span className="text-red-300">{syncState.msg}</span>
-                : 'Sincronizar KM'}
-            </span>
-          </button>
-
-          {/* Botão de Backup */}
-          <button
-            onClick={async () => {
-              setBackupState('loading')
-              try {
-                const r = await axios.post(`${API}/backup`)
-                if (r.data.cloud) {
-                  setBackupState({ ok: false, msg: 'Indisponível no cloud — use o painel do Render' })
-                } else {
-                  const destinos = r.data.destinos || []
-                  const local = destinos.find(d => !d.includes('OneDrive')) ? '✓ Local' : ''
-                  const od = destinos.find(d => d.includes('OneDrive')) ? '✓ OneDrive' : ''
-                  const aviso = r.data.avisos?.length ? ' (OneDrive indisponível)' : ''
-                  setBackupState({ ok: true, msg: `${r.data.arquivo} · ${r.data.tamanho_kb} KB\n${[local, od].filter(Boolean).join(' · ')}${aviso}` })
-                }
-              } catch (e) {
-                setBackupState({ ok: false, msg: e.response?.data?.detail || 'Erro ao fazer backup' })
-              }
-              setTimeout(() => setBackupState(null), 6000)
-            }}
-            disabled={backupState === 'loading'}
-            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-blue-800 hover:bg-blue-700 text-blue-200 hover:text-white text-xs transition-colors disabled:opacity-60"
-          >
-            {backupState === 'loading'
-              ? <Loader2 className="w-3.5 h-3.5 animate-spin flex-shrink-0" />
-              : backupState?.ok === true
-              ? <CheckCircle className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />
-              : backupState?.ok === false
-              ? <AlertTriangle className="w-3.5 h-3.5 text-red-400 flex-shrink-0" />
-              : <DatabaseBackup className="w-3.5 h-3.5 flex-shrink-0" />}
-            <span className="leading-tight">
-              {backupState === 'loading' ? 'Fazendo backup...'
-                : backupState?.ok === true ? <span className="text-green-300 whitespace-pre-wrap">{backupState.msg}</span>
-                : backupState?.ok === false ? <span className="text-red-300">{backupState.msg}</span>
-                : 'Fazer Backup'}
-            </span>
+            <div className="flex items-center gap-2">
+              <RefreshCw className="w-3.5 h-3.5 flex-shrink-0" />
+              <span>Sincronizar KM</span>
+            </div>
+            {ultimoSync && (
+              <span className="text-[10px] text-blue-400 pl-[22px]">
+                Último: {fmtSyncDate(ultimoSync)}
+              </span>
+            )}
           </button>
 
           <div className="text-xs text-blue-400">v1.1.0 · by Jimmy Ricardo</div>
