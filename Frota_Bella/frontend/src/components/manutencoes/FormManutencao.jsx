@@ -6,6 +6,7 @@ import {
   AlertCircle, CheckCircle, Loader2,
   Car, User, Wrench, Calendar, ClipboardList, Pencil, X,
   Paperclip, ImagePlus, FileText, Download, ChevronLeft as ChevronLeftLb, ChevronRight,
+  Package, ArrowUpCircle,
 } from 'lucide-react'
 import LookupField from '../shared/LookupField.jsx'
 import { TipoServicoModal } from '../tiposservico/CadastroTipoServico.jsx'
@@ -117,6 +118,189 @@ function Lbl({ children }) {
   return <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">{children}</label>
 }
 
+// ── Modal Usar Peça ───────────────────────────────────────────────────────────
+function ModalUsarPeca({ manutencaoId, onClose }) {
+  const [pecaSearch, setPecaSearch] = React.useState('')
+  const [sugestoes, setSugestoes] = React.useState([])
+  const [pecaSelecionada, setPecaSelecionada] = React.useState(null)
+  const [showDrop, setShowDrop] = React.useState(false)
+  const [quantidade, setQuantidade] = React.useState('')
+  const [observacao, setObservacao] = React.useState('')
+  const [saving, setSaving] = React.useState(false)
+  const [err, setErr] = React.useState('')
+  const [pecasUsadas, setPecasUsadas] = React.useState([])
+  const [loadingUsadas, setLoadingUsadas] = React.useState(false)
+
+  const miniInp = "border border-gray-300 dark:border-gray-600 rounded px-2 py-1.5 text-xs w-full focus:outline-none focus:border-blue-400 bg-white dark:bg-gray-700 dark:text-gray-100"
+
+  const loadPecasUsadas = React.useCallback(() => {
+    if (!manutencaoId) return
+    setLoadingUsadas(true)
+    axios.get(`${API}/movimentos-estoque`, { params: { manutencao_id: manutencaoId } })
+      .then(r => setPecasUsadas(r.data))
+      .catch(() => {})
+      .finally(() => setLoadingUsadas(false))
+  }, [manutencaoId])
+
+  React.useEffect(() => { loadPecasUsadas() }, [loadPecasUsadas])
+
+  React.useEffect(() => {
+    if (pecaSearch.length < 1) { setSugestoes([]); return }
+    axios.get(`${API}/pecas`, { params: { q: pecaSearch, per_page: 15 } })
+      .then(r => setSugestoes(r.data.items))
+      .catch(() => {})
+  }, [pecaSearch])
+
+  const selectPeca = (p) => { setPecaSelecionada(p); setPecaSearch(p.nome); setShowDrop(false) }
+
+  const handleConfirmar = async () => {
+    if (!pecaSelecionada) { setErr('Selecione uma peça'); return }
+    if (!quantidade || Number(quantidade) <= 0) { setErr('Informe a quantidade'); return }
+    setSaving(true); setErr('')
+    try {
+      await axios.post(`${API}/movimentos-estoque`, {
+        peca_id: pecaSelecionada.id,
+        tipo: 'saida',
+        quantidade: Number(quantidade),
+        manutencao_id: Number(manutencaoId),
+        observacao: observacao || null,
+        usuario: 'Manutenção',
+      })
+      setPecaSelecionada(null); setPecaSearch(''); setQuantidade(''); setObservacao('')
+      loadPecasUsadas()
+    } catch (ex) {
+      setErr(ex.response?.data?.detail || 'Erro ao registrar saída')
+    } finally { setSaving(false) }
+  }
+
+  const handleRemover = async (mv) => {
+    if (!window.confirm('Remover o uso desta peça?')) return
+    try {
+      await axios.delete(`${API}/movimentos-estoque/${mv.id}`)
+      loadPecasUsadas()
+    } catch {}
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-purple-700 to-purple-500 px-5 py-3 rounded-t-xl flex items-center justify-between flex-shrink-0">
+          <span className="text-white font-bold text-sm flex items-center gap-2">
+            <Package className="w-4 h-4" />
+            Usar Peça do Estoque {manutencaoId ? `— OS #${manutencaoId}` : ''}
+          </span>
+          <button onClick={onClose} className="text-purple-200 hover:text-white"><X className="w-4 h-4" /></button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          {/* Formulário */}
+          {err && (
+            <div className="flex items-center gap-2 text-xs text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 rounded px-3 py-2">
+              <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />{err}
+            </div>
+          )}
+
+          {/* Busca de peça */}
+          <div className="relative">
+            <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">
+              Peça <span className="text-red-500">*</span>
+            </label>
+            <div className="flex gap-1">
+              <input className={miniInp} value={pecaSearch}
+                onChange={e => { setPecaSearch(e.target.value); setShowDrop(true); setPecaSelecionada(null) }}
+                onFocus={() => setShowDrop(true)}
+                onBlur={() => setTimeout(() => setShowDrop(false), 200)}
+                placeholder="Buscar peça por nome ou código..." />
+              <button type="button" onClick={() => setShowDrop(d => !d)}
+                className="border border-gray-300 dark:border-gray-600 rounded px-2 bg-purple-50 dark:bg-purple-900/20 hover:bg-purple-100 text-purple-600 dark:text-purple-400 transition-colors">
+                <Search className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            {showDrop && sugestoes.length > 0 && (
+              <ul className="absolute z-30 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg mt-0.5 w-full max-h-36 overflow-y-auto text-xs">
+                {sugestoes.map(p => (
+                  <li key={p.id} onMouseDown={() => selectPeca(p)}
+                    className="px-3 py-2 hover:bg-purple-50 dark:hover:bg-purple-900/30 cursor-pointer border-b border-gray-50 dark:border-gray-700 last:border-0 flex items-center justify-between">
+                    <span className="font-semibold dark:text-gray-200">{p.nome}</span>
+                    <span className="text-gray-400 dark:text-gray-500">
+                      {p.codigo ? `${p.codigo} · ` : ''}Estoque: {Number(p.estoque_atual ?? 0).toLocaleString('pt-BR')} {p.unidade}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {pecaSelecionada && (
+              <p className="text-xs text-purple-600 dark:text-purple-400 mt-0.5">
+                Estoque disponível: <strong>{Number(pecaSelecionada.estoque_atual ?? 0).toLocaleString('pt-BR')} {pecaSelecionada.unidade}</strong>
+              </p>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Quantidade <span className="text-red-500">*</span></label>
+              <input className={miniInp} type="number" step="0.001" min="0.001"
+                value={quantidade} onChange={e => setQuantidade(e.target.value)} placeholder="0" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Observação</label>
+              <input className={miniInp} value={observacao} onChange={e => setObservacao(e.target.value)} placeholder="Observação..." />
+            </div>
+          </div>
+
+          <div className="flex justify-end">
+            <button type="button" onClick={handleConfirmar} disabled={saving}
+              className="px-5 py-1.5 text-xs bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white rounded-lg font-bold flex items-center gap-1.5 shadow-sm transition-colors">
+              {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ArrowUpCircle className="w-3.5 h-3.5" />}
+              {saving ? 'Registrando...' : 'Confirmar Saída'}
+            </button>
+          </div>
+
+          {/* Lista de peças já usadas nessa OS */}
+          <div>
+            <p className="text-xs font-semibold text-blue-800 dark:text-blue-300 mb-2 border-t border-gray-200 dark:border-gray-700 pt-3">
+              Peças já utilizadas nesta OS
+            </p>
+            {loadingUsadas ? (
+              <div className="flex items-center gap-2 text-xs text-gray-400"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Carregando...</div>
+            ) : pecasUsadas.length === 0 ? (
+              <p className="text-xs text-gray-400 dark:text-gray-500">Nenhuma peça registrada nesta OS.</p>
+            ) : (
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-purple-50 dark:bg-purple-900/20 border-b border-purple-100 dark:border-purple-800/40">
+                    <th className="px-2 py-1.5 text-left text-purple-800 dark:text-purple-300 font-semibold">Peça</th>
+                    <th className="px-2 py-1.5 text-right text-purple-800 dark:text-purple-300 font-semibold">Qtd</th>
+                    <th className="px-2 py-1.5 text-left text-purple-800 dark:text-purple-300 font-semibold">Obs</th>
+                    <th className="px-2 py-1.5 text-center text-purple-800 dark:text-purple-300 font-semibold"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pecasUsadas.map((mv, i) => (
+                    <tr key={mv.id}
+                      className={`border-b border-gray-100 dark:border-gray-700 ${i % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-700/50'}`}>
+                      <td className="px-2 py-1.5 font-semibold dark:text-gray-200">{mv.peca_nome}</td>
+                      <td className="px-2 py-1.5 text-right tabular-nums dark:text-gray-300">{Number(mv.quantidade).toLocaleString('pt-BR')} {mv.peca_unidade}</td>
+                      <td className="px-2 py-1.5 text-gray-500 dark:text-gray-400">{mv.observacao || '-'}</td>
+                      <td className="px-2 py-1.5 text-center">
+                        <button onClick={() => handleRemover(mv)} title="Remover"
+                          className="p-0.5 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors">
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function FormManutencao() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -154,6 +338,7 @@ export default function FormManutencao() {
   const [pendingFiles, setPendingFiles] = useState([]) // {file, preview} para nova manutenção
   const [uploading, setUploading] = useState(false)
   const [lightbox, setLightbox] = useState(null) // { images: [], idx: 0 }
+  const [usarPecaOpen, setUsarPecaOpen] = useState(false)
   const fileInputRef = useRef()
 
   const loadAtivos = () => axios.get(`${API}/ativos`, { params: { per_page: 200 } }).then(r => setAtivos(r.data.items))
@@ -693,7 +878,22 @@ export default function FormManutencao() {
 
         {/* ── SEÇÃO SERVIÇOS ── */}
         <div className="rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-          <SectionHeader icon={Wrench} title="Serviços Veículo" right={`${servicos.length} serviço(s)`} />
+          <div className="bg-gradient-to-r from-blue-700 to-blue-500 px-4 py-2.5 flex items-center justify-between">
+            <span className="flex items-center gap-2 text-white font-bold text-sm">
+              <Wrench className="w-4 h-4" />
+              Serviços Veículo
+            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-blue-200 text-xs">{servicos.length} serviço(s)</span>
+              {isEdit && (
+                <button type="button" onClick={() => setUsarPecaOpen(true)}
+                  className="flex items-center gap-1 px-2.5 py-1 text-xs bg-purple-600 hover:bg-purple-500 text-white rounded font-semibold transition-colors shadow-sm">
+                  <Package className="w-3.5 h-3.5" />
+                  Usar Peça
+                </button>
+              )}
+            </div>
+          </div>
 
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
@@ -974,6 +1174,12 @@ export default function FormManutencao() {
         <AtivoModal
           onClose={() => setAtivoModalOpen(false)}
           onSaved={() => { loadAtivos(); setAtivoModalOpen(false) }}
+        />
+      )}
+      {usarPecaOpen && (
+        <ModalUsarPeca
+          manutencaoId={id}
+          onClose={() => setUsarPecaOpen(false)}
         />
       )}
     </div>

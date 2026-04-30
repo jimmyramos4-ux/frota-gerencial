@@ -428,3 +428,56 @@ class PaginatedSolicitacoes(BaseModel):
     page: int
     per_page: int
     total_pages: int
+
+
+# ── Peças / Estoque ───────────────────────────────────────────────────────────
+
+class PecaCreate(BaseModel):
+    nome: str
+    codigo: Optional[str] = None
+    descricao: Optional[str] = None
+    unidade: str = 'un'
+    estoque_minimo: Optional[Decimal] = None
+    ativo: bool = True
+
+class PecaUpdate(BaseModel):
+    nome: Optional[str] = None
+    codigo: Optional[str] = None
+    descricao: Optional[str] = None
+    unidade: Optional[str] = None
+    estoque_minimo: Optional[Decimal] = None
+    ativo: Optional[bool] = None
+
+class PecaOut(PecaCreate):
+    id: int
+    created_at: datetime
+    estoque_atual: Optional[Decimal] = None
+    class Config:
+        from_attributes = True
+
+class MovimentoEstoqueCreate(BaseModel):
+    peca_id: int
+    tipo: str  # 'entrada' | 'saida'
+    quantidade: Decimal
+    preco_unitario: Optional[Decimal] = None
+    fornecedor: Optional[str] = None
+    nota_fiscal: Optional[str] = None
+    manutencao_id: Optional[int] = None
+    observacao: Optional[str] = None
+    usuario: Optional[str] = None
+
+class MovimentoEstoqueOut(MovimentoEstoqueCreate):
+    id: int
+    created_at: datetime
+    peca_nome: Optional[str] = None
+    peca_unidade: Optional[str] = None
+    manutencao_placa: Optional[str] = None
+    class Config:
+        from_attributes = True
+
+class PaginatedPecas(BaseModel):
+    items: List[PecaOut]
+    total: int
+    page: int
+    per_page: int
+    total_pages: int

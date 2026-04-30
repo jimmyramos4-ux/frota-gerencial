@@ -37,6 +37,7 @@ const navItems = [
   { label: 'Tipos de Serviço', icon: Cog, to: '/tipos-servico' },
   { label: 'Oficinas / Prestadores', icon: Store, to: '/oficinas-prestadores' },
   { label: 'Ativos / Equipamentos', icon: Package, to: '/ativos' },
+  { label: 'Estoque de Peças', icon: Package, to: '/estoque' },
 ]
 
 function fmtSyncDate(iso) {

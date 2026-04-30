@@ -8,7 +8,7 @@ from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 from pathlib import Path
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -109,6 +109,18 @@ try:
     _migrate_ativos(engine)
 except Exception as _e:
     print(f"[migration] ativos: {_e}")
+
+# Cria tabelas de estoque se não existirem
+try:
+    from sqlalchemy import inspect as _insp2
+    _ti2 = _insp2(engine)
+    _tables2 = _ti2.get_table_names()
+    if "pecas" not in _tables2:
+        models.Peca.__table__.create(bind=engine)
+    if "movimentos_estoque" not in _tables2:
+        models.MovimentoEstoque.__table__.create(bind=engine)
+except Exception as _e2:
+    print(f"[migration] estoque: {_e2}")
 
 _add_column_if_missing(engine, "solicitacoes", ("ativo_id", "INTEGER REFERENCES ativos(id)"))
 _add_column_if_missing(engine, "solicitacoes", ("parte_veiculo", "VARCHAR(200)"))
@@ -2126,6 +2138,138 @@ def delete_solicitacao(sol_id: int, db: Session = Depends(get_db)):
     if not sol:
         raise HTTPException(status_code=404, detail="Solicitação não encontrada")
     db.delete(sol)
+    db.commit()
+
+
+# ── Peças / Estoque ──────────────────────────────────────────────────────────
+
+@app.get("/api/pecas", response_model=schemas.PaginatedPecas)
+def list_pecas(
+    q: Optional[str] = None,
+    ativo: Optional[bool] = None,
+    page: int = 1,
+    per_page: int = 50,
+    db: Session = Depends(get_db),
+):
+    from sqlalchemy import func, case
+    # Calcula estoque atual via subquery
+    estoque_sq = (
+        db.query(
+            models.MovimentoEstoque.peca_id,
+            func.sum(
+                case((models.MovimentoEstoque.tipo == 'entrada', models.MovimentoEstoque.quantidade), else_=-models.MovimentoEstoque.quantidade)
+            ).label("estoque_atual")
+        )
+        .group_by(models.MovimentoEstoque.peca_id)
+        .subquery()
+    )
+    query = db.query(models.Peca, estoque_sq.c.estoque_atual).outerjoin(estoque_sq, models.Peca.id == estoque_sq.c.peca_id)
+    if q:
+        query = query.filter(models.Peca.nome.ilike(f"%{q}%") | models.Peca.codigo.ilike(f"%{q}%"))
+    if ativo is not None:
+        query = query.filter(models.Peca.ativo == ativo)
+    total = query.count()
+    rows = query.order_by(models.Peca.nome).offset((page - 1) * per_page).limit(per_page).all()
+    items = []
+    for peca, estoque_atual in rows:
+        out = schemas.PecaOut.model_validate(peca)
+        out.estoque_atual = estoque_atual or 0
+        items.append(out)
+    return {"items": items, "total": total, "page": page, "per_page": per_page, "total_pages": math.ceil(total / per_page) or 1}
+
+
+@app.post("/api/pecas", response_model=schemas.PecaOut, status_code=201)
+def create_peca(data: schemas.PecaCreate, db: Session = Depends(get_db)):
+    peca = models.Peca(**data.model_dump())
+    db.add(peca)
+    db.commit()
+    db.refresh(peca)
+    out = schemas.PecaOut.model_validate(peca)
+    out.estoque_atual = 0
+    return out
+
+
+@app.put("/api/pecas/{peca_id}", response_model=schemas.PecaOut)
+def update_peca(peca_id: int, data: schemas.PecaUpdate, db: Session = Depends(get_db)):
+    peca = db.query(models.Peca).filter(models.Peca.id == peca_id).first()
+    if not peca:
+        raise HTTPException(status_code=404, detail="Peça não encontrada")
+    for k, v in data.model_dump(exclude_unset=True).items():
+        setattr(peca, k, v)
+    db.commit()
+    db.refresh(peca)
+    out = schemas.PecaOut.model_validate(peca)
+    # recalc estoque
+    from sqlalchemy import func, case
+    res = db.query(func.sum(case((models.MovimentoEstoque.tipo == 'entrada', models.MovimentoEstoque.quantidade), else_=-models.MovimentoEstoque.quantidade))).filter(models.MovimentoEstoque.peca_id == peca_id).scalar()
+    out.estoque_atual = res or 0
+    return out
+
+
+@app.delete("/api/pecas/{peca_id}", status_code=204)
+def delete_peca(peca_id: int, db: Session = Depends(get_db)):
+    peca = db.query(models.Peca).filter(models.Peca.id == peca_id).first()
+    if not peca:
+        raise HTTPException(status_code=404, detail="Peça não encontrada")
+    db.delete(peca)
+    db.commit()
+
+
+@app.get("/api/movimentos-estoque", response_model=List[schemas.MovimentoEstoqueOut])
+def list_movimentos(
+    peca_id: Optional[int] = None,
+    tipo: Optional[str] = None,
+    manutencao_id: Optional[int] = None,
+    limit: int = 200,
+    db: Session = Depends(get_db),
+):
+    q = db.query(models.MovimentoEstoque)
+    if peca_id:
+        q = q.filter(models.MovimentoEstoque.peca_id == peca_id)
+    if tipo:
+        q = q.filter(models.MovimentoEstoque.tipo == tipo)
+    if manutencao_id:
+        q = q.filter(models.MovimentoEstoque.manutencao_id == manutencao_id)
+    rows = q.order_by(models.MovimentoEstoque.created_at.desc()).limit(limit).all()
+    result = []
+    for m in rows:
+        out = schemas.MovimentoEstoqueOut.model_validate(m)
+        out.peca_nome = m.peca.nome if m.peca else None
+        out.peca_unidade = m.peca.unidade if m.peca else None
+        if m.manutencao and m.manutencao.veiculo:
+            out.manutencao_placa = m.manutencao.veiculo.placa
+        elif m.manutencao and m.manutencao.ativo:
+            out.manutencao_placa = m.manutencao.ativo.nome
+        result.append(out)
+    return result
+
+
+@app.post("/api/movimentos-estoque", response_model=schemas.MovimentoEstoqueOut, status_code=201)
+def create_movimento(data: schemas.MovimentoEstoqueCreate, db: Session = Depends(get_db)):
+    peca = db.query(models.Peca).filter(models.Peca.id == data.peca_id).first()
+    if not peca:
+        raise HTTPException(status_code=404, detail="Peça não encontrada")
+    mv = models.MovimentoEstoque(**data.model_dump())
+    db.add(mv)
+    db.commit()
+    db.refresh(mv)
+    out = schemas.MovimentoEstoqueOut.model_validate(mv)
+    out.peca_nome = peca.nome
+    out.peca_unidade = peca.unidade
+    if mv.manutencao_id and mv.manutencao:
+        if mv.manutencao.veiculo:
+            out.manutencao_placa = mv.manutencao.veiculo.placa
+        elif mv.manutencao.ativo:
+            out.manutencao_placa = mv.manutencao.ativo.nome
+    return out
+
+
+@app.delete("/api/movimentos-estoque/{mv_id}", status_code=204)
+def delete_movimento(mv_id: int, db: Session = Depends(get_db)):
+    mv = db.query(models.MovimentoEstoque).filter(models.MovimentoEstoque.id == mv_id).first()
+    if not mv:
+        raise HTTPException(status_code=404, detail="Movimento não encontrado")
+    db.delete(mv)
     db.commit()
 
 

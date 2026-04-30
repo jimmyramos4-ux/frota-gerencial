@@ -16,6 +16,7 @@ import CadastroOficinaPrestador from './components/oficinasprestadores/CadastroO
 import CadastroAtivos from './components/ativos/CadastroAtivos.jsx'
 import Solicitacoes from './components/solicitacoes/Solicitacoes.jsx'
 import Vencimentos from './components/vencimentos/Vencimentos.jsx'
+import Estoque from './components/estoque/Estoque.jsx'
 
 export default function App() {
   return (
@@ -42,6 +43,7 @@ export default function App() {
             <Route path="ativos" element={<CadastroAtivos />} />
             <Route path="solicitacoes" element={<Solicitacoes />} />
             <Route path="vencimentos" element={<Vencimentos />} />
+            <Route path="estoque" element={<Estoque />} />
           </Route>
         </Routes>
       </SignedIn>

@@ -289,3 +289,32 @@ class AcaoVencimento(Base):
     prazo = Column(String(10), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class Peca(Base):
+    __tablename__ = "pecas"
+    id = Column(Integer, primary_key=True, index=True)
+    nome = Column(String(200), nullable=False)
+    codigo = Column(String(50), nullable=True)
+    descricao = Column(Text, nullable=True)
+    unidade = Column(String(20), default='un', nullable=False)
+    estoque_minimo = Column(Numeric(10, 2), default=0)
+    ativo = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    movimentos = relationship("MovimentoEstoque", back_populates="peca")
+
+class MovimentoEstoque(Base):
+    __tablename__ = "movimentos_estoque"
+    id = Column(Integer, primary_key=True, index=True)
+    peca_id = Column(Integer, ForeignKey("pecas.id"), nullable=False)
+    tipo = Column(String(10), nullable=False)  # 'entrada' | 'saida'
+    quantidade = Column(Numeric(10, 2), nullable=False)
+    preco_unitario = Column(Numeric(12, 2), nullable=True)
+    fornecedor = Column(String(200), nullable=True)
+    nota_fiscal = Column(String(100), nullable=True)
+    manutencao_id = Column(Integer, ForeignKey("manutencoes.id"), nullable=True)
+    observacao = Column(Text, nullable=True)
+    usuario = Column(String(200), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    peca = relationship("Peca", back_populates="movimentos")
+    manutencao = relationship("Manutencao")
