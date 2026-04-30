@@ -574,6 +574,7 @@ export default function Dashboard() {
   const [sortCol, setSortCol] = useState('status')
   const [sortDir, setSortDir] = useState('desc')
   const [frotaGrupo, setFrotaGrupo] = useState('Pesado') // 'Pesado' | 'Leve' | 'Todos'
+  const [solMesesFiltro, setSolMesesFiltro] = useState(12) // 3 | 6 | 12
   // Filtro de período
   const [periodoTipo, setPeriodoTipo] = useState('ano') // '12m' | 'ano' | 'trimestre' | 'mes'
   const [periodoAno, setPeriodoAno] = useState(hoje.getFullYear())
@@ -699,7 +700,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-lg border border-yellow-200 dark:border-gray-700 shadow-sm px-4 py-3 flex items-center gap-3">
+        <div className="hidden md:flex bg-white dark:bg-gray-800 rounded-lg border border-yellow-200 dark:border-gray-700 shadow-sm px-4 py-3 items-center gap-3">
           <div className="p-2 rounded-full bg-yellow-100">
             <Bell className="w-4 h-4 text-yellow-500" />
           </div>
@@ -904,7 +905,7 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              <div className="rounded-lg border border-blue-100 dark:border-blue-800/40 bg-blue-50 dark:bg-blue-900/20 px-4 py-3 flex items-center gap-3">
+              <div className="hidden md:flex rounded-lg border border-blue-100 dark:border-blue-800/40 bg-blue-50 dark:bg-blue-900/20 px-4 py-3 items-center gap-3">
                 <div className="p-2 rounded-full bg-blue-100 dark:bg-blue-800/40">
                   <BarChart2 className="w-4 h-4 text-blue-600" />
                 </div>
@@ -922,21 +923,28 @@ export default function Dashboard() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 
               {/* Gráfico por mês */}
-              <div className="md:col-span-2 border border-gray-200 dark:border-gray-700 rounded-lg p-4 flex flex-col" style={{ minHeight: 160 }}>
-                <div className="flex items-center justify-between mb-3 shrink-0">
+              <div className="md:col-span-2 border border-gray-200 dark:border-gray-700 rounded-lg p-4 flex flex-col" style={{ minHeight: 220 }}>
+                <div className="flex items-center justify-between mb-2 shrink-0 flex-wrap gap-2">
                   <div className="flex items-center gap-2">
                     <TrendingUp className="w-4 h-4 text-purple-600" />
                     <span className="text-sm font-bold text-gray-700 dark:text-gray-200">Solicitações por Mês</span>
-                    <span className="text-xs text-gray-400">(últimos 12 meses)</span>
                   </div>
-                  <div className="flex items-center gap-3 text-[10px] text-gray-500 dark:text-gray-400">
-                    <span>Mês atual: <strong className="text-purple-600">{solStats.meses.slice(-1)[0]?.total || 0}</strong></span>
-                    <span>Finalizadas mês: <strong className="text-green-600">{solStats.meses.slice(-1)[0]?.finalizadas || 0}</strong></span>
-                    <span>Total: <strong className="text-gray-700 dark:text-gray-200">{solStats.total}</strong></span>
+                  <div className="flex items-center gap-1">
+                    {[[3,'3m'],[6,'6m'],[12,'12m']].map(([n, l]) => (
+                      <button key={n} onClick={() => setSolMesesFiltro(n)}
+                        className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${solMesesFiltro === n ? 'bg-purple-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
+                        {l}
+                      </button>
+                    ))}
                   </div>
                 </div>
+                <div className="flex items-center gap-3 text-[10px] text-gray-500 dark:text-gray-400 mb-3 shrink-0">
+                  <span>Mês atual: <strong className="text-purple-600">{solStats.meses.slice(-1)[0]?.total || 0}</strong></span>
+                  <span>Finalizadas mês: <strong className="text-green-600">{solStats.meses.slice(-1)[0]?.finalizadas || 0}</strong></span>
+                  <span>Total: <strong className="text-gray-700 dark:text-gray-200">{solStats.total}</strong></span>
+                </div>
                 <div className="flex-1 flex flex-col">
-                  <BarChartSolicitacoes data={solStats.meses} onBarClick={(mes, status) => navigate(`/solicitacoes?mes=${mes}&status=${encodeURIComponent(status)}`)} />
+                  <BarChartSolicitacoes data={solStats.meses.slice(-solMesesFiltro)} onBarClick={(mes, status) => navigate(`/solicitacoes?mes=${mes}&status=${encodeURIComponent(status)}`)} />
                 </div>
               </div>
 
@@ -1009,7 +1017,32 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="overflow-x-auto bg-white dark:bg-gray-800">
+        {/* ── Mobile: lista compacta placa + status ── */}
+        <div className="md:hidden bg-white dark:bg-gray-800 divide-y divide-gray-100 dark:divide-gray-700">
+          {loading ? (
+            <div className="flex items-center justify-center py-8 text-gray-400 text-xs">
+              <RefreshCw className="w-4 h-4 animate-spin mr-2" />Carregando...
+            </div>
+          ) : sorted.length === 0 ? (
+            <div className="py-8 text-center text-gray-400 text-xs">Nenhum veículo cadastrado.</div>
+          ) : sorted.map(v => (
+            <div key={v.id} className="flex items-center justify-between px-4 py-2.5">
+              <span className="font-bold text-blue-700 dark:text-blue-400 text-sm tracking-wide">{v.placa}</span>
+              {v.em_manutencao ? (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-orange-500 text-white">
+                  <AlertTriangle className="w-3 h-3" /> Em Manutenção
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-green-500 text-white">
+                  <CheckCircle2 className="w-3 h-3" /> Em Operação
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* ── Desktop: tabela completa ── */}
+        <div className="hidden md:block overflow-x-auto bg-white dark:bg-gray-800">
           <table className="w-full text-xs">
             <thead>
               <tr className="bg-gray-100 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
@@ -1049,6 +1082,7 @@ export default function Dashboard() {
               )}
             </tbody>
           </table>
+        </div>
         </div>
       </div>
 
