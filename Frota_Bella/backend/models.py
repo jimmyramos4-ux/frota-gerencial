@@ -301,7 +301,7 @@ class Peca(Base):
     estoque_minimo = Column(Numeric(10, 2), default=0)
     ativo = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
-    movimentos = relationship("MovimentoEstoque", back_populates="peca")
+    movimentos = relationship("MovimentoEstoque", back_populates="peca", cascade="all, delete-orphan")
 
 class MovimentoEstoque(Base):
     __tablename__ = "movimentos_estoque"
