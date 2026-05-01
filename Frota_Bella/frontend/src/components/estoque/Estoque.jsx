@@ -10,7 +10,7 @@ import { API } from '../../lib/config'
 const inp = "border border-gray-300 dark:border-gray-600 rounded px-2 py-1.5 text-xs w-full focus:outline-none focus:border-blue-400 bg-white dark:bg-gray-700 dark:text-gray-100"
 const sel = "border border-gray-300 dark:border-gray-600 rounded px-2 py-1.5 text-xs w-full focus:outline-none focus:border-blue-400 bg-white dark:bg-gray-700 dark:text-gray-100"
 
-const emptyPeca = { nome: '', codigo: '', descricao: '', unidade: 'un', estoque_minimo: '', ativo: true }
+const emptyPeca = { nome: '', descricao: '', unidade: 'un', estoque_minimo: '', ativo: true }
 const emptyMovimento = { peca_id: '', tipo: 'entrada', quantidade: '', preco_unitario: '', fornecedor: '', nota_fiscal: '', observacao: '', usuario: '' }
 
 function fmtNum(v) {
@@ -98,10 +98,6 @@ function ModalPeca({ peca, onClose, onSaved }) {
             <div className="col-span-2">
               <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Nome <span className="text-red-500">*</span></label>
               <input className={inp} value={form.nome} onChange={setF('nome')} placeholder="Ex: Filtro de óleo" />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Código</label>
-              <input className={inp} value={form.codigo} onChange={setF('codigo')} placeholder="Ex: FO-001" />
             </div>
             <div>
               <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Unidade</label>

@@ -2180,7 +2180,16 @@ def list_pecas(
 
 @app.post("/api/pecas", response_model=schemas.PecaOut, status_code=201)
 def create_peca(data: schemas.PecaCreate, db: Session = Depends(get_db)):
-    peca = models.Peca(**data.model_dump())
+    payload = data.model_dump()
+    if not payload.get('codigo'):
+        last = db.query(models.Peca).order_by(models.Peca.id.desc()).first()
+        next_num = (last.id + 1) if last else 1
+        codigo = f"PEC-{next_num:03d}"
+        while db.query(models.Peca).filter(models.Peca.codigo == codigo).first():
+            next_num += 1
+            codigo = f"PEC-{next_num:03d}"
+        payload['codigo'] = codigo
+    peca = models.Peca(**payload)
     db.add(peca)
     db.commit()
     db.refresh(peca)
