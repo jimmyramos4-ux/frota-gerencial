@@ -115,12 +115,20 @@ function ModalPeca({ peca, onClose, onSaved }) {
               <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Estoque Mínimo</label>
               <input className={inp} type="number" step="0.01" min="0" value={form.estoque_minimo} onChange={setF('estoque_minimo')} placeholder="0" />
             </div>
-            <div>
+            <div className="col-span-2">
               <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Status</label>
-              <select className={sel} value={form.ativo ? 'true' : 'false'} onChange={e => setForm(f => ({ ...f, ativo: e.target.value === 'true' }))}>
-                <option value="true">Ativo</option>
-                <option value="false">Inativo</option>
-              </select>
+              <div className="flex gap-2">
+                <button type="button"
+                  onClick={() => setForm(f => ({ ...f, ativo: true }))}
+                  className={`flex-1 py-1.5 rounded-lg text-xs font-bold border-2 transition-colors ${form.ativo ? 'bg-green-500 border-green-500 text-white' : 'bg-transparent border-gray-300 dark:border-gray-600 text-gray-400 hover:border-green-400 hover:text-green-400'}`}>
+                  Ativo
+                </button>
+                <button type="button"
+                  onClick={() => setForm(f => ({ ...f, ativo: false }))}
+                  className={`flex-1 py-1.5 rounded-lg text-xs font-bold border-2 transition-colors ${!form.ativo ? 'bg-red-500 border-red-500 text-white' : 'bg-transparent border-gray-300 dark:border-gray-600 text-gray-400 hover:border-red-400 hover:text-red-400'}`}>
+                  Inativo
+                </button>
+              </div>
             </div>
             <div className="col-span-2">
               <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Descrição</label>
