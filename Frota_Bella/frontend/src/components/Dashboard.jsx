@@ -1019,13 +1019,15 @@ export default function Dashboard() {
 
         {/* ── Mobile: lista compacta placa + status ── */}
         <div className="md:hidden bg-white dark:bg-gray-800 divide-y divide-gray-100 dark:divide-gray-700">
-          {loading ? (
+          {loading && (
             <div className="flex items-center justify-center py-8 text-gray-400 text-xs">
               <RefreshCw className="w-4 h-4 animate-spin mr-2" />Carregando...
             </div>
-          ) : sorted.length === 0 ? (
+          )}
+          {!loading && sorted.length === 0 && (
             <div className="py-8 text-center text-gray-400 text-xs">Nenhum veículo cadastrado.</div>
-          ) : sorted.map(v => (
+          )}
+          {!loading && sorted.length > 0 && sorted.map(v => (
             <div key={v.id} className="flex items-center justify-between px-4 py-2.5">
               <span className="font-bold text-blue-700 dark:text-blue-400 text-sm tracking-wide">{v.placa}</span>
               {v.em_manutencao ? (
@@ -1071,18 +1073,17 @@ export default function Dashboard() {
               </tr>
             </thead>
             <tbody>
-              {loading ? (
+              {loading && (
                 <tr><td colSpan={10} className="text-center py-10 text-gray-400">
                   <RefreshCw className="w-4 h-4 animate-spin inline mr-2" />Carregando...
                 </td></tr>
-              ) : sorted.length === 0 ? (
-                <tr><td colSpan={10} className="text-center py-10 text-gray-400">Nenhum veículo cadastrado.</td></tr>
-              ) : (
-                sorted.map(v => <VeiculoRow key={v.id} v={v} />)
               )}
+              {!loading && sorted.length === 0 && (
+                <tr><td colSpan={10} className="text-center py-10 text-gray-400">Nenhum veículo cadastrado.</td></tr>
+              )}
+              {!loading && sorted.length > 0 && sorted.map(v => <VeiculoRow key={v.id} v={v} />)}
             </tbody>
           </table>
-        </div>
         </div>
       </div>
 
