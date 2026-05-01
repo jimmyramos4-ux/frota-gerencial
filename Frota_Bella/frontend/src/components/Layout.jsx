@@ -29,6 +29,7 @@ const navItems = [
   { label: 'Dashboard', icon: LayoutDashboard, to: '/dashboard' },
   { label: 'Solicitações', icon: ClipboardList, to: '/solicitacoes' },
   { label: 'Manutenções', icon: Wrench, to: '/manutencoes' },
+  { label: 'Estoque', icon: Package, to: '/estoque' },
   { label: 'Vencimentos', icon: Bell, to: '/vencimentos' },
   { type: 'divider', label: 'Cadastros' },
   { label: 'Veículos', icon: Car, to: '/veiculos' },
@@ -37,7 +38,6 @@ const navItems = [
   { label: 'Tipos de Serviço', icon: Cog, to: '/tipos-servico' },
   { label: 'Oficinas / Prestadores', icon: Store, to: '/oficinas-prestadores' },
   { label: 'Ativos / Equipamentos', icon: Package, to: '/ativos' },
-  { label: 'Estoque de Peças', icon: Package, to: '/estoque' },
 ]
 
 function fmtSyncDate(iso) {
