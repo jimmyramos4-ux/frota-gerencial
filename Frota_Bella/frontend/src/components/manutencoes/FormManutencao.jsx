@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useLocation } from 'react-router-dom'
 import axios from 'axios'
 import {
   Search, Trash2, Save, ChevronLeft,
@@ -304,6 +304,7 @@ function ModalUsarPeca({ manutencaoId, onClose }) {
 export default function FormManutencao() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const isEdit = Boolean(id)
 
   const [form, setForm] = useState(emptyForm)
@@ -437,6 +438,47 @@ export default function FormManutencao() {
     setSolicitacoesRemovidas(s => [...s, sol])
   }
   const selectMotorista = (m) => { setForm(f => ({ ...f, motorista_id: m.id })); setMotoristaSearch(m.codigo); setMotoristaDesc(m.nome); setShowMotoristaDrop(false) }
+
+  useEffect(() => {
+    if (location.state?.openPecaModal) setUsarPecaOpen(true)
+  }, [])
+
+  const handleOpenUsarPeca = async () => {
+    if (isEdit) { setUsarPecaOpen(true); return }
+    if (!form.veiculo_id && !form.ativo_id) { setError('Selecione um Veículo ou Ativo antes de usar peças'); return }
+    setSaving(true); setError('')
+    try {
+      const payload = {
+        ...form,
+        veiculo_id: form.veiculo_id ? Number(form.veiculo_id) : null,
+        ativo_id: form.ativo_id ? Number(form.ativo_id) : null,
+        motorista_id: form.motorista_id ? Number(form.motorista_id) : null,
+        km_entrada: form.km_entrada ? Number(form.km_entrada) : null,
+        horimetro_entrada: form.horimetro_entrada || null,
+        dt_inicio: form.dt_inicio || null,
+        dt_previsao: form.dt_previsao || null,
+        dt_termino: form.dt_termino || null,
+        prioridade: form.prioridade || null,
+        tipo: form.tipo || null,
+      }
+      const res = await axios.post(`${API}/manutencoes`, payload)
+      for (const s of servicos.filter(x => x._new)) {
+        const { id: _, _new, ...sRaw } = s
+        await axios.post(`${API}/manutencoes/${res.data.id}/servicos`, {
+          ...sRaw,
+          tipo_uso: sRaw.tipo_uso || null,
+          status: sRaw.status || 'Em Andamento',
+          valor: sRaw.valor ? Number(sRaw.valor) : null,
+          proximo_km_validade: sRaw.proximo_km_validade ? Number(sRaw.proximo_km_validade) : null,
+          dt_servico: sRaw.dt_servico || null,
+          proxima_dt_validade: sRaw.proxima_dt_validade || null,
+        })
+      }
+      navigate(`/manutencoes/${res.data.id}/editar`, { replace: true, state: { openPecaModal: true } })
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Erro ao salvar manutenção')
+    } finally { setSaving(false) }
+  }
 
   const setF = key => e => setForm(f => ({ ...f, [key]: e.target.value }))
   const setSf = key => e => setNewServico(s => ({ ...s, [key]: e.target.value }))
@@ -885,13 +927,11 @@ export default function FormManutencao() {
             </span>
             <div className="flex items-center gap-2">
               <span className="text-blue-200 text-xs">{servicos.length} serviço(s)</span>
-              {isEdit && (
-                <button type="button" onClick={() => setUsarPecaOpen(true)}
-                  className="flex items-center gap-1 px-2.5 py-1 text-xs bg-purple-600 hover:bg-purple-500 text-white rounded font-semibold transition-colors shadow-sm">
-                  <Package className="w-3.5 h-3.5" />
-                  Usar Peça
-                </button>
-              )}
+              <button type="button" onClick={handleOpenUsarPeca}
+                className="flex items-center gap-1 px-2.5 py-1 text-xs bg-purple-600 hover:bg-purple-500 text-white rounded font-semibold transition-colors shadow-sm">
+                <Package className="w-3.5 h-3.5" />
+                Usar Peça
+              </button>
             </div>
           </div>
 
@@ -927,7 +967,7 @@ export default function FormManutencao() {
                         </select>
                       </td>
                       <td className="px-1 py-1.5"><LookupField endpoint="partes-veiculo" value={editForm.parte_veiculo} onChange={v => setEditForm(f => ({ ...f, parte_veiculo: v }))} placeholder="Parte" onCadastrarNovo={cb => setParteVeiculoModalCb(() => cb)} /></td>
-                      <td className="px-1 py-1.5"><LookupField endpoint="tipos-servico" value={editForm.servico} onChange={v => setEditForm(f => ({ ...f, servico: v }))} placeholder="Serviço" onCadastrarNovo={cb => setTipoServicoModalCb(() => cb)} extraParams={editForm.parte_veiculo ? { parte_veiculo: editForm.parte_veiculo } : undefined} onItemSelected={item => { setEditForm(f => ({ ...f, _nr_dias_validade: item.nr_dias_validade || '', proximo_km_validade: item.hodometro_km_validade && form.km_entrada ? String(Number(form.km_entrada) + item.hodometro_km_validade) : f.proximo_km_validade, proxima_dt_validade: item.nr_dias_validade && f.dt_servico ? calcProxDt(f.dt_servico, item.nr_dias_validade) : f.proxima_dt_validade })) }} /></td>
+                      <td className="px-1 py-1.5"><LookupField endpoint="tipos-servico" value={editForm.servico} onChange={v => setEditForm(f => ({ ...f, servico: v }))} placeholder="Serviço" onCadastrarNovo={cb => setTipoServicoModalCb(() => cb)} extraParams={editForm.parte_veiculo ? { parte_veiculo: editForm.parte_veiculo } : undefined} onItemSelected={item => { setEditForm(f => ({ ...f, _nr_dias_validade: item.nr_dias_validade || '', parte_veiculo: item.parte_veiculo || f.parte_veiculo, proximo_km_validade: item.hodometro_km_validade && form.km_entrada ? String(Number(form.km_entrada) + item.hodometro_km_validade) : f.proximo_km_validade, proxima_dt_validade: item.nr_dias_validade && f.dt_servico ? calcProxDt(f.dt_servico, item.nr_dias_validade) : f.proxima_dt_validade })) }} /></td>
                       <td className="px-1 py-1.5">
                         <select className={miniSel} value={editForm.tipo_uso} onChange={setEf('tipo_uso')}>
                           <option value="">-</option><option>Corretiva</option><option>Preventiva</option>
@@ -992,7 +1032,7 @@ export default function FormManutencao() {
                     </select>
                   </td>
                   <td className="px-1 py-1.5"><LookupField endpoint="partes-veiculo" value={newServico.parte_veiculo} onChange={v => setNewServico(s => ({ ...s, parte_veiculo: v }))} placeholder="Parte" onCadastrarNovo={cb => setParteVeiculoModalCb(() => cb)} /></td>
-                  <td className="px-1 py-1.5"><LookupField endpoint="tipos-servico" value={newServico.servico} onChange={v => setNewServico(s => ({ ...s, servico: v }))} placeholder="Serviço" onCadastrarNovo={cb => setTipoServicoModalCb(() => cb)} extraParams={newServico.parte_veiculo ? { parte_veiculo: newServico.parte_veiculo } : undefined} onItemSelected={item => { setNewServico(s => ({ ...s, _nr_dias_validade: item.nr_dias_validade || '', proximo_km_validade: item.hodometro_km_validade && form.km_entrada ? String(Number(form.km_entrada) + item.hodometro_km_validade) : s.proximo_km_validade, proxima_dt_validade: item.nr_dias_validade && s.dt_servico ? calcProxDt(s.dt_servico, item.nr_dias_validade) : s.proxima_dt_validade })) }} /></td>
+                  <td className="px-1 py-1.5"><LookupField endpoint="tipos-servico" value={newServico.servico} onChange={v => setNewServico(s => ({ ...s, servico: v }))} placeholder="Serviço" onCadastrarNovo={cb => setTipoServicoModalCb(() => cb)} extraParams={newServico.parte_veiculo ? { parte_veiculo: newServico.parte_veiculo } : undefined} onItemSelected={item => { setNewServico(s => ({ ...s, _nr_dias_validade: item.nr_dias_validade || '', parte_veiculo: item.parte_veiculo || s.parte_veiculo, proximo_km_validade: item.hodometro_km_validade && form.km_entrada ? String(Number(form.km_entrada) + item.hodometro_km_validade) : s.proximo_km_validade, proxima_dt_validade: item.nr_dias_validade && s.dt_servico ? calcProxDt(s.dt_servico, item.nr_dias_validade) : s.proxima_dt_validade })) }} /></td>
                   <td className="px-1 py-1.5">
                     <select className="border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 text-xs bg-white dark:bg-gray-700 dark:text-gray-100 focus:outline-none w-full" value={newServico.tipo_uso} onChange={setSf('tipo_uso')}>
                       <option value="">-</option><option>Corretiva</option><option>Preventiva</option>
