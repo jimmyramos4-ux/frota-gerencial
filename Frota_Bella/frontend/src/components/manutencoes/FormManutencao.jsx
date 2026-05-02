@@ -474,6 +474,10 @@ export default function FormManutencao() {
           proxima_dt_validade: sRaw.proxima_dt_validade || null,
         })
       }
+      await Promise.allSettled([
+        ...solicitacoesVeiculo.map(sol => axios.put(`${API}/solicitacoes/${sol.id}`, { status: 'Em Análise', manutencao_id: res.data.id })),
+        ...solicitacoesRemovidas.map(sol => axios.put(`${API}/solicitacoes/${sol.id}`, { status: 'Aberta', manutencao_id: null })),
+      ])
       navigate(`/manutencoes/${res.data.id}/editar`, { replace: true, state: { openPecaModal: true } })
     } catch (err) {
       setError(err.response?.data?.detail || 'Erro ao salvar manutenção')
