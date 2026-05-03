@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
+import { Link } from 'react-router-dom'
 import axios from 'axios'
 import {
   Package, Plus, Search, Pencil, Trash2, X, Save,
@@ -393,8 +394,13 @@ function PainelMovimentos({ peca, onClose, onRefresh }) {
                     <td className="px-3 py-2 text-gray-600 dark:text-gray-400">{mv.fornecedor || '-'}</td>
                     <td className="px-3 py-2 text-gray-500 dark:text-gray-400">
                       {mv.nota_fiscal || ''}
-                      {mv.manutencao_placa && <span className="text-blue-500 dark:text-blue-400"> OS:{mv.manutencao_placa}</span>}
-                      {!mv.nota_fiscal && !mv.manutencao_placa && '-'}
+                      {mv.manutencao_id && (
+                        <Link to={`/manutencoes/${mv.manutencao_id}/editar`}
+                          className="text-blue-500 dark:text-blue-400 hover:underline font-medium">
+                          {mv.nota_fiscal ? ' ' : ''}OS #{mv.manutencao_id}{mv.manutencao_placa ? ` — ${mv.manutencao_placa}` : ''}
+                        </Link>
+                      )}
+                      {!mv.nota_fiscal && !mv.manutencao_id && '-'}
                     </td>
                     <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{mv.observacao || '-'}</td>
                     <td className="px-3 py-2 text-center">

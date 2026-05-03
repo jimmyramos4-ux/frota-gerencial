@@ -347,6 +347,7 @@ export default function FormManutencao() {
   const [lightbox, setLightbox] = useState(null) // { images: [], idx: 0 }
   const [usarPecaOpen, setUsarPecaOpen] = useState(false)
   const [pendingPecas, setPendingPecas] = useState([])
+  const [pecasUsadasOS, setPecasUsadasOS] = useState([])
   const fileInputRef = useRef()
 
   const loadAtivos = () => axios.get(`${API}/ativos`, { params: { per_page: 200 } }).then(r => setAtivos(r.data.items))
@@ -400,6 +401,9 @@ export default function FormManutencao() {
         if (m.motorista) { setMotoristaSearch(m.motorista.codigo); setMotoristaDesc(m.motorista.nome) }
         setServicos(m.servicos || [])
         setArquivos(m.arquivos || [])
+        axios.get(`${API}/movimentos-estoque`, { params: { manutencao_id: Number(id) } })
+          .then(r => setPecasUsadasOS(r.data))
+          .catch(() => {})
       })
       .catch(() => setError('Erro ao carregar manutenção'))
       .finally(() => setLoading(false))
@@ -1034,6 +1038,41 @@ export default function FormManutencao() {
           </div>
         </div>
 
+        {/* ── SEÇÃO PEÇAS UTILIZADAS (edit mode) ── */}
+        {(isEdit && pecasUsadasOS.length > 0) || (!isEdit && pendingPecas.length > 0) ? (
+          <div className="rounded-lg shadow-sm border border-purple-200 dark:border-purple-800/40 overflow-hidden">
+            <div className="bg-gradient-to-r from-purple-700 to-purple-500 px-4 py-2.5 flex items-center justify-between">
+              <span className="flex items-center gap-2 text-white font-bold text-sm">
+                <Package className="w-4 h-4" />
+                Peças Utilizadas
+              </span>
+              <span className="text-purple-200 text-xs">
+                {isEdit ? pecasUsadasOS.length : pendingPecas.length} peça(s)
+              </span>
+            </div>
+            <div className="overflow-x-auto bg-white dark:bg-gray-800">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-purple-50 dark:bg-purple-900/20 border-b border-purple-100 dark:border-purple-800/40">
+                    <th className="px-3 py-2 text-left text-purple-800 dark:text-purple-300 font-semibold">Peça</th>
+                    <th className="px-3 py-2 text-right text-purple-800 dark:text-purple-300 font-semibold">Quantidade</th>
+                    <th className="px-3 py-2 text-left text-purple-800 dark:text-purple-300 font-semibold">Observação</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(isEdit ? pecasUsadasOS : pendingPecas).map((mv, i) => (
+                    <tr key={mv.id || mv._tempId} className={`border-b border-gray-100 dark:border-gray-700 ${i % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-700/50'}`}>
+                      <td className="px-3 py-2 font-semibold dark:text-gray-200">{mv.peca_nome}</td>
+                      <td className="px-3 py-2 text-right tabular-nums dark:text-gray-300">{Number(mv.quantidade).toLocaleString('pt-BR')} {mv.peca_unidade}</td>
+                      <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{mv.observacao || '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : null}
+
         {/* ── SEÇÃO ANEXOS ── */}
         <div className="rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
           <SectionHeader icon={Paperclip} title="Anexos" right={`${arquivos.length + pendingFiles.length} arquivo(s)`} />
@@ -1188,7 +1227,14 @@ export default function FormManutencao() {
       {usarPecaOpen && (
         <ModalUsarPeca
           manutencaoId={id}
-          onClose={() => setUsarPecaOpen(false)}
+          onClose={() => {
+            setUsarPecaOpen(false)
+            if (isEdit && id) {
+              axios.get(`${API}/movimentos-estoque`, { params: { manutencao_id: Number(id) } })
+                .then(r => setPecasUsadasOS(r.data))
+                .catch(() => {})
+            }
+          }}
           pendingPecas={pendingPecas}
           onAddPending={p => setPendingPecas(prev => [...prev, p])}
           onRemovePending={tempId => setPendingPecas(prev => prev.filter(p => p._tempId !== tempId))}
