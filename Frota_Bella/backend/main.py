@@ -1766,6 +1766,9 @@ def delete_manutencao(manutencao_id: int, db: Session = Depends(get_db)):
     man = db.query(models.Manutencao).filter(models.Manutencao.id == manutencao_id).first()
     if not man:
         raise HTTPException(status_code=404, detail="Manutenção não encontrada")
+    # Desvincula registros com FK nullable antes de deletar
+    db.query(models.MovimentoEstoque).filter(models.MovimentoEstoque.manutencao_id == manutencao_id).update({"manutencao_id": None})
+    db.query(models.Solicitacao).filter(models.Solicitacao.manutencao_id == manutencao_id).update({"manutencao_id": None})
     db.delete(man)
     db.commit()
 
