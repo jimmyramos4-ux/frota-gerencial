@@ -119,7 +119,8 @@ function Lbl({ children }) {
 }
 
 // ── Modal Usar Peça ───────────────────────────────────────────────────────────
-function ModalUsarPeca({ manutencaoId, onClose }) {
+function ModalUsarPeca({ manutencaoId, onClose, pendingPecas = [], onAddPending, onRemovePending }) {
+  const isLocalMode = !manutencaoId
   const [pecaSearch, setPecaSearch] = React.useState('')
   const [sugestoes, setSugestoes] = React.useState([])
   const [pecaSelecionada, setPecaSelecionada] = React.useState(null)
@@ -134,13 +135,13 @@ function ModalUsarPeca({ manutencaoId, onClose }) {
   const miniInp = "border border-gray-300 dark:border-gray-600 rounded px-2 py-1.5 text-xs w-full focus:outline-none focus:border-blue-400 bg-white dark:bg-gray-700 dark:text-gray-100"
 
   const loadPecasUsadas = React.useCallback(() => {
-    if (!manutencaoId) return
+    if (isLocalMode) return
     setLoadingUsadas(true)
     axios.get(`${API}/movimentos-estoque`, { params: { manutencao_id: manutencaoId } })
       .then(r => setPecasUsadas(r.data))
       .catch(() => {})
       .finally(() => setLoadingUsadas(false))
-  }, [manutencaoId])
+  }, [manutencaoId, isLocalMode])
 
   React.useEffect(() => { loadPecasUsadas() }, [loadPecasUsadas])
 
@@ -156,15 +157,17 @@ function ModalUsarPeca({ manutencaoId, onClose }) {
   const handleConfirmar = async () => {
     if (!pecaSelecionada) { setErr('Selecione uma peça'); return }
     if (!quantidade || Number(quantidade) <= 0) { setErr('Informe a quantidade'); return }
-    setSaving(true); setErr('')
+    setErr('')
+    if (isLocalMode) {
+      onAddPending({ _tempId: Date.now(), peca_id: pecaSelecionada.id, peca_nome: pecaSelecionada.nome, peca_unidade: pecaSelecionada.unidade, quantidade: Number(quantidade), observacao: observacao || null })
+      setPecaSelecionada(null); setPecaSearch(''); setQuantidade(''); setObservacao('')
+      return
+    }
+    setSaving(true)
     try {
       await axios.post(`${API}/movimentos-estoque`, {
-        peca_id: pecaSelecionada.id,
-        tipo: 'saida',
-        quantidade: Number(quantidade),
-        manutencao_id: Number(manutencaoId),
-        observacao: observacao || null,
-        usuario: 'Manutenção',
+        peca_id: pecaSelecionada.id, tipo: 'saida', quantidade: Number(quantidade),
+        manutencao_id: Number(manutencaoId), observacao: observacao || null, usuario: 'Manutenção',
       })
       setPecaSelecionada(null); setPecaSearch(''); setQuantidade(''); setObservacao('')
       loadPecasUsadas()
@@ -175,11 +178,14 @@ function ModalUsarPeca({ manutencaoId, onClose }) {
 
   const handleRemover = async (mv) => {
     if (!window.confirm('Remover o uso desta peça?')) return
+    if (isLocalMode) { onRemovePending(mv._tempId); return }
     try {
       await axios.delete(`${API}/movimentos-estoque/${mv.id}`)
       loadPecasUsadas()
     } catch {}
   }
+
+  const displayedPecas = isLocalMode ? pendingPecas : pecasUsadas
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
@@ -264,7 +270,7 @@ function ModalUsarPeca({ manutencaoId, onClose }) {
             </p>
             {loadingUsadas ? (
               <div className="flex items-center gap-2 text-xs text-gray-400"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Carregando...</div>
-            ) : pecasUsadas.length === 0 ? (
+            ) : displayedPecas.length === 0 ? (
               <p className="text-xs text-gray-400 dark:text-gray-500">Nenhuma peça registrada nesta OS.</p>
             ) : (
               <table className="w-full text-xs">
@@ -277,8 +283,8 @@ function ModalUsarPeca({ manutencaoId, onClose }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {pecasUsadas.map((mv, i) => (
-                    <tr key={mv.id}
+                  {displayedPecas.map((mv, i) => (
+                    <tr key={mv._tempId || mv.id}
                       className={`border-b border-gray-100 dark:border-gray-700 ${i % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-700/50'}`}>
                       <td className="px-2 py-1.5 font-semibold dark:text-gray-200">{mv.peca_nome}</td>
                       <td className="px-2 py-1.5 text-right tabular-nums dark:text-gray-300">{Number(mv.quantidade).toLocaleString('pt-BR')} {mv.peca_unidade}</td>
@@ -340,6 +346,7 @@ export default function FormManutencao() {
   const [uploading, setUploading] = useState(false)
   const [lightbox, setLightbox] = useState(null) // { images: [], idx: 0 }
   const [usarPecaOpen, setUsarPecaOpen] = useState(false)
+  const [pendingPecas, setPendingPecas] = useState([])
   const fileInputRef = useRef()
 
   const loadAtivos = () => axios.get(`${API}/ativos`, { params: { per_page: 200 } }).then(r => setAtivos(r.data.items))
@@ -439,51 +446,6 @@ export default function FormManutencao() {
   }
   const selectMotorista = (m) => { setForm(f => ({ ...f, motorista_id: m.id })); setMotoristaSearch(m.codigo); setMotoristaDesc(m.nome); setShowMotoristaDrop(false) }
 
-  useEffect(() => {
-    if (location.state?.openPecaModal) setUsarPecaOpen(true)
-  }, [])
-
-  const handleOpenUsarPeca = async () => {
-    if (isEdit) { setUsarPecaOpen(true); return }
-    if (!form.veiculo_id && !form.ativo_id) { setError('Selecione um Veículo ou Ativo antes de usar peças'); return }
-    setSaving(true); setError('')
-    try {
-      const payload = {
-        ...form,
-        veiculo_id: form.veiculo_id ? Number(form.veiculo_id) : null,
-        ativo_id: form.ativo_id ? Number(form.ativo_id) : null,
-        motorista_id: form.motorista_id ? Number(form.motorista_id) : null,
-        km_entrada: form.km_entrada ? Number(form.km_entrada) : null,
-        horimetro_entrada: form.horimetro_entrada || null,
-        dt_inicio: form.dt_inicio || null,
-        dt_previsao: form.dt_previsao || null,
-        dt_termino: form.dt_termino || null,
-        prioridade: form.prioridade || null,
-        tipo: form.tipo || null,
-      }
-      const res = await axios.post(`${API}/manutencoes`, payload)
-      for (const s of servicos.filter(x => x._new)) {
-        const { id: _, _new, ...sRaw } = s
-        await axios.post(`${API}/manutencoes/${res.data.id}/servicos`, {
-          ...sRaw,
-          tipo_uso: sRaw.tipo_uso || null,
-          status: sRaw.status || 'Em Andamento',
-          valor: sRaw.valor ? Number(sRaw.valor) : null,
-          proximo_km_validade: sRaw.proximo_km_validade ? Number(sRaw.proximo_km_validade) : null,
-          dt_servico: sRaw.dt_servico || null,
-          proxima_dt_validade: sRaw.proxima_dt_validade || null,
-        })
-      }
-      await Promise.allSettled([
-        ...solicitacoesVeiculo.map(sol => axios.put(`${API}/solicitacoes/${sol.id}`, { status: 'Em Análise', manutencao_id: res.data.id })),
-        ...solicitacoesRemovidas.map(sol => axios.put(`${API}/solicitacoes/${sol.id}`, { status: 'Aberta', manutencao_id: null })),
-      ])
-      navigate(`/manutencoes/${res.data.id}/editar`, { replace: true, state: { openPecaModal: true } })
-    } catch (err) {
-      setError(err.response?.data?.detail || 'Erro ao salvar manutenção')
-    } finally { setSaving(false) }
-  }
-
   const setF = key => e => setForm(f => ({ ...f, [key]: e.target.value }))
   const setSf = key => e => setNewServico(s => ({ ...s, [key]: e.target.value }))
 
@@ -562,6 +524,9 @@ export default function FormManutencao() {
         for (const { file } of pendingFiles) {
           const conteudo = await new Promise((resolve, reject) => { const r = new FileReader(); r.onload = e => resolve(e.target.result); r.onerror = reject; r.readAsDataURL(file) })
           await axios.post(`${API}/manutencoes/${res.data.id}/arquivos`, { nome_arquivo: file.name, conteudo, usuario: 'Sistema' })
+        }
+        for (const p of pendingPecas) {
+          await axios.post(`${API}/movimentos-estoque`, { peca_id: p.peca_id, tipo: 'saida', quantidade: p.quantidade, manutencao_id: res.data.id, observacao: p.observacao || null, usuario: 'Manutenção' })
         }
       }
       // Sync linked solicitations status based on maintenance status
@@ -931,10 +896,10 @@ export default function FormManutencao() {
             </span>
             <div className="flex items-center gap-2">
               <span className="text-blue-200 text-xs">{servicos.length} serviço(s)</span>
-              <button type="button" onClick={handleOpenUsarPeca}
+              <button type="button" onClick={() => setUsarPecaOpen(true)}
                 className="flex items-center gap-1 px-2.5 py-1 text-xs bg-purple-600 hover:bg-purple-500 text-white rounded font-semibold transition-colors shadow-sm">
                 <Package className="w-3.5 h-3.5" />
-                Usar Peça
+                Usar Peça{!isEdit && pendingPecas.length > 0 ? ` (${pendingPecas.length})` : ''}
               </button>
             </div>
           </div>
@@ -1224,6 +1189,9 @@ export default function FormManutencao() {
         <ModalUsarPeca
           manutencaoId={id}
           onClose={() => setUsarPecaOpen(false)}
+          pendingPecas={pendingPecas}
+          onAddPending={p => setPendingPecas(prev => [...prev, p])}
+          onRemovePending={tempId => setPendingPecas(prev => prev.filter(p => p._tempId !== tempId))}
         />
       )}
     </div>
