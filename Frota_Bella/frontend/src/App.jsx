@@ -1,7 +1,8 @@
 import React from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { SignedIn, SignedOut, RedirectToSignIn } from '@clerk/clerk-react'
+import { AuthProvider, useAuth } from './lib/AuthContext'
 import Layout from './components/Layout.jsx'
+import Login from './components/Login.jsx'
 import Dashboard from './components/Dashboard.jsx'
 import ListagemManutencoes from './components/manutencoes/ListagemManutencoes.jsx'
 import FormManutencao from './components/manutencoes/FormManutencao.jsx'
@@ -18,15 +19,31 @@ import Solicitacoes from './components/solicitacoes/Solicitacoes.jsx'
 import Vencimentos from './components/vencimentos/Vencimentos.jsx'
 import Estoque from './components/estoque/Estoque.jsx'
 
+function ProtectedRoute({ children }) {
+  const { user, loading } = useAuth()
+  if (loading) return (
+    <div className="min-h-screen bg-blue-950 flex items-center justify-center">
+      <div className="w-8 h-8 border-4 border-blue-400 border-t-transparent rounded-full animate-spin" />
+    </div>
+  )
+  if (!user) return <Navigate to="/login" replace />
+  return children
+}
+
+function PublicRoute({ children }) {
+  const { user, loading } = useAuth()
+  if (loading) return null
+  if (user) return <Navigate to="/dashboard" replace />
+  return children
+}
+
 export default function App() {
   return (
-    <BrowserRouter>
-      <SignedOut>
-        <RedirectToSignIn />
-      </SignedOut>
-      <SignedIn>
+    <AuthProvider>
+      <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Layout />}>
+          <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+          <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="manutencoes" element={<ListagemManutencoes />} />
@@ -46,7 +63,7 @@ export default function App() {
             <Route path="estoque" element={<Estoque />} />
           </Route>
         </Routes>
-      </SignedIn>
-    </BrowserRouter>
+      </BrowserRouter>
+    </AuthProvider>
   )
 }

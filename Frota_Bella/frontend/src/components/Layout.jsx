@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
 import axios from 'axios'
-import { useUser, useClerk } from '@clerk/clerk-react'
+import { useAuth } from '../lib/AuthContext'
 import {
   LayoutDashboard,
   Wrench,
@@ -47,8 +47,7 @@ function fmtSyncDate(iso) {
 }
 
 export default function Layout() {
-  const { user } = useUser()
-  const { signOut } = useClerk()
+  const { user, logout } = useAuth()
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light')
@@ -196,18 +195,21 @@ export default function Layout() {
             {/* Usuário logado */}
             {user && (
               <div className="flex items-center gap-2 pl-2 border-l border-gray-200 dark:border-gray-600">
-                {user.imageUrl ? (
-                  <img src={user.imageUrl} alt="" className="w-6 h-6 rounded-full object-cover flex-shrink-0" />
-                ) : (
-                  <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
-                    {(user.firstName?.[0] || user.emailAddresses?.[0]?.emailAddress?.[0] || '?').toUpperCase()}
-                  </div>
-                )}
-                <span className="hidden sm:inline text-gray-700 dark:text-gray-200 font-medium max-w-[120px] truncate">
-                  {user.firstName || user.emailAddresses?.[0]?.emailAddress}
-                </span>
+                <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
+                  {(user.nome?.[0] || '?').toUpperCase()}
+                </div>
+                <div className="hidden sm:flex flex-col">
+                  <span className="text-gray-700 dark:text-gray-200 font-medium text-xs max-w-[120px] truncate leading-tight">
+                    {user.nome}
+                  </span>
+                  {user.filial_nome && (
+                    <span className="text-gray-400 dark:text-gray-500 text-[10px] leading-tight truncate max-w-[120px]">
+                      {user.filial_nome}
+                    </span>
+                  )}
+                </div>
                 <button
-                  onClick={() => signOut()}
+                  onClick={() => { logout(); navigate('/login') }}
                   title="Sair"
                   className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-500 transition-colors"
                 >

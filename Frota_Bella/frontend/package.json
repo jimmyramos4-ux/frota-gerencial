@@ -9,7 +9,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@clerk/clerk-react": "^5.61.5",
     "axios": "^1.7.9",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.7",
