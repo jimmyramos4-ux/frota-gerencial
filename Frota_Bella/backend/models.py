@@ -318,3 +318,39 @@ class MovimentoEstoque(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     peca = relationship("Peca", back_populates="movimentos")
     manutencao = relationship("Manutencao")
+
+
+class PerfilUsuario(str, enum.Enum):
+    admin = "admin"
+    gerencial = "gerencial"
+    filial = "filial"
+
+
+class Filial(Base):
+    __tablename__ = "filiais"
+
+    id = Column(Integer, primary_key=True, index=True)
+    nome = Column(String(200), nullable=False)
+    cidade = Column(String(100), nullable=True)
+    ativo = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    usuarios = relationship("Usuario", back_populates="filial")
+
+
+class Usuario(Base):
+    __tablename__ = "usuarios"
+
+    id = Column(Integer, primary_key=True, index=True)
+    nome = Column(String(200), nullable=False)
+    username = Column(String(100), unique=True, nullable=False, index=True)
+    password_hash = Column(String(200), nullable=False)
+    filial_id = Column(Integer, ForeignKey("filiais.id"), nullable=True)
+    perfil = Column(
+        SAEnum(PerfilUsuario, values_callable=lambda x: [e.value for e in x]),
+        nullable=False
+    )
+    ativo = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    filial = relationship("Filial", back_populates="usuarios")

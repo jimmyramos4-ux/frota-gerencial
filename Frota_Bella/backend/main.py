@@ -27,6 +27,7 @@ from sqlalchemy import or_, and_, func
 
 import models
 import schemas
+import auth
 from database import engine, get_db, Base
 
 # ── App setup ─────────────────────────────────────────────────────────────────
@@ -130,6 +131,18 @@ _add_column_if_missing(engine, "arquivos_manutencao", ("conteudo", "TEXT"))
 _add_column_if_missing(engine, "arquivos_motorista", ("conteudo", "TEXT"))
 _add_column_if_missing(engine, "arquivos_veiculo", ("conteudo", "TEXT"))
 
+# Cria tabelas de autenticação se não existirem
+try:
+    from sqlalchemy import inspect as _insp3
+    _ti3 = _insp3(engine)
+    _tables3 = _ti3.get_table_names()
+    if "filiais" not in _tables3:
+        models.Filial.__table__.create(bind=engine)
+    if "usuarios" not in _tables3:
+        models.Usuario.__table__.create(bind=engine)
+except Exception as _e3:
+    print(f"[migration] auth: {_e3}")
+
 
 def _make_column_nullable(engine, table, column):
     from sqlalchemy import text, inspect
@@ -164,6 +177,128 @@ def health():
     return {"status": "ok"}
 
 app.mount("/api/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
+
+# ── Auth ───────────────────────────────────────────────────────────────────────
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+class UsuarioCreate(BaseModel):
+    nome: str
+    username: str
+    password: str
+    perfil: str
+    filial_id: Optional[int] = None
+
+class UsuarioUpdate(BaseModel):
+    nome: Optional[str] = None
+    password: Optional[str] = None
+    perfil: Optional[str] = None
+    filial_id: Optional[int] = None
+    ativo: Optional[bool] = None
+
+class FilialCreate(BaseModel):
+    nome: str
+    cidade: Optional[str] = None
+
+@app.post("/auth/login")
+def login(req: LoginRequest, db: Session = Depends(get_db)):
+    user = (
+        db.query(models.Usuario)
+        .filter(models.Usuario.username == req.username, models.Usuario.ativo == True)
+        .first()
+    )
+    if not user or not auth.verify_password(req.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Usuário ou senha inválidos")
+    token = auth.create_access_token({
+        "user_id": user.id,
+        "username": user.username,
+        "perfil": user.perfil,
+        "filial_id": user.filial_id,
+    })
+    return {"access_token": token, "token_type": "bearer", "user": auth.user_to_dict(user)}
+
+@app.get("/auth/me")
+def get_me(current_user: models.Usuario = Depends(auth.get_current_user)):
+    return auth.user_to_dict(current_user)
+
+# ── Filiais (admin only) ───────────────────────────────────────────────────────
+
+@app.get("/auth/filiais")
+def list_filiais(db: Session = Depends(get_db), _u: models.Usuario = Depends(auth.require_admin)):
+    return db.query(models.Filial).order_by(models.Filial.nome).all()
+
+@app.post("/auth/filiais", status_code=201)
+def create_filial(body: FilialCreate, db: Session = Depends(get_db), _u: models.Usuario = Depends(auth.require_admin)):
+    f = models.Filial(nome=body.nome, cidade=body.cidade)
+    db.add(f)
+    db.commit()
+    db.refresh(f)
+    return f
+
+@app.put("/auth/filiais/{filial_id}")
+def update_filial(filial_id: int, body: FilialCreate, db: Session = Depends(get_db), _u: models.Usuario = Depends(auth.require_admin)):
+    f = db.query(models.Filial).filter(models.Filial.id == filial_id).first()
+    if not f:
+        raise HTTPException(404, "Filial não encontrada")
+    f.nome = body.nome
+    if body.cidade is not None:
+        f.cidade = body.cidade
+    db.commit()
+    db.refresh(f)
+    return f
+
+# ── Usuários (admin only) ──────────────────────────────────────────────────────
+
+@app.get("/auth/usuarios")
+def list_usuarios(db: Session = Depends(get_db), _u: models.Usuario = Depends(auth.require_admin)):
+    users = db.query(models.Usuario).order_by(models.Usuario.nome).all()
+    return [auth.user_to_dict(u) for u in users]
+
+@app.post("/auth/usuarios", status_code=201)
+def create_usuario(body: UsuarioCreate, db: Session = Depends(get_db), _u: models.Usuario = Depends(auth.require_admin)):
+    if db.query(models.Usuario).filter(models.Usuario.username == body.username).first():
+        raise HTTPException(400, "Username já existe")
+    try:
+        perfil = models.PerfilUsuario(body.perfil)
+    except ValueError:
+        raise HTTPException(400, "Perfil inválido")
+    if perfil == models.PerfilUsuario.filial and not body.filial_id:
+        raise HTTPException(400, "Usuário de filial precisa de filial_id")
+    u = models.Usuario(
+        nome=body.nome,
+        username=body.username,
+        password_hash=auth.hash_password(body.password),
+        perfil=perfil,
+        filial_id=body.filial_id,
+    )
+    db.add(u)
+    db.commit()
+    db.refresh(u)
+    return auth.user_to_dict(u)
+
+@app.put("/auth/usuarios/{usuario_id}")
+def update_usuario(usuario_id: int, body: UsuarioUpdate, db: Session = Depends(get_db), _u: models.Usuario = Depends(auth.require_admin)):
+    u = db.query(models.Usuario).filter(models.Usuario.id == usuario_id).first()
+    if not u:
+        raise HTTPException(404, "Usuário não encontrado")
+    if body.nome is not None:
+        u.nome = body.nome
+    if body.password:
+        u.password_hash = auth.hash_password(body.password)
+    if body.perfil is not None:
+        try:
+            u.perfil = models.PerfilUsuario(body.perfil)
+        except ValueError:
+            raise HTTPException(400, "Perfil inválido")
+    if body.filial_id is not None:
+        u.filial_id = body.filial_id
+    if body.ativo is not None:
+        u.ativo = body.ativo
+    db.commit()
+    db.refresh(u)
+    return auth.user_to_dict(u)
 
 # ── Frontend static files ──────────────────────────────────────────────────────
 FRONTEND_DIST = Path(__file__).parent.parent / "frontend" / "dist"
