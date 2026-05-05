@@ -176,7 +176,7 @@ UPLOAD_DIR.mkdir(exist_ok=True)
 def health():
     return {"status": "ok"}
 
-@app.post("/auth/seed")
+@app.post("/api/auth/seed")
 def seed_auth(db: Session = Depends(get_db)):
     import traceback
     try:
@@ -234,7 +234,7 @@ class FilialCreate(BaseModel):
     nome: str
     cidade: Optional[str] = None
 
-@app.post("/auth/login")
+@app.post("/api/auth/login")
 def login(req: LoginRequest, db: Session = Depends(get_db)):
     user = (
         db.query(models.Usuario)
@@ -251,17 +251,17 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
     })
     return {"access_token": token, "token_type": "bearer", "user": auth.user_to_dict(user)}
 
-@app.get("/auth/me")
+@app.get("/api/auth/me")
 def get_me(current_user: models.Usuario = Depends(auth.get_current_user)):
     return auth.user_to_dict(current_user)
 
 # ── Filiais (admin only) ───────────────────────────────────────────────────────
 
-@app.get("/auth/filiais")
+@app.get("/api/auth/filiais")
 def list_filiais(db: Session = Depends(get_db), _u: models.Usuario = Depends(auth.require_admin)):
     return db.query(models.Filial).order_by(models.Filial.nome).all()
 
-@app.post("/auth/filiais", status_code=201)
+@app.post("/api/auth/filiais", status_code=201)
 def create_filial(body: FilialCreate, db: Session = Depends(get_db), _u: models.Usuario = Depends(auth.require_admin)):
     f = models.Filial(nome=body.nome, cidade=body.cidade)
     db.add(f)
@@ -269,7 +269,7 @@ def create_filial(body: FilialCreate, db: Session = Depends(get_db), _u: models.
     db.refresh(f)
     return f
 
-@app.put("/auth/filiais/{filial_id}")
+@app.put("/api/auth/filiais/{filial_id}")
 def update_filial(filial_id: int, body: FilialCreate, db: Session = Depends(get_db), _u: models.Usuario = Depends(auth.require_admin)):
     f = db.query(models.Filial).filter(models.Filial.id == filial_id).first()
     if not f:
@@ -283,12 +283,12 @@ def update_filial(filial_id: int, body: FilialCreate, db: Session = Depends(get_
 
 # ── Usuários (admin only) ──────────────────────────────────────────────────────
 
-@app.get("/auth/usuarios")
+@app.get("/api/auth/usuarios")
 def list_usuarios(db: Session = Depends(get_db), _u: models.Usuario = Depends(auth.require_admin)):
     users = db.query(models.Usuario).order_by(models.Usuario.nome).all()
     return [auth.user_to_dict(u) for u in users]
 
-@app.post("/auth/usuarios", status_code=201)
+@app.post("/api/auth/usuarios", status_code=201)
 def create_usuario(body: UsuarioCreate, db: Session = Depends(get_db), _u: models.Usuario = Depends(auth.require_admin)):
     if db.query(models.Usuario).filter(models.Usuario.username == body.username).first():
         raise HTTPException(400, "Username já existe")
@@ -310,7 +310,7 @@ def create_usuario(body: UsuarioCreate, db: Session = Depends(get_db), _u: model
     db.refresh(u)
     return auth.user_to_dict(u)
 
-@app.put("/auth/usuarios/{usuario_id}")
+@app.put("/api/auth/usuarios/{usuario_id}")
 def update_usuario(usuario_id: int, body: UsuarioUpdate, db: Session = Depends(get_db), _u: models.Usuario = Depends(auth.require_admin)):
     u = db.query(models.Usuario).filter(models.Usuario.id == usuario_id).first()
     if not u:
