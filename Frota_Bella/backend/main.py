@@ -178,30 +178,35 @@ def health():
 
 @app.post("/auth/seed")
 def seed_auth(db: Session = Depends(get_db)):
-    FILIAIS = [
-        "Bello Alimentos", "Bello Transportes", "Bello Logística",
-        "Bello Frigorífico", "Bello Distribuição",
-    ]
-    criadas = []
-    for nome in FILIAIS:
-        if not db.query(models.Filial).filter(models.Filial.nome == nome).first():
-            db.add(models.Filial(nome=nome))
-            criadas.append(nome)
-    db.commit()
-
-    admin_existe = db.query(models.Usuario).filter(models.Usuario.username == "admin").first()
-    admin_criado = False
-    if not admin_existe:
-        db.add(models.Usuario(
-            nome="Administrador",
-            username="admin",
-            password_hash=auth.hash_password("Admin@2026"),
-            perfil=models.PerfilUsuario.admin,
-        ))
+    import traceback
+    try:
+        FILIAIS = [
+            "Bello Alimentos", "Bello Transportes", "Bello Logística",
+            "Bello Frigorífico", "Bello Distribuição",
+        ]
+        criadas = []
+        for nome in FILIAIS:
+            if not db.query(models.Filial).filter(models.Filial.nome == nome).first():
+                db.add(models.Filial(nome=nome))
+                criadas.append(nome)
         db.commit()
-        admin_criado = True
 
-    return {"filiais_criadas": criadas, "admin_criado": admin_criado}
+        admin_existe = db.query(models.Usuario).filter(models.Usuario.username == "admin").first()
+        admin_criado = False
+        if not admin_existe:
+            db.add(models.Usuario(
+                nome="Administrador",
+                username="admin",
+                password_hash=auth.hash_password("Admin@2026"),
+                perfil=models.PerfilUsuario.admin,
+            ))
+            db.commit()
+            admin_criado = True
+
+        return {"filiais_criadas": criadas, "admin_criado": admin_criado}
+    except Exception as e:
+        db.rollback()
+        return {"erro": str(e), "trace": traceback.format_exc()}
 
 app.mount("/api/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
 
