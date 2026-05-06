@@ -153,13 +153,46 @@ function ModalPeca({ peca, onClose, onSaved }) {
   )
 }
 
+// ── Busca de peça compartilhada ───────────────────────────────────────────────
+function BuscaPeca({ pecaSearch, setPecaSearch, selectPeca, pecaSugestoes, pecaSelecionada, setShowDrop, showDrop }) {
+  return (
+    <div className="relative">
+      <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Peça <span className="text-red-500">*</span></label>
+      <div className="flex gap-1">
+        <input className={inp} value={pecaSearch}
+          onChange={e => { setPecaSearch(e.target.value); setShowDrop(true) }}
+          onFocus={() => setShowDrop(true)}
+          onBlur={() => setTimeout(() => setShowDrop(false), 200)}
+          placeholder="Buscar peça por nome ou código..." />
+        <button type="button" onClick={() => setShowDrop(d => !d)}
+          className="border border-gray-300 dark:border-gray-600 rounded px-2 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 text-blue-600 dark:text-blue-400 transition-colors">
+          <Search className="w-3.5 h-3.5" />
+        </button>
+      </div>
+      {showDrop && pecaSugestoes.length > 0 && (
+        <ul className="absolute z-30 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg mt-0.5 w-full max-h-40 overflow-y-auto text-xs">
+          {pecaSugestoes.map(p => (
+            <li key={p.id} onMouseDown={() => selectPeca(p)}
+              className="px-3 py-2 hover:bg-blue-50 dark:hover:bg-blue-900/30 cursor-pointer border-b border-gray-50 dark:border-gray-700 last:border-0 flex items-center justify-between">
+              <span className="font-semibold dark:text-gray-200">{p.nome}</span>
+              <span className="text-gray-400 dark:text-gray-500">{p.codigo || ''} · Estoque: {fmtNum(p.estoque_atual)} {p.unidade}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {pecaSelecionada && (
+        <p className="text-xs text-blue-600 dark:text-blue-400 mt-0.5">
+          Estoque atual: <strong>{fmtNum(pecaSelecionada.estoque_atual)} {pecaSelecionada.unidade}</strong>
+          {Number(pecaSelecionada.estoque_minimo) > 0 && ` · Mínimo: ${fmtNum(pecaSelecionada.estoque_minimo)}`}
+        </p>
+      )}
+    </div>
+  )
+}
+
 // ── Modal Entrada de Estoque ──────────────────────────────────────────────────
 function ModalEntrada({ pecaInicial, onClose, onSaved }) {
-  const [form, setForm] = useState({
-    ...emptyMovimento,
-    peca_id: pecaInicial?.id || '',
-    tipo: 'entrada',
-  })
+  const [form, setForm] = useState({ ...emptyMovimento, peca_id: pecaInicial?.id || '', tipo: 'entrada' })
   const [pecaSearch, setPecaSearch] = useState(pecaInicial?.nome || '')
   const [pecaSugestoes, setPecaSugestoes] = useState([])
   const [pecaSelecionada, setPecaSelecionada] = useState(pecaInicial || null)
@@ -172,15 +205,12 @@ function ModalEntrada({ pecaInicial, onClose, onSaved }) {
   useEffect(() => {
     if (pecaSearch.length < 1) { setPecaSugestoes([]); return }
     axios.get(`${API}/pecas`, { params: { q: pecaSearch, per_page: 20 } })
-      .then(r => setPecaSugestoes(r.data.items))
-      .catch(() => {})
+      .then(r => setPecaSugestoes(r.data.items)).catch(() => {})
   }, [pecaSearch])
 
   const selectPeca = (p) => {
-    setPecaSelecionada(p)
-    setPecaSearch(p.nome)
-    setForm(f => ({ ...f, peca_id: p.id }))
-    setShowDrop(false)
+    setPecaSelecionada(p); setPecaSearch(p.nome)
+    setForm(f => ({ ...f, peca_id: p.id })); setShowDrop(false)
   }
 
   const handleSubmit = async (e) => {
@@ -189,22 +219,16 @@ function ModalEntrada({ pecaInicial, onClose, onSaved }) {
     if (!form.quantidade || Number(form.quantidade) <= 0) { setErr('Informe a quantidade'); return }
     setSaving(true); setErr('')
     try {
-      const payload = {
-        peca_id: Number(form.peca_id),
-        tipo: form.tipo,
+      await axios.post(`${API}/movimentos-estoque`, {
+        peca_id: Number(form.peca_id), tipo: 'entrada',
         quantidade: Number(form.quantidade),
         preco_unitario: form.preco_unitario ? Number(form.preco_unitario) : null,
-        fornecedor: form.fornecedor || null,
-        nota_fiscal: form.nota_fiscal || null,
-        observacao: form.observacao || null,
-        usuario: form.usuario || null,
-        manutencao_id: null,
-      }
-      await axios.post(`${API}/movimentos-estoque`, payload)
+        fornecedor: form.fornecedor || null, nota_fiscal: form.nota_fiscal || null,
+        observacao: form.observacao || null, usuario: form.usuario || null, manutencao_id: null,
+      })
       onSaved()
-    } catch (ex) {
-      setErr(ex.response?.data?.detail || 'Erro ao registrar movimento')
-    } finally { setSaving(false) }
+    } catch (ex) { setErr(ex.response?.data?.detail || 'Erro ao registrar entrada') }
+    finally { setSaving(false) }
   }
 
   return (
@@ -212,8 +236,7 @@ function ModalEntrada({ pecaInicial, onClose, onSaved }) {
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg">
         <div className="bg-gradient-to-r from-green-700 to-green-500 px-5 py-3 rounded-t-xl flex items-center justify-between">
           <span className="text-white font-bold text-sm flex items-center gap-2">
-            <ArrowDownCircle className="w-4 h-4" />
-            Registrar {form.tipo === 'entrada' ? 'Entrada' : 'Saída'} de Estoque
+            <ArrowDownCircle className="w-4 h-4" /> Registrar Entrada de Estoque
           </span>
           <button onClick={onClose} className="text-green-200 hover:text-white"><X className="w-4 h-4" /></button>
         </div>
@@ -223,58 +246,9 @@ function ModalEntrada({ pecaInicial, onClose, onSaved }) {
               <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />{err}
             </div>
           )}
-
-          {/* Tipo */}
-          <div>
-            <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Tipo de Movimento</label>
-            <div className="flex gap-2">
-              {['entrada', 'saida'].map(t => (
-                <button key={t} type="button"
-                  onClick={() => setForm(f => ({ ...f, tipo: t }))}
-                  className={`flex-1 py-1.5 rounded text-xs font-bold border transition-colors
-                    ${form.tipo === t
-                      ? (t === 'entrada' ? 'bg-green-600 text-white border-green-600' : 'bg-red-600 text-white border-red-600')
-                      : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'
-                    }`}>
-                  {t === 'entrada' ? 'Entrada' : 'Saída'}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Busca de peça */}
-          <div className="relative">
-            <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Peça <span className="text-red-500">*</span></label>
-            <div className="flex gap-1">
-              <input className={inp} value={pecaSearch}
-                onChange={e => { setPecaSearch(e.target.value); setShowDrop(true); setPecaSelecionada(null); setForm(f => ({ ...f, peca_id: '' })) }}
-                onFocus={() => setShowDrop(true)}
-                onBlur={() => setTimeout(() => setShowDrop(false), 200)}
-                placeholder="Buscar peça por nome ou código..." />
-              <button type="button" onClick={() => setShowDrop(d => !d)}
-                className="border border-gray-300 dark:border-gray-600 rounded px-2 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 text-blue-600 dark:text-blue-400 transition-colors">
-                <Search className="w-3.5 h-3.5" />
-              </button>
-            </div>
-            {showDrop && pecaSugestoes.length > 0 && (
-              <ul className="absolute z-30 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg mt-0.5 w-full max-h-40 overflow-y-auto text-xs">
-                {pecaSugestoes.map(p => (
-                  <li key={p.id} onMouseDown={() => selectPeca(p)}
-                    className="px-3 py-2 hover:bg-blue-50 dark:hover:bg-blue-900/30 cursor-pointer border-b border-gray-50 dark:border-gray-700 last:border-0 flex items-center justify-between">
-                    <span className="font-semibold dark:text-gray-200">{p.nome}</span>
-                    <span className="text-gray-400 dark:text-gray-500">{p.codigo || ''} · Estoque: {fmtNum(p.estoque_atual)} {p.unidade}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {pecaSelecionada && (
-              <p className="text-xs text-blue-600 dark:text-blue-400 mt-0.5">
-                Estoque atual: <strong>{fmtNum(pecaSelecionada.estoque_atual)} {pecaSelecionada.unidade}</strong>
-                {Number(pecaSelecionada.estoque_minimo) > 0 && ` · Mínimo: ${fmtNum(pecaSelecionada.estoque_minimo)}`}
-              </p>
-            )}
-          </div>
-
+          <BuscaPeca pecaSearch={pecaSearch} setPecaSearch={s => { setPecaSearch(s); setPecaSelecionada(null); setForm(f => ({ ...f, peca_id: '' })) }}
+            selectPeca={selectPeca} pecaSugestoes={pecaSugestoes} pecaSelecionada={pecaSelecionada}
+            setShowDrop={setShowDrop} showDrop={showDrop} />
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Quantidade <span className="text-red-500">*</span></label>
@@ -301,7 +275,6 @@ function ModalEntrada({ pecaInicial, onClose, onSaved }) {
               <input className={inp} value={form.observacao} onChange={setF('observacao')} placeholder="Observação..." />
             </div>
           </div>
-
           <div className="flex justify-end gap-2 pt-1">
             <button type="button" onClick={onClose}
               className="px-4 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 font-medium transition-colors">
@@ -318,6 +291,98 @@ function ModalEntrada({ pecaInicial, onClose, onSaved }) {
     </div>
   )
 }
+
+// ── Modal Saída de Estoque ────────────────────────────────────────────────────
+function ModalSaida({ pecaInicial, onClose, onSaved }) {
+  const [form, setForm] = useState({ peca_id: pecaInicial?.id || '', quantidade: '', observacao: '', usuario: '' })
+  const [pecaSearch, setPecaSearch] = useState(pecaInicial?.nome || '')
+  const [pecaSugestoes, setPecaSugestoes] = useState([])
+  const [pecaSelecionada, setPecaSelecionada] = useState(pecaInicial || null)
+  const [showDrop, setShowDrop] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState('')
+
+  const setF = k => e => setForm(f => ({ ...f, [k]: e.target.value }))
+
+  useEffect(() => {
+    if (pecaSearch.length < 1) { setPecaSugestoes([]); return }
+    axios.get(`${API}/pecas`, { params: { q: pecaSearch, per_page: 20 } })
+      .then(r => setPecaSugestoes(r.data.items)).catch(() => {})
+  }, [pecaSearch])
+
+  const selectPeca = (p) => {
+    setPecaSelecionada(p); setPecaSearch(p.nome)
+    setForm(f => ({ ...f, peca_id: p.id })); setShowDrop(false)
+  }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (!form.peca_id) { setErr('Selecione uma peça'); return }
+    if (!form.quantidade || Number(form.quantidade) <= 0) { setErr('Informe a quantidade'); return }
+    if (pecaSelecionada && Number(form.quantidade) > Number(pecaSelecionada.estoque_atual)) {
+      setErr(`Quantidade maior que o estoque disponível (${fmtNum(pecaSelecionada.estoque_atual)} ${pecaSelecionada.unidade})`); return
+    }
+    setSaving(true); setErr('')
+    try {
+      await axios.post(`${API}/movimentos-estoque`, {
+        peca_id: Number(form.peca_id), tipo: 'saida',
+        quantidade: Number(form.quantidade),
+        observacao: form.observacao || null, usuario: form.usuario || null, manutencao_id: null,
+      })
+      onSaved()
+    } catch (ex) { setErr(ex.response?.data?.detail || 'Erro ao registrar saída') }
+    finally { setSaving(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg">
+        <div className="bg-gradient-to-r from-orange-700 to-red-500 px-5 py-3 rounded-t-xl flex items-center justify-between">
+          <span className="text-white font-bold text-sm flex items-center gap-2">
+            <ArrowUpCircle className="w-4 h-4" /> Registrar Saída de Estoque
+          </span>
+          <button onClick={onClose} className="text-orange-200 hover:text-white"><X className="w-4 h-4" /></button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          {err && (
+            <div className="flex items-center gap-2 text-xs text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 rounded px-3 py-2">
+              <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />{err}
+            </div>
+          )}
+          <BuscaPeca pecaSearch={pecaSearch} setPecaSearch={s => { setPecaSearch(s); setPecaSelecionada(null); setForm(f => ({ ...f, peca_id: '' })) }}
+            selectPeca={selectPeca} pecaSugestoes={pecaSugestoes} pecaSelecionada={pecaSelecionada}
+            setShowDrop={setShowDrop} showDrop={showDrop} />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Quantidade <span className="text-red-500">*</span></label>
+              <input className={inp} type="number" step="0.001" min="0.001" value={form.quantidade} onChange={setF('quantidade')} placeholder="0" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Usuário</label>
+              <input className={inp} value={form.usuario} onChange={setF('usuario')} placeholder="Seu nome" />
+            </div>
+            <div className="col-span-2">
+              <label className="block text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Motivo / Observação</label>
+              <input className={inp} value={form.observacao} onChange={setF('observacao')} placeholder="Ex: Uso em reparo, descarte, etc..." />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-1">
+            <button type="button" onClick={onClose}
+              className="px-4 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 font-medium transition-colors">
+              Cancelar
+            </button>
+            <button type="submit" disabled={saving}
+              className="px-5 py-1.5 text-xs bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white rounded-lg font-bold flex items-center gap-1.5 shadow-sm transition-colors">
+              {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ArrowUpCircle className="w-3.5 h-3.5" />}
+              {saving ? 'Salvando...' : 'Confirmar Saída'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 
 // ── Painel de Movimentos ──────────────────────────────────────────────────────
 function PainelMovimentos({ peca, onClose, onRefresh }) {
@@ -430,8 +495,9 @@ export default function Estoque() {
   const [filtroAtivo, setFiltroAtivo] = useState('true')
   const [toast, setToast] = useState('')
   const [modalPeca, setModalPeca] = useState(null)   // null | false (nova) | {peca obj} (editar)
-  const [modalEntrada, setModalEntrada] = useState(null) // null | false | peca obj
-  const [painelMov, setPainelMov] = useState(null)   // null | peca obj
+  const [modalEntrada, setModalEntrada] = useState(null)
+  const [modalSaida, setModalSaida] = useState(null)
+  const [painelMov, setPainelMov] = useState(null)
 
   const PER_PAGE = 50
 
@@ -489,6 +555,10 @@ export default function Estoque() {
           <button onClick={() => setModalEntrada(false)}
             className="px-3 py-1.5 text-xs bg-green-500 hover:bg-green-400 text-white rounded-lg font-bold flex items-center gap-1.5 shadow-sm transition-colors">
             <ArrowDownCircle className="w-3.5 h-3.5" /> Registrar Entrada
+          </button>
+          <button onClick={() => setModalSaida(false)}
+            className="px-3 py-1.5 text-xs bg-red-500 hover:bg-red-400 text-white rounded-lg font-bold flex items-center gap-1.5 shadow-sm transition-colors">
+            <ArrowUpCircle className="w-3.5 h-3.5" /> Registrar Saída
           </button>
           <button onClick={() => setModalPeca(false)}
             className="px-3 py-1.5 text-xs bg-white/20 hover:bg-white/30 text-white rounded-lg font-bold flex items-center gap-1.5 shadow-sm transition-colors">
@@ -569,6 +639,10 @@ export default function Estoque() {
                           className="p-1 text-green-500 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors">
                           <ArrowDownCircle className="w-3.5 h-3.5" />
                         </button>
+                        <button onClick={() => setModalSaida(p)} title="Registrar saída"
+                          className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors">
+                          <ArrowUpCircle className="w-3.5 h-3.5" />
+                        </button>
                         <button onClick={() => setModalPeca(p)} title="Editar"
                           className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors">
                           <Pencil className="w-3.5 h-3.5" />
@@ -616,7 +690,14 @@ export default function Estoque() {
         <ModalEntrada
           pecaInicial={modalEntrada || null}
           onClose={() => setModalEntrada(null)}
-          onSaved={() => { setModalEntrada(null); loadPecas(); showToast('Movimento registrado!') }}
+          onSaved={() => { setModalEntrada(null); loadPecas(); showToast('Entrada registrada!') }}
+        />
+      )}
+      {modalSaida !== null && (
+        <ModalSaida
+          pecaInicial={modalSaida || null}
+          onClose={() => setModalSaida(null)}
+          onSaved={() => { setModalSaida(null); loadPecas(); showToast('Saída registrada!') }}
         />
       )}
       {painelMov && (
