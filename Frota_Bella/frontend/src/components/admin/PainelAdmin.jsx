@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import axios from 'axios'
-import { Plus, Edit2, ShieldCheck, Building2, Users, Loader2, Check, X, Eye, EyeOff, ToggleLeft, ToggleRight } from 'lucide-react'
+import { Plus, Edit2, ShieldCheck, Building2, Users, Loader2, Check, X, Eye, EyeOff, ToggleLeft, ToggleRight, Database } from 'lucide-react'
 import { API } from '../../lib/config'
 import { useAuth } from '../../lib/AuthContext'
 
@@ -200,6 +200,8 @@ export default function PainelAdmin() {
   const [loading, setLoading] = useState(true)
   const [modalFilial, setModalFilial] = useState(null) // null | 'nova' | filial obj
   const [modalUsuario, setModalUsuario] = useState(null)
+  const [migrando, setMigrando] = useState(false)
+  const [migResult, setMigResult] = useState(null)
 
   const isAdmin = user?.perfil === 'admin'
 
@@ -217,6 +219,20 @@ export default function PainelAdmin() {
     setLoading(true)
     try { await Promise.all([fetchFiliais(), fetchUsuarios()]) } catch {}
     finally { setLoading(false) }
+  }
+
+  const handleMigrar = async () => {
+    if (!window.confirm('Isso vai atribuir Bello Alimentos (filial 1) a TODOS os registros sem filial. Continuar?')) return
+    setMigrando(true)
+    setMigResult(null)
+    try {
+      const r = await axios.post(`${API}/auth/migrate-filial`)
+      setMigResult({ ok: true, data: r.data })
+    } catch (e) {
+      setMigResult({ ok: false, erro: e.response?.data?.detail || 'Erro na migração' })
+    } finally {
+      setMigrando(false)
+    }
   }
 
   useEffect(() => { fetchAll() }, [])
@@ -363,6 +379,47 @@ export default function PainelAdmin() {
           )}
         </>
       )}
+
+      {/* ── Migração de dados (Phase 5) ── */}
+      <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <Database className="w-4 h-4 text-amber-600" />
+          <span className="text-sm font-semibold text-amber-800 dark:text-amber-200">Migração de Dados</span>
+        </div>
+        <p className="text-xs text-amber-700 dark:text-amber-300">
+          Atribui <strong>Bello Alimentos</strong> (filial 1) a todos os registros existentes que ainda não têm filial. Execute apenas uma vez após o primeiro deploy.
+        </p>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleMigrar}
+            disabled={migrando}
+            className="flex items-center gap-1.5 px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white text-xs font-semibold rounded-lg transition-colors"
+          >
+            {migrando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Database className="w-3.5 h-3.5" />}
+            {migrando ? 'Migrando...' : 'Executar Migração'}
+          </button>
+          {migResult && (
+            migResult.ok ? (
+              <div className="flex items-start gap-2 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-lg px-3 py-2 text-xs text-green-800 dark:text-green-200">
+                <Check className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                <div>
+                  <span className="font-semibold">{migResult.data.total} registros</span> atribuídos a <strong>{migResult.data.filial}</strong>
+                  <div className="mt-1 space-y-0.5">
+                    {Object.entries(migResult.data.registros_atualizados).map(([t, n]) => (
+                      <div key={t} className="text-green-700 dark:text-green-300">{t}: {n}</div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2 text-xs text-red-700 dark:text-red-300">
+                <X className="w-3.5 h-3.5 flex-shrink-0" />
+                {migResult.erro}
+              </div>
+            )
+          )}
+        </div>
+      </div>
 
       {/* Modais */}
       {modalFilial && (

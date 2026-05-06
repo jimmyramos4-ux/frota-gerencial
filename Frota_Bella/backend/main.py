@@ -357,6 +357,42 @@ def update_usuario(usuario_id: int, body: UsuarioUpdate, db: Session = Depends(g
     db.refresh(u)
     return auth.user_to_dict(u)
 
+# ── Phase 5: Migração de dados — atribui filial_id=1 a registros existentes ───
+
+@app.post("/api/auth/migrate-filial")
+def migrate_filial(db: Session = Depends(get_db), _u: models.Usuario = Depends(auth.require_admin)):
+    """Atribui filial_id=1 (Bello Alimentos) a todos os registros sem filial_id."""
+    from sqlalchemy import text
+
+    filial = db.query(models.Filial).filter(models.Filial.id == 1).first()
+    if not filial:
+        raise HTTPException(400, "Filial id=1 não encontrada. Execute o seed primeiro.")
+
+    tabelas = [
+        ("veiculos", models.Veiculo),
+        ("motoristas", models.Motorista),
+        ("ativos", models.Ativo),
+        ("manutencoes", models.Manutencao),
+        ("solicitacoes", models.Solicitacao),
+        ("pecas", models.Peca),
+        ("movimentos_estoque", models.MovimentoEstoque),
+    ]
+
+    resultado = {}
+    for tabela, modelo in tabelas:
+        count = db.query(modelo).filter(modelo.filial_id == None).count()
+        if count > 0:
+            db.query(modelo).filter(modelo.filial_id == None).update({"filial_id": 1})
+            db.commit()
+        resultado[tabela] = count
+
+    return {
+        "filial": filial.nome,
+        "registros_atualizados": resultado,
+        "total": sum(resultado.values()),
+    }
+
+
 # ── Frontend static files ──────────────────────────────────────────────────────
 FRONTEND_DIST = Path(__file__).parent.parent / "frontend" / "dist"
 
@@ -1706,7 +1742,19 @@ def get_manutencao(manutencao_id: int, db: Session = Depends(get_db)):
     )
     if not man:
         raise HTTPException(status_code=404, detail="Manutenção não encontrada")
-    return man
+    out = schemas.ManutencaoOut.model_validate(man)
+    custo_pecas = db.query(
+        func.coalesce(
+            func.sum(models.MovimentoEstoque.quantidade * models.MovimentoEstoque.preco_unitario),
+            0,
+        )
+    ).filter(
+        models.MovimentoEstoque.manutencao_id == manutencao_id,
+        models.MovimentoEstoque.tipo == 'saida',
+        models.MovimentoEstoque.preco_unitario.isnot(None),
+    ).scalar()
+    out.custo_pecas = float(custo_pecas or 0)
+    return out
 
 
 @app.post("/api/manutencoes/{manutencao_id}/enviar-email")
@@ -2489,6 +2537,14 @@ def create_movimento(data: schemas.MovimentoEstoqueCreate, db: Session = Depends
         raise HTTPException(status_code=404, detail="Peça não encontrada")
     mv = models.MovimentoEstoque(**data.model_dump())
     mv.filial_id = _filial_id_for(current_user)
+    if mv.tipo == 'saida' and mv.preco_unitario is None:
+        avg = db.query(func.avg(models.MovimentoEstoque.preco_unitario)).filter(
+            models.MovimentoEstoque.peca_id == mv.peca_id,
+            models.MovimentoEstoque.tipo == 'entrada',
+            models.MovimentoEstoque.preco_unitario.isnot(None),
+        ).scalar()
+        if avg:
+            mv.preco_unitario = avg
     db.add(mv)
     db.commit()
     db.refresh(mv)
