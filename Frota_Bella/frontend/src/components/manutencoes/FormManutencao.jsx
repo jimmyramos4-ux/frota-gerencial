@@ -513,6 +513,7 @@ export default function FormManutencao() {
     e.preventDefault()
     if (!form.veiculo_id && !form.ativo_id) { setError('Selecione um Veículo ou Ativo'); return }
     if (servicos.length === 0) { setError('Adicione ao menos um Serviço Veículo antes de confirmar'); return }
+    if (['Finalizada', 'Cancelada'].includes(form.status) && !form.dt_termino) { setError('Informe a Data de Término antes de finalizar ou cancelar a manutenção'); return }
     setSaving(true); setError(''); setSuccess('')
     try {
       const payload = { ...form, veiculo_id: form.veiculo_id ? Number(form.veiculo_id) : null, ativo_id: form.ativo_id ? Number(form.ativo_id) : null, motorista_id: form.motorista_id ? Number(form.motorista_id) : null, km_entrada: form.km_entrada ? Number(form.km_entrada) : null, horimetro_entrada: form.horimetro_entrada || null, dt_inicio: form.dt_inicio || null, dt_previsao: form.dt_previsao || null, dt_termino: form.dt_termino || null, prioridade: form.prioridade || null, tipo: form.tipo || null }
@@ -819,11 +820,14 @@ export default function FormManutencao() {
                   <option>Finalizada</option>
                   <option>Cancelada</option>
                 </select>
-                <div className="mt-1">
+                <div className="mt-1 flex items-center gap-2 flex-wrap">
                   <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold ${
                     form.status === 'Finalizada' ? 'bg-green-500 text-white' :
                     form.status === 'Cancelada' ? 'bg-red-500 text-white' :
                     'bg-blue-500 text-white'}`}>{form.status}</span>
+                  {['Finalizada', 'Cancelada'].includes(form.status) && !form.dt_termino && (
+                    <span className="text-[10px] text-orange-500 font-semibold">⚠ Informe a Dt. Término</span>
+                  )}
                 </div>
               </div>
               <div>
