@@ -453,6 +453,7 @@ class PecaOut(PecaCreate):
     id: int
     created_at: datetime
     estoque_atual: Optional[Decimal] = None
+    preco_medio: Optional[Decimal] = None
     class Config:
         from_attributes = True
 

@@ -2166,7 +2166,24 @@ def list_pecas(
         .group_by(models.MovimentoEstoque.peca_id)
         .subquery()
     )
-    query = db.query(models.Peca, estoque_sq.c.estoque_atual).outerjoin(estoque_sq, models.Peca.id == estoque_sq.c.peca_id)
+    # Calcula preço médio das entradas via subquery
+    preco_sq = (
+        db.query(
+            models.MovimentoEstoque.peca_id,
+            func.avg(models.MovimentoEstoque.preco_unitario).label("preco_medio")
+        )
+        .filter(
+            models.MovimentoEstoque.tipo == 'entrada',
+            models.MovimentoEstoque.preco_unitario.isnot(None),
+        )
+        .group_by(models.MovimentoEstoque.peca_id)
+        .subquery()
+    )
+    query = (
+        db.query(models.Peca, estoque_sq.c.estoque_atual, preco_sq.c.preco_medio)
+        .outerjoin(estoque_sq, models.Peca.id == estoque_sq.c.peca_id)
+        .outerjoin(preco_sq, models.Peca.id == preco_sq.c.peca_id)
+    )
     if q:
         query = query.filter(models.Peca.nome.ilike(f"%{q}%") | models.Peca.codigo.ilike(f"%{q}%"))
     if ativo is not None:
@@ -2174,9 +2191,10 @@ def list_pecas(
     total = query.count()
     rows = query.order_by(models.Peca.nome).offset((page - 1) * per_page).limit(per_page).all()
     items = []
-    for peca, estoque_atual in rows:
+    for peca, estoque_atual, preco_medio in rows:
         out = schemas.PecaOut.model_validate(peca)
         out.estoque_atual = estoque_atual or 0
+        out.preco_medio = preco_medio
         items.append(out)
     return {"items": items, "total": total, "page": page, "per_page": per_page, "total_pages": math.ceil(total / per_page) or 1}
 

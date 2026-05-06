@@ -159,7 +159,7 @@ function ModalUsarPeca({ manutencaoId, onClose, pendingPecas = [], onAddPending,
     if (!quantidade || Number(quantidade) <= 0) { setErr('Informe a quantidade'); return }
     setErr('')
     if (isLocalMode) {
-      onAddPending({ _tempId: Date.now(), peca_id: pecaSelecionada.id, peca_nome: pecaSelecionada.nome, peca_unidade: pecaSelecionada.unidade, quantidade: Number(quantidade), observacao: observacao || null })
+      onAddPending({ _tempId: Date.now(), peca_id: pecaSelecionada.id, peca_nome: pecaSelecionada.nome, peca_unidade: pecaSelecionada.unidade, quantidade: Number(quantidade), observacao: observacao || null, preco_unitario: pecaSelecionada.preco_medio || null })
       setPecaSelecionada(null); setPecaSearch(''); setQuantidade(''); setObservacao('')
       return
     }
@@ -1069,17 +1069,25 @@ export default function FormManutencao() {
                   <tr className="bg-purple-50 dark:bg-purple-900/20 border-b border-purple-100 dark:border-purple-800/40">
                     <th className="px-3 py-2 text-left text-purple-800 dark:text-purple-300 font-semibold">Peça</th>
                     <th className="px-3 py-2 text-right text-purple-800 dark:text-purple-300 font-semibold">Quantidade</th>
+                    <th className="px-3 py-2 text-right text-purple-800 dark:text-purple-300 font-semibold">Valor unit.</th>
+                    <th className="px-3 py-2 text-right text-purple-800 dark:text-purple-300 font-semibold">Total</th>
                     <th className="px-3 py-2 text-left text-purple-800 dark:text-purple-300 font-semibold">Observação</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {(isEdit ? pecasUsadasOS : pendingPecas).map((mv, i) => (
+                  {(isEdit ? pecasUsadasOS : pendingPecas).map((mv, i) => {
+                    const pu = parseFloat(mv.preco_unitario || 0)
+                    const qty = parseFloat(mv.quantidade || 0)
+                    const fmtR = (v) => v > 0 ? v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-'
+                    return (
                     <tr key={mv.id || mv._tempId} className={`border-b border-gray-100 dark:border-gray-700 ${i % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-700/50'}`}>
                       <td className="px-3 py-2 font-semibold dark:text-gray-200">{mv.peca_nome}</td>
-                      <td className="px-3 py-2 text-right tabular-nums dark:text-gray-300">{Number(mv.quantidade).toLocaleString('pt-BR')} {mv.peca_unidade}</td>
+                      <td className="px-3 py-2 text-right tabular-nums dark:text-gray-300">{qty.toLocaleString('pt-BR')} {mv.peca_unidade}</td>
+                      <td className="px-3 py-2 text-right tabular-nums text-gray-500 dark:text-gray-400">{fmtR(pu)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums font-semibold text-purple-700 dark:text-purple-400">{fmtR(pu * qty)}</td>
                       <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{mv.observacao || '-'}</td>
                     </tr>
-                  ))}
+                  )})}
                 </tbody>
               </table>
             </div>
