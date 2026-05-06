@@ -278,16 +278,24 @@ function ModalUsarPeca({ manutencaoId, onClose, pendingPecas = [], onAddPending,
                   <tr className="bg-purple-50 dark:bg-purple-900/20 border-b border-purple-100 dark:border-purple-800/40">
                     <th className="px-2 py-1.5 text-left text-purple-800 dark:text-purple-300 font-semibold">Peça</th>
                     <th className="px-2 py-1.5 text-right text-purple-800 dark:text-purple-300 font-semibold">Qtd</th>
+                    <th className="px-2 py-1.5 text-right text-purple-800 dark:text-purple-300 font-semibold">Valor unit.</th>
+                    <th className="px-2 py-1.5 text-right text-purple-800 dark:text-purple-300 font-semibold">Total</th>
                     <th className="px-2 py-1.5 text-left text-purple-800 dark:text-purple-300 font-semibold">Obs</th>
                     <th className="px-2 py-1.5 text-center text-purple-800 dark:text-purple-300 font-semibold"></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {displayedPecas.map((mv, i) => (
+                  {displayedPecas.map((mv, i) => {
+                    const pu = parseFloat(mv.preco_unitario || 0)
+                    const qty = parseFloat(mv.quantidade || 0)
+                    const fmtR = (v) => v > 0 ? v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-'
+                    return (
                     <tr key={mv._tempId || mv.id}
                       className={`border-b border-gray-100 dark:border-gray-700 ${i % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-700/50'}`}>
                       <td className="px-2 py-1.5 font-semibold dark:text-gray-200">{mv.peca_nome}</td>
-                      <td className="px-2 py-1.5 text-right tabular-nums dark:text-gray-300">{Number(mv.quantidade).toLocaleString('pt-BR')} {mv.peca_unidade}</td>
+                      <td className="px-2 py-1.5 text-right tabular-nums dark:text-gray-300">{qty.toLocaleString('pt-BR')} {mv.peca_unidade}</td>
+                      <td className="px-2 py-1.5 text-right tabular-nums text-gray-500 dark:text-gray-400">{fmtR(pu)}</td>
+                      <td className="px-2 py-1.5 text-right tabular-nums font-semibold text-purple-700 dark:text-purple-400">{fmtR(pu * qty)}</td>
                       <td className="px-2 py-1.5 text-gray-500 dark:text-gray-400">{mv.observacao || '-'}</td>
                       <td className="px-2 py-1.5 text-center">
                         <button onClick={() => handleRemover(mv)} title="Remover"
@@ -296,7 +304,8 @@ function ModalUsarPeca({ manutencaoId, onClose, pendingPecas = [], onAddPending,
                         </button>
                       </td>
                     </tr>
-                  ))}
+                  )})}
+
                 </tbody>
               </table>
             )}

@@ -81,7 +81,9 @@ export default function ExtratoManutencao() {
     <div className="text-red-600 text-center py-8">{error || 'Manutenção não encontrada'}</div>
   )
 
-  const totalValor = (man.servicos || []).reduce((acc, s) => acc + (parseFloat(s.valor) || 0), 0)
+  const totalServicos = (man.servicos || []).reduce((acc, s) => acc + (parseFloat(s.valor) || 0), 0)
+  const custoPecas = parseFloat(man.custo_pecas || 0)
+  const totalValor = totalServicos + custoPecas
 
   return (
     <>
@@ -225,8 +227,22 @@ export default function ExtratoManutencao() {
                 ))}
                 {(man.servicos || []).length > 0 && (
                   <tr className="bg-gray-100 dark:bg-gray-700 border-t-2 border-gray-300 dark:border-gray-600">
-                    <td colSpan={10} className="px-2 py-1.5 text-right text-xs font-bold text-gray-700 dark:text-gray-300">Total:</td>
-                    <td className="px-2 py-1.5 text-right text-xs font-bold tabular-nums text-gray-800 dark:text-gray-200">{fmtMoney(totalValor)}</td>
+                    <td colSpan={10} className="px-2 py-1.5 text-right text-xs font-bold text-gray-700 dark:text-gray-300">{custoPecas > 0 ? 'Subtotal serviços:' : 'Total:'}</td>
+                    <td className="px-2 py-1.5 text-right text-xs font-bold tabular-nums text-gray-800 dark:text-gray-200">{fmtMoney(totalServicos)}</td>
+                    <td />
+                  </tr>
+                )}
+                {custoPecas > 0 && (
+                  <tr className="bg-gray-100 dark:bg-gray-700">
+                    <td colSpan={10} className="px-2 py-1.5 text-right text-xs font-bold text-purple-700 dark:text-purple-400">Peças do estoque:</td>
+                    <td className="px-2 py-1.5 text-right text-xs font-bold tabular-nums text-purple-700 dark:text-purple-400">{fmtMoney(custoPecas)}</td>
+                    <td />
+                  </tr>
+                )}
+                {custoPecas > 0 && (
+                  <tr className="bg-blue-50 dark:bg-blue-900/20 border-t-2 border-blue-300 dark:border-blue-700">
+                    <td colSpan={10} className="px-2 py-1.5 text-right text-xs font-bold text-blue-800 dark:text-blue-300">Total geral:</td>
+                    <td className="px-2 py-1.5 text-right text-xs font-bold tabular-nums text-blue-900 dark:text-blue-200">{fmtMoney(totalValor)}</td>
                     <td />
                   </tr>
                 )}
