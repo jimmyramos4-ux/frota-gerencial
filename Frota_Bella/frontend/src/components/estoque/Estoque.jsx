@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import axios from 'axios'
+import { useAuth } from '../../lib/AuthContext'
 import {
   Package, Plus, Search, Pencil, Trash2, X, Save,
   Loader2, AlertCircle, CheckCircle, ArrowDownCircle,
@@ -422,6 +423,7 @@ function PainelMovimentos({ peca, onClose, onRefresh }) {
 
 // ── Página Principal ──────────────────────────────────────────────────────────
 export default function Estoque() {
+  const { selectedFilial } = useAuth()
   const [pecas, setPecas] = useState([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -446,13 +448,14 @@ export default function Estoque() {
       const params = { page, per_page: PER_PAGE }
       if (search) params.q = search
       if (filtroAtivo !== '') params.ativo = filtroAtivo === 'true'
+      if (selectedFilial) params.filial_id = selectedFilial
       const r = await axios.get(`${API}/pecas`, { params })
       setPecas(r.data.items)
       setTotal(r.data.total)
     } catch {
       showToast('!Erro ao carregar peças')
     } finally { setLoading(false) }
-  }, [page, search, filtroAtivo])
+  }, [page, search, filtroAtivo, selectedFilial])
 
   useEffect(() => { loadPecas() }, [loadPecas])
 

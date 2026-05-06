@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import axios from 'axios'
+import { useAuth } from '../../lib/AuthContext'
 import {
   Plus, Pencil, Trash2, RefreshCw, Search, X, Save, Loader2,
   Users, AlertCircle, CheckCircle, ArrowUp, ArrowDown, ArrowUpDown,
@@ -355,6 +356,7 @@ function MotoristaModal({ motorista, onClose, onSaved }) {
 }
 
 export default function ListagemMotoristas() {
+  const { selectedFilial } = useAuth()
   const [motoristas, setMotoristas] = useState([])
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
@@ -371,14 +373,16 @@ export default function ListagemMotoristas() {
   const fetchMotoristas = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await axios.get(`${API}/motoristas`)
+      const params = {}
+      if (selectedFilial) params.filial_id = selectedFilial
+      const res = await axios.get(`${API}/motoristas`, { params })
       setMotoristas(res.data)
     } catch (err) {
       console.error(err)
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [selectedFilial])
 
   useEffect(() => { fetchMotoristas() }, [fetchMotoristas])
 

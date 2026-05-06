@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import axios from 'axios'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../../lib/AuthContext'
 import {
   Plus,
   Pencil,
@@ -332,6 +333,7 @@ function VeiculoModal({ veiculo, onClose, onSaved }) {
 
 export default function ListagemVeiculos() {
   const navigate = useNavigate()
+  const { selectedFilial } = useAuth()
   const [veiculos, setVeiculos] = useState([])
   const [loading, setLoading] = useState(false)
   const [syncing, setSyncing] = useState(false)
@@ -367,7 +369,9 @@ export default function ListagemVeiculos() {
   const fetchVeiculos = useCallback(async () => {
     setLoading(true)
     try {
-      const params = search ? { search } : {}
+      const params = {}
+      if (search) params.search = search
+      if (selectedFilial) params.filial_id = selectedFilial
       const res = await axios.get(`${API}/veiculos`, { params })
       setVeiculos(res.data)
     } catch (err) {
@@ -375,7 +379,7 @@ export default function ListagemVeiculos() {
     } finally {
       setLoading(false)
     }
-  }, [search])
+  }, [search, selectedFilial])
 
   useEffect(() => { fetchVeiculos() }, [fetchVeiculos])
 

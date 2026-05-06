@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import axios from 'axios'
+import { useAuth } from '../../lib/AuthContext'
 import {
   ClipboardList, Plus, Trash2, Pencil, Check, X,
   AlertTriangle, ChevronDown, Search, Car, Package, Wrench, ImagePlus, Paperclip, ChevronLeft, ChevronRight,
@@ -126,6 +127,7 @@ function AcaoModal({ sol, onClose, onSaved }) {
 }
 
 export default function Solicitacoes() {
+  const { selectedFilial } = useAuth()
   const [items, setItems] = useState([])
   const [veiculos, setVeiculos] = useState([])
   const [ativos, setAtivos] = useState([])
@@ -166,12 +168,14 @@ export default function Solicitacoes() {
     axios.get(`${API}/veiculos`).then(r => setVeiculos(r.data)).catch(() => {})
     axios.get(`${API}/ativos`, { params: { per_page: 200, ativo: 'true' } }).then(r => setAtivos(r.data.items)).catch(() => {})
     axios.get(`${API}/partes-veiculo/lookup`).then(r => setPartes(r.data)).catch(() => {})
-  }, [])
+  }, [selectedFilial])
 
   const load = async () => {
     setLoading(true)
     try {
-      const r = await axios.get(`${API}/solicitacoes`, { params: { per_page: 200 } })
+      const params = { per_page: 200 }
+      if (selectedFilial) params.filial_id = selectedFilial
+      const r = await axios.get(`${API}/solicitacoes`, { params })
       setItems(r.data.items)
     } catch { setError('Erro ao carregar solicitações') }
     finally { setLoading(false) }

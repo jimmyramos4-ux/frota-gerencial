@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import axios from 'axios'
+import { useAuth } from '../../lib/AuthContext'
 import {
   Bell, RefreshCw, Car, Wrench, AlertTriangle, CheckCircle, Clock,
   ArrowUp, ArrowDown, ArrowUpDown, Search, X, Users, Plus, Pencil, Save, Loader2, CalendarClock,
@@ -110,6 +111,7 @@ function StatusBadge({ status }) {
 }
 
 export default function Vencimentos() {
+  const { selectedFilial } = useAuth()
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
@@ -122,11 +124,13 @@ export default function Vencimentos() {
   const fetchData = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await axios.get(`${API}/vencimentos`)
+      const params = {}
+      if (selectedFilial) params.filial_id = selectedFilial
+      const res = await axios.get(`${API}/vencimentos`, { params })
       setItems(res.data)
     } catch (e) { console.error(e) }
     finally { setLoading(false) }
-  }, [])
+  }, [selectedFilial])
 
   useEffect(() => { fetchData() }, [fetchData])
 

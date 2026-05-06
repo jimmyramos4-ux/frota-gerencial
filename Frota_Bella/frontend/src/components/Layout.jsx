@@ -50,7 +50,7 @@ function fmtSyncDate(iso) {
 }
 
 export default function Layout() {
-  const { user, logout } = useAuth()
+  const { user, logout, filiais, selectedFilial, setSelectedFilial } = useAuth()
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light')
@@ -187,6 +187,19 @@ export default function Layout() {
             <span className="hidden sm:inline text-gray-400 text-xs ml-1">| Gestão de Frotas</span>
           </div>
           <div className="ml-auto flex items-center gap-2 text-xs text-gray-500 dark:text-gray-300">
+            {filiais.length > 0 && (
+              <select
+                value={selectedFilial}
+                onChange={e => setSelectedFilial(e.target.value)}
+                className="text-xs border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 dark:text-gray-100 focus:outline-none focus:border-blue-400"
+                title="Filtrar por filial"
+              >
+                <option value="">Todas as filiais</option>
+                {filiais.map(f => (
+                  <option key={f.id} value={f.id}>{f.nome}</option>
+                ))}
+              </select>
+            )}
             <button
               onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
               className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import axios from 'axios'
+import { useAuth } from '../lib/AuthContext'
 import {
   Wrench, Car, RefreshCw, ChevronDown, ChevronUp, ChevronsUpDown,
   AlertTriangle, CheckCircle2, Eye, Bell, TrendingUp, DollarSign,
@@ -564,6 +565,7 @@ function labelPeriodo(tipo, ano, mes, tri) {
 
 export default function Dashboard() {
   const navigate = useNavigate()
+  const { selectedFilial } = useAuth()
   const hoje = new Date()
   const [frota, setFrota] = useState([])
   const [stats, setStats] = useState(null)
@@ -587,7 +589,9 @@ export default function Dashboard() {
     setStatsLoading(true)
     try {
       const { dt_inicio, dt_fim } = calcPeriodo(tipo, ano, mes, tri)
-      const r = await axios.get(`${API}/dashboard-stats`, { params: { dt_inicio, dt_fim } })
+      const params = { dt_inicio, dt_fim }
+      if (selectedFilial) params.filial_id = selectedFilial
+      const r = await axios.get(`${API}/dashboard-stats`, { params })
       setStats(r.data)
     } catch (err) { console.error(err) }
     finally { setStatsLoading(false) }
@@ -597,11 +601,12 @@ export default function Dashboard() {
     setLoading(true)
     try {
       const { dt_inicio, dt_fim } = calcPeriodo(periodoTipo, periodoAno, periodoMes, periodoTri)
+      const filialParam = selectedFilial ? { filial_id: selectedFilial } : {}
       const [frotaRes, statsRes, vencRes, solRes] = await Promise.all([
-        axios.get(`${API}/frota-status`),
-        axios.get(`${API}/dashboard-stats`, { params: { dt_inicio, dt_fim } }),
-        axios.get(`${API}/vencimentos`),
-        axios.get(`${API}/solicitacoes`, { params: { per_page: 10000 } }),
+        axios.get(`${API}/frota-status`, { params: filialParam }),
+        axios.get(`${API}/dashboard-stats`, { params: { dt_inicio, dt_fim, ...filialParam } }),
+        axios.get(`${API}/vencimentos`, { params: filialParam }),
+        axios.get(`${API}/solicitacoes`, { params: { per_page: 10000, ...filialParam } }),
       ])
       setFrota(frotaRes.data)
       setStats(statsRes.data)
@@ -632,7 +637,7 @@ export default function Dashboard() {
     navigate(`/manutencoes?tipo=${encodeURIComponent(tipo)}&dt_inicio_gte=${gte}&dt_inicio_lte=${lte}`)
   }
 
-  useEffect(() => { fetchAll() }, [])
+  useEffect(() => { fetchAll() }, [selectedFilial])
 
   const handleSort = (col) => {
     if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')

@@ -514,10 +514,7 @@ function RelatorioModal({ relatorio, setRelatorio, onGerar, onClose, gerando }) 
 export default function ListagemManutencoes() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
-  const { user } = useAuth()
-  const isAdminOrGerencial = user?.perfil === 'admin' || user?.perfil === 'gerencial'
-  const [filiais, setFiliais] = useState([])
-  const [selectedFilial, setSelectedFilial] = useState('')
+  const { selectedFilial } = useAuth()
 
   // Inicializa filtros a partir de query params (ex: vindos do clique no gráfico do Dashboard)
   const initFilters = () => {
@@ -568,11 +565,6 @@ export default function ListagemManutencoes() {
     if (sortField === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
     else { setSortField(field); setSortDir('asc') }
   }
-
-  useEffect(() => {
-    if (!isAdminOrGerencial) return
-    axios.get(`${API}/auth/filiais`).then(r => setFiliais(r.data || [])).catch(() => {})
-  }, [isAdminOrGerencial])
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -707,27 +699,15 @@ export default function ListagemManutencoes() {
   return (
     <div className="space-y-3">
       {/* Page title */}
-      <div className="bg-gradient-to-r from-blue-800 to-blue-600 rounded-lg shadow px-4 py-3 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0">
-          <ClipboardList className="w-6 h-6 text-blue-200 flex-shrink-0" />
-          <div className="min-w-0">
+      <div className="bg-gradient-to-r from-blue-800 to-blue-600 rounded-lg shadow px-4 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <ClipboardList className="w-6 h-6 text-blue-200" />
+          <div>
             <h1 className="text-white font-bold text-base leading-tight">Manutenções de Veículo</h1>
             <p className="text-blue-200 text-xs">Gerencie e acompanhe as manutenções da frota</p>
           </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          {isAdminOrGerencial && filiais.length > 0 && (
-            <select
-              value={selectedFilial}
-              onChange={e => { setSelectedFilial(e.target.value); setPage(1) }}
-              className="text-xs bg-blue-700 border border-blue-500 text-white rounded px-2 py-1 focus:outline-none focus:border-blue-300"
-            >
-              <option value="">Todas as filiais</option>
-              {filiais.map(f => (
-                <option key={f.id} value={f.id}>{f.nome}</option>
-              ))}
-            </select>
-          )}
           <button
             onClick={() => setRelatorioModal(true)}
             className="flex items-center gap-1.5 bg-white text-blue-700 font-medium text-xs px-3 py-1.5 rounded-lg hover:bg-blue-50 transition-colors shadow-sm"

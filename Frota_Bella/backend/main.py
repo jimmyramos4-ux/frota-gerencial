@@ -1069,7 +1069,7 @@ def historico_veiculo(veiculo_id: int, db: Session = Depends(get_db)):
 # ── Vencimentos ───────────────────────────────────────────────────────────────
 
 @app.get("/api/vencimentos")
-def list_vencimentos(db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.get_current_user)):
+def list_vencimentos(filial_id: Optional[int] = None, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.get_current_user)):
     from datetime import date as dt_date
     servicos_q = (
         db.query(models.ServicoVeiculo, models.Manutencao, models.Veiculo)
@@ -1084,6 +1084,8 @@ def list_vencimentos(db: Session = Depends(get_db), current_user: models.Usuario
     )
     if current_user.perfil == models.PerfilUsuario.filial and current_user.filial_id:
         servicos_q = servicos_q.filter(models.Veiculo.filial_id == current_user.filial_id)
+    elif filial_id and current_user.perfil != models.PerfilUsuario.filial:
+        servicos_q = servicos_q.filter(models.Veiculo.filial_id == filial_id)
     servicos = servicos_q.all()
     today = dt_date.today()
 
@@ -2149,6 +2151,7 @@ def delete_arquivo(arquivo_id: int, db: Session = Depends(get_db)):
 def dashboard_stats(
     dt_inicio: Optional[str] = None,
     dt_fim: Optional[str] = None,
+    filial_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(auth.get_current_user),
 ):
@@ -2178,6 +2181,9 @@ def dashboard_stats(
     if current_user.perfil == models.PerfilUsuario.filial and current_user.filial_id:
         filial_and = "AND m.filial_id = :filial_id"
         filial_params["filial_id"] = current_user.filial_id
+    elif filial_id and current_user.perfil != models.PerfilUsuario.filial:
+        filial_and = "AND m.filial_id = :filial_id"
+        filial_params["filial_id"] = filial_id
 
     # 1. Manutenções por mês no período
     if is_pg:
@@ -2294,8 +2300,11 @@ def get_stats(db: Session = Depends(get_db), current_user: models.Usuario = Depe
 # ── Frota Status ──────────────────────────────────────────────────────────────
 
 @app.get("/api/frota-status")
-def frota_status(db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.get_current_user)):
-    veiculos = _filial_scope(db.query(models.Veiculo), models.Veiculo, current_user).order_by(models.Veiculo.placa).all()
+def frota_status(filial_id: Optional[int] = None, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.get_current_user)):
+    q = _filial_scope(db.query(models.Veiculo), models.Veiculo, current_user)
+    if filial_id and current_user.perfil != models.PerfilUsuario.filial:
+        q = q.filter(models.Veiculo.filial_id == filial_id)
+    veiculos = q.order_by(models.Veiculo.placa).all()
     result = []
     for v in veiculos:
         man = (
@@ -2434,6 +2443,7 @@ def list_pecas(
     ativo: Optional[bool] = None,
     page: int = 1,
     per_page: int = 50,
+    filial_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(auth.get_current_user),
 ):
@@ -2451,6 +2461,8 @@ def list_pecas(
     )
     query = db.query(models.Peca, estoque_sq.c.estoque_atual).outerjoin(estoque_sq, models.Peca.id == estoque_sq.c.peca_id)
     query = _filial_scope(query, models.Peca, current_user)
+    if filial_id and current_user.perfil != models.PerfilUsuario.filial:
+        query = query.filter(models.Peca.filial_id == filial_id)
     if q:
         query = query.filter(models.Peca.nome.ilike(f"%{q}%") | models.Peca.codigo.ilike(f"%{q}%"))
     if ativo is not None:
@@ -2518,11 +2530,14 @@ def list_movimentos(
     tipo: Optional[str] = None,
     manutencao_id: Optional[int] = None,
     limit: int = 200,
+    filial_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(auth.get_current_user),
 ):
     q = db.query(models.MovimentoEstoque)
     q = _filial_scope(q, models.MovimentoEstoque, current_user)
+    if filial_id and current_user.perfil != models.PerfilUsuario.filial:
+        q = q.filter(models.MovimentoEstoque.filial_id == filial_id)
     if peca_id:
         q = q.filter(models.MovimentoEstoque.peca_id == peca_id)
     if tipo:
