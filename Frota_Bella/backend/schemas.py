@@ -359,6 +359,7 @@ class ManutencaoOut(ManutencaoBase):
     motorista: Optional[MotoristaOut] = None
     servicos: List[ServicoVeiculoOut] = []
     arquivos: List[ArquivoManutencaoOut] = []
+    custo_pecas: Optional[Decimal] = None
 
     class Config:
         from_attributes = True
