@@ -131,6 +131,15 @@ _add_column_if_missing(engine, "arquivos_manutencao", ("conteudo", "TEXT"))
 _add_column_if_missing(engine, "arquivos_motorista", ("conteudo", "TEXT"))
 _add_column_if_missing(engine, "arquivos_veiculo", ("conteudo", "TEXT"))
 
+# Phase 2: filial_id em todas as tabelas operacionais
+_add_column_if_missing(engine, "veiculos", ("filial_id", "INTEGER REFERENCES filiais(id)"))
+_add_column_if_missing(engine, "motoristas", ("filial_id", "INTEGER REFERENCES filiais(id)"))
+_add_column_if_missing(engine, "ativos", ("filial_id", "INTEGER REFERENCES filiais(id)"))
+_add_column_if_missing(engine, "manutencoes", ("filial_id", "INTEGER REFERENCES filiais(id)"))
+_add_column_if_missing(engine, "solicitacoes", ("filial_id", "INTEGER REFERENCES filiais(id)"))
+_add_column_if_missing(engine, "pecas", ("filial_id", "INTEGER REFERENCES filiais(id)"))
+_add_column_if_missing(engine, "movimentos_estoque", ("filial_id", "INTEGER REFERENCES filiais(id)"))
+
 # Cria tabelas de autenticação se não existirem
 try:
     from sqlalchemy import inspect as _insp3
@@ -171,6 +180,22 @@ app.add_middleware(
 
 UPLOAD_DIR = Path(__file__).parent / "uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)
+
+
+# ── Helpers de isolamento por filial ─────────────────────────────────────────
+
+def _filial_scope(query, model, user: models.Usuario):
+    """Filtra por filial_id quando o usuário tem perfil 'filial'."""
+    if user.perfil == models.PerfilUsuario.filial and user.filial_id:
+        return query.filter(model.filial_id == user.filial_id)
+    return query
+
+
+def _filial_id_for(user: models.Usuario):
+    """Retorna o filial_id a gravar no registro ao criar (None para admin/gerencial)."""
+    if user.perfil == models.PerfilUsuario.filial:
+        return user.filial_id
+    return None
 
 @app.get("/health")
 def health():
@@ -736,12 +761,13 @@ def delete_tipo_servico(item_id: int, db: Session = Depends(get_db)):
 # ── Veiculos ──────────────────────────────────────────────────────────────────
 
 @app.get("/api/veiculos", response_model=list[schemas.VeiculoOut])
-def list_veiculos(search: Optional[str] = None, db: Session = Depends(get_db)):
+def list_veiculos(search: Optional[str] = None, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.get_current_user)):
     from sqlalchemy.orm import joinedload as jlv
     query = db.query(models.Veiculo).options(
         joinedload(models.Veiculo.motorista),
         jlv(models.Veiculo.arquivos),
     )
+    query = _filial_scope(query, models.Veiculo, current_user)
     if search:
         query = query.filter(
             or_(
@@ -759,13 +785,14 @@ def list_veiculos(search: Optional[str] = None, db: Session = Depends(get_db)):
 
 
 @app.post("/api/veiculos", response_model=schemas.VeiculoOut, status_code=201)
-def create_veiculo(data: schemas.VeiculoCreate, db: Session = Depends(get_db)):
+def create_veiculo(data: schemas.VeiculoCreate, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.get_current_user)):
     existing = db.query(models.Veiculo).filter(models.Veiculo.placa == data.placa).first()
     if existing:
         raise HTTPException(status_code=400, detail="Placa já cadastrada")
     dump = data.model_dump()
     dump['descricao'] = " ".join(filter(None, [dump.get('marca'), dump.get('modelo')])) or dump.get('descricao') or ''
     veiculo = models.Veiculo(**dump)
+    veiculo.filial_id = _filial_id_for(current_user)
     db.add(veiculo)
     db.commit()
     db.refresh(veiculo)
@@ -1004,9 +1031,9 @@ def historico_veiculo(veiculo_id: int, db: Session = Depends(get_db)):
 # ── Vencimentos ───────────────────────────────────────────────────────────────
 
 @app.get("/api/vencimentos")
-def list_vencimentos(db: Session = Depends(get_db)):
+def list_vencimentos(db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.get_current_user)):
     from datetime import date as dt_date
-    servicos = (
+    servicos_q = (
         db.query(models.ServicoVeiculo, models.Manutencao, models.Veiculo)
         .join(models.Manutencao, models.ServicoVeiculo.manutencao_id == models.Manutencao.id)
         .join(models.Veiculo, models.Manutencao.veiculo_id == models.Veiculo.id)
@@ -1016,8 +1043,10 @@ def list_vencimentos(db: Session = Depends(get_db)):
                 models.ServicoVeiculo.proxima_dt_validade != None,
             )
         )
-        .all()
     )
+    if current_user.perfil == models.PerfilUsuario.filial and current_user.filial_id:
+        servicos_q = servicos_q.filter(models.Veiculo.filial_id == current_user.filial_id)
+    servicos = servicos_q.all()
     today = dt_date.today()
 
     # Carregar todos os tipos de serviço cadastrados para usar seus thresholds de notificação
@@ -1121,7 +1150,10 @@ def list_vencimentos(db: Session = Depends(get_db)):
     # ── CNH e Exame Toxicológico dos motoristas ────────────────────────────────
     DIAS_NOTIF_MOTORISTA = 30
     from datetime import date as _d
-    motoristas_all = db.query(models.Motorista).filter(models.Motorista.ativo != False).all()
+    mot_q = db.query(models.Motorista).filter(models.Motorista.ativo != False)
+    if current_user.perfil == models.PerfilUsuario.filial and current_user.filial_id:
+        mot_q = mot_q.filter(models.Motorista.filial_id == current_user.filial_id)
+    motoristas_all = mot_q.all()
     for mot in motoristas_all:
         for tipo_venc, campo, label in [
             ("CNH", mot.validade_cnh, "Validade CNH"),
@@ -1261,9 +1293,10 @@ def delete_arquivo_veiculo(arquivo_id: int, db: Session = Depends(get_db)):
 # ── Motoristas ────────────────────────────────────────────────────────────────
 
 @app.get("/api/motoristas", response_model=list[schemas.MotoristaOut])
-def list_motoristas(search: Optional[str] = None, db: Session = Depends(get_db)):
+def list_motoristas(search: Optional[str] = None, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.get_current_user)):
     from sqlalchemy.orm import joinedload as jl2
     query = db.query(models.Motorista).options(jl2(models.Motorista.arquivos))
+    query = _filial_scope(query, models.Motorista, current_user)
     if search:
         query = query.filter(
             or_(
@@ -1281,7 +1314,7 @@ def list_motoristas(search: Optional[str] = None, db: Session = Depends(get_db))
 
 
 @app.post("/api/motoristas", response_model=schemas.MotoristaOut, status_code=201)
-def create_motorista(data: schemas.MotoristaCreate, db: Session = Depends(get_db)):
+def create_motorista(data: schemas.MotoristaCreate, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.get_current_user)):
     # Auto-gera código se não informado
     codigo = data.codigo
     if not codigo:
@@ -1299,6 +1332,7 @@ def create_motorista(data: schemas.MotoristaCreate, db: Session = Depends(get_db
     payload = data.model_dump()
     payload['codigo'] = codigo
     motorista = models.Motorista(**payload)
+    motorista.filial_id = _filial_id_for(current_user)
     db.add(motorista)
     db.commit()
     db.refresh(motorista)
@@ -1384,8 +1418,9 @@ def delete_arquivo_motorista(arquivo_id: int, db: Session = Depends(get_db)):
 # ── Ativos ───────────────────────────────────────────────────────────────────
 
 @app.get("/api/ativos/lookup")
-def lookup_ativos(q: Optional[str] = None, db: Session = Depends(get_db)):
+def lookup_ativos(q: Optional[str] = None, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.get_current_user)):
     query = db.query(models.Ativo).filter(models.Ativo.ativo == True)
+    query = _filial_scope(query, models.Ativo, current_user)
     if q:
         query = query.filter(
             or_(models.Ativo.nome.ilike(f"%{q}%"), models.Ativo.codigo.ilike(f"%{q}%"))
@@ -1401,8 +1436,10 @@ def list_ativos(
     search: Optional[str] = None,
     ativo: Optional[str] = None,
     db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(auth.get_current_user),
 ):
     query = db.query(models.Ativo)
+    query = _filial_scope(query, models.Ativo, current_user)
     if search:
         query = query.filter(
             or_(models.Ativo.nome.ilike(f"%{search}%"), models.Ativo.codigo.ilike(f"%{search}%"),
@@ -1419,8 +1456,9 @@ def list_ativos(
 
 
 @app.post("/api/ativos", response_model=schemas.AtivoOut, status_code=201)
-def create_ativo(data: schemas.AtivoCreate, db: Session = Depends(get_db)):
+def create_ativo(data: schemas.AtivoCreate, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.get_current_user)):
     ativo = models.Ativo(**data.model_dump())
+    ativo.filial_id = _filial_id_for(current_user)
     db.add(ativo)
     db.commit()
     db.refresh(ativo)
@@ -1482,6 +1520,7 @@ def list_manutencoes(
     tipo_servico: Optional[str] = None,
     search: Optional[str] = None,
     db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(auth.get_current_user),
 ):
     query = (
         db.query(models.Manutencao)
@@ -1491,6 +1530,7 @@ def list_manutencoes(
             joinedload(models.Manutencao.ativo),
         )
     )
+    query = _filial_scope(query, models.Manutencao, current_user)
 
     if status:
         query = query.filter(models.Manutencao.status == status)
@@ -1627,7 +1667,7 @@ def list_manutencoes(
 
 
 @app.post("/api/manutencoes", response_model=schemas.ManutencaoOut, status_code=201)
-def create_manutencao(data: schemas.ManutencaoCreate, db: Session = Depends(get_db)):
+def create_manutencao(data: schemas.ManutencaoCreate, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.get_current_user)):
     if not data.veiculo_id and not data.ativo_id:
         raise HTTPException(status_code=400, detail="Informe um Veículo ou Ativo")
     if data.veiculo_id:
@@ -1637,6 +1677,7 @@ def create_manutencao(data: schemas.ManutencaoCreate, db: Session = Depends(get_
         if not db.query(models.Ativo).filter(models.Ativo.id == data.ativo_id).first():
             raise HTTPException(status_code=404, detail="Ativo não encontrado")
     man = models.Manutencao(**data.model_dump())
+    man.filial_id = _filial_id_for(current_user)
     db.add(man)
     db.commit()
     db.refresh(man)
@@ -2050,7 +2091,8 @@ def delete_arquivo(arquivo_id: int, db: Session = Depends(get_db)):
 def dashboard_stats(
     dt_inicio: Optional[str] = None,
     dt_fim: Optional[str] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(auth.get_current_user),
 ):
     from datetime import date as dt_date, timedelta
     from sqlalchemy import text
@@ -2072,6 +2114,13 @@ def dashboard_stats(
     dt_ini_str = d_ini.isoformat()
     dt_fim_str = d_fim.isoformat()
 
+    # Filial scope para SQL raw
+    filial_and = ""
+    filial_params: dict = {"di": dt_ini_str, "df": dt_fim_str}
+    if current_user.perfil == models.PerfilUsuario.filial and current_user.filial_id:
+        filial_and = "AND m.filial_id = :filial_id"
+        filial_params["filial_id"] = current_user.filial_id
+
     # 1. Manutenções por mês no período
     if is_pg:
         mes_expr = "TO_CHAR(dt_inicio, 'YYYY-MM')"
@@ -2079,11 +2128,12 @@ def dashboard_stats(
         mes_expr = "strftime('%Y-%m', dt_inicio)"
     meses_raw = db.execute(text(f"""
         SELECT {mes_expr} as mes, tipo, COUNT(*) as total
-        FROM manutencoes
+        FROM manutencoes m
         WHERE dt_inicio >= :di AND dt_inicio <= :df AND dt_inicio IS NOT NULL
+        {filial_and}
         GROUP BY {mes_expr}, tipo
         ORDER BY mes
-    """), {"di": dt_ini_str, "df": dt_fim_str}).fetchall()
+    """), filial_params).fetchall()
 
     meses_dict: dict = {}
     for mes, tipo, total in meses_raw:
@@ -2119,18 +2169,18 @@ def dashboard_stats(
             cur = dt_date(cur.year, cur.month + 1, 1)
 
     # 2. Custo total por veículo no período (top 10)
-    custo_raw = db.execute(text("""
+    custo_raw = db.execute(text(f"""
         SELECT v.id, v.placa, v.descricao,
                COUNT(DISTINCT m.id) as total_manutencoes,
                COALESCE(SUM(CAST(sv.valor AS REAL)), 0) as total_custo
         FROM veiculos v
-        LEFT JOIN manutencoes m ON m.veiculo_id = v.id AND m.dt_inicio >= :di AND m.dt_inicio <= :df
+        LEFT JOIN manutencoes m ON m.veiculo_id = v.id AND m.dt_inicio >= :di AND m.dt_inicio <= :df {filial_and}
         LEFT JOIN servicos_veiculo sv ON sv.manutencao_id = m.id AND sv.valor IS NOT NULL
         GROUP BY v.id, v.placa, v.descricao
         HAVING COUNT(DISTINCT m.id) > 0
         ORDER BY total_custo DESC
         LIMIT 10
-    """), {"di": dt_ini_str, "df": dt_fim_str}).fetchall()
+    """), filial_params).fetchall()
 
     custo_por_veiculo = [
         {"veiculo_id": r[0], "placa": r[1], "descricao": r[2],
@@ -2139,14 +2189,14 @@ def dashboard_stats(
     ]
 
     # 3. Ranking de veículos com mais manutenções no período (top 10)
-    ranking_raw = db.execute(text("""
+    ranking_raw = db.execute(text(f"""
         SELECT v.id, v.placa, v.descricao, COUNT(m.id) as total
         FROM veiculos v
-        JOIN manutencoes m ON m.veiculo_id = v.id AND m.dt_inicio >= :di AND m.dt_inicio <= :df
+        JOIN manutencoes m ON m.veiculo_id = v.id AND m.dt_inicio >= :di AND m.dt_inicio <= :df {filial_and}
         GROUP BY v.id, v.placa, v.descricao
         ORDER BY total DESC
         LIMIT 10
-    """), {"di": dt_ini_str, "df": dt_fim_str}).fetchall()
+    """), filial_params).fetchall()
 
     ranking_manutencoes = [
         {"veiculo_id": r[0], "placa": r[1], "descricao": r[2], "total": r[3]}
@@ -2165,13 +2215,14 @@ def dashboard_stats(
 # ── Stats ─────────────────────────────────────────────────────────────────────
 
 @app.get("/api/stats")
-def get_stats(db: Session = Depends(get_db)):
-    total_man = db.query(models.Manutencao).count()
-    em_andamento = db.query(models.Manutencao).filter(models.Manutencao.status == "Em Andamento").count()
-    finalizadas = db.query(models.Manutencao).filter(models.Manutencao.status == "Finalizada").count()
-    canceladas = db.query(models.Manutencao).filter(models.Manutencao.status == "Cancelada").count()
-    total_veiculos = db.query(models.Veiculo).count()
-    total_motoristas = db.query(models.Motorista).count()
+def get_stats(db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.get_current_user)):
+    q_man = _filial_scope(db.query(models.Manutencao), models.Manutencao, current_user)
+    total_man = q_man.count()
+    em_andamento = q_man.filter(models.Manutencao.status == "Em Andamento").count()
+    finalizadas = q_man.filter(models.Manutencao.status == "Finalizada").count()
+    canceladas = q_man.filter(models.Manutencao.status == "Cancelada").count()
+    total_veiculos = _filial_scope(db.query(models.Veiculo), models.Veiculo, current_user).count()
+    total_motoristas = _filial_scope(db.query(models.Motorista), models.Motorista, current_user).count()
     return {
         "total_manutencoes": total_man,
         "em_andamento": em_andamento,
@@ -2185,8 +2236,8 @@ def get_stats(db: Session = Depends(get_db)):
 # ── Frota Status ──────────────────────────────────────────────────────────────
 
 @app.get("/api/frota-status")
-def frota_status(db: Session = Depends(get_db)):
-    veiculos = db.query(models.Veiculo).order_by(models.Veiculo.placa).all()
+def frota_status(db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.get_current_user)):
+    veiculos = _filial_scope(db.query(models.Veiculo), models.Veiculo, current_user).order_by(models.Veiculo.placa).all()
     result = []
     for v in veiculos:
         man = (
@@ -2255,12 +2306,14 @@ def list_solicitacoes(
     veiculo_id: Optional[int] = None,
     ativo_id: Optional[int] = None,
     manutencao_id: Optional[int] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(auth.get_current_user),
 ):
     q = db.query(models.Solicitacao).options(
         joinedload(models.Solicitacao.veiculo),
         joinedload(models.Solicitacao.ativo),
     )
+    q = _filial_scope(q, models.Solicitacao, current_user)
     if veiculo_id:
         q = q.filter(models.Solicitacao.veiculo_id == veiculo_id)
     if ativo_id:
@@ -2282,8 +2335,9 @@ def list_solicitacoes(
 
 
 @app.post("/api/solicitacoes", response_model=schemas.SolicitacaoOut, status_code=201)
-def create_solicitacao(data: schemas.SolicitacaoCreate, db: Session = Depends(get_db)):
+def create_solicitacao(data: schemas.SolicitacaoCreate, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.get_current_user)):
     sol = models.Solicitacao(**data.model_dump())
+    sol.filial_id = _filial_id_for(current_user)
     db.add(sol)
     db.commit()
     db.refresh(sol)
@@ -2320,6 +2374,7 @@ def list_pecas(
     page: int = 1,
     per_page: int = 50,
     db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(auth.get_current_user),
 ):
     from sqlalchemy import func, case
     # Calcula estoque atual via subquery
@@ -2334,6 +2389,7 @@ def list_pecas(
         .subquery()
     )
     query = db.query(models.Peca, estoque_sq.c.estoque_atual).outerjoin(estoque_sq, models.Peca.id == estoque_sq.c.peca_id)
+    query = _filial_scope(query, models.Peca, current_user)
     if q:
         query = query.filter(models.Peca.nome.ilike(f"%{q}%") | models.Peca.codigo.ilike(f"%{q}%"))
     if ativo is not None:
@@ -2349,7 +2405,7 @@ def list_pecas(
 
 
 @app.post("/api/pecas", response_model=schemas.PecaOut, status_code=201)
-def create_peca(data: schemas.PecaCreate, db: Session = Depends(get_db)):
+def create_peca(data: schemas.PecaCreate, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.get_current_user)):
     payload = data.model_dump()
     if not payload.get('codigo'):
         last = db.query(models.Peca).order_by(models.Peca.id.desc()).first()
@@ -2360,6 +2416,7 @@ def create_peca(data: schemas.PecaCreate, db: Session = Depends(get_db)):
             codigo = f"PEC-{next_num:03d}"
         payload['codigo'] = codigo
     peca = models.Peca(**payload)
+    peca.filial_id = _filial_id_for(current_user)
     db.add(peca)
     db.commit()
     db.refresh(peca)
@@ -2401,8 +2458,10 @@ def list_movimentos(
     manutencao_id: Optional[int] = None,
     limit: int = 200,
     db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(auth.get_current_user),
 ):
     q = db.query(models.MovimentoEstoque)
+    q = _filial_scope(q, models.MovimentoEstoque, current_user)
     if peca_id:
         q = q.filter(models.MovimentoEstoque.peca_id == peca_id)
     if tipo:
@@ -2424,11 +2483,12 @@ def list_movimentos(
 
 
 @app.post("/api/movimentos-estoque", response_model=schemas.MovimentoEstoqueOut, status_code=201)
-def create_movimento(data: schemas.MovimentoEstoqueCreate, db: Session = Depends(get_db)):
+def create_movimento(data: schemas.MovimentoEstoqueCreate, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.get_current_user)):
     peca = db.query(models.Peca).filter(models.Peca.id == data.peca_id).first()
     if not peca:
         raise HTTPException(status_code=404, detail="Peça não encontrada")
     mv = models.MovimentoEstoque(**data.model_dump())
+    mv.filial_id = _filial_id_for(current_user)
     db.add(mv)
     db.commit()
     db.refresh(mv)

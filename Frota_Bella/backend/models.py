@@ -37,6 +37,7 @@ class Veiculo(Base):
     __tablename__ = "veiculos"
 
     id = Column(Integer, primary_key=True, index=True)
+    filial_id = Column(Integer, ForeignKey("filiais.id"), nullable=True)
     placa = Column(String(20), unique=True, nullable=False, index=True)
     marca = Column(String(100), nullable=True)
     modelo = Column(String(100), nullable=True)
@@ -62,6 +63,7 @@ class Motorista(Base):
     __tablename__ = "motoristas"
 
     id = Column(Integer, primary_key=True, index=True)
+    filial_id = Column(Integer, ForeignKey("filiais.id"), nullable=True)
     codigo = Column(String(50), unique=True, nullable=False, index=True)
     nome = Column(String(200), nullable=False)
     cpf = Column(String(20), nullable=True)
@@ -85,6 +87,7 @@ class Ativo(Base):
     __tablename__ = "ativos"
 
     id = Column(Integer, primary_key=True, index=True)
+    filial_id = Column(Integer, ForeignKey("filiais.id"), nullable=True)
     nome = Column(String(200), nullable=False)
     tipo = Column(String(100), nullable=True)
     codigo = Column(String(50), nullable=True)
@@ -101,6 +104,7 @@ class Manutencao(Base):
     __tablename__ = "manutencoes"
 
     id = Column(Integer, primary_key=True, index=True)
+    filial_id = Column(Integer, ForeignKey("filiais.id"), nullable=True)
     veiculo_id = Column(Integer, ForeignKey("veiculos.id"), nullable=True)
     ativo_id = Column(Integer, ForeignKey("ativos.id"), nullable=True)
     motorista_id = Column(Integer, ForeignKey("motoristas.id"), nullable=True)
@@ -217,6 +221,7 @@ class Solicitacao(Base):
     __tablename__ = "solicitacoes"
 
     id = Column(Integer, primary_key=True, index=True)
+    filial_id = Column(Integer, ForeignKey("filiais.id"), nullable=True)
     veiculo_id = Column(Integer, ForeignKey("veiculos.id"), nullable=True)
     ativo_id = Column(Integer, ForeignKey("ativos.id"), nullable=True)
     manutencao_id = Column(Integer, ForeignKey("manutencoes.id"), nullable=True)
@@ -294,6 +299,7 @@ class AcaoVencimento(Base):
 class Peca(Base):
     __tablename__ = "pecas"
     id = Column(Integer, primary_key=True, index=True)
+    filial_id = Column(Integer, ForeignKey("filiais.id"), nullable=True)
     nome = Column(String(200), nullable=False)
     codigo = Column(String(50), nullable=True)
     descricao = Column(Text, nullable=True)
@@ -306,6 +312,7 @@ class Peca(Base):
 class MovimentoEstoque(Base):
     __tablename__ = "movimentos_estoque"
     id = Column(Integer, primary_key=True, index=True)
+    filial_id = Column(Integer, ForeignKey("filiais.id"), nullable=True)
     peca_id = Column(Integer, ForeignKey("pecas.id"), nullable=False)
     tipo = Column(String(10), nullable=False)  # 'entrada' | 'saida'
     quantidade = Column(Numeric(10, 2), nullable=False)
