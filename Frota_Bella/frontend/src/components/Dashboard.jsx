@@ -5,7 +5,7 @@ import { useAuth } from '../lib/AuthContext'
 import {
   Wrench, Car, RefreshCw, ChevronDown, ChevronUp, ChevronsUpDown,
   AlertTriangle, CheckCircle2, Eye, Bell, TrendingUp, DollarSign,
-  ClipboardList, Clock, CheckCheck, BarChart2,
+  ClipboardList, Clock, CheckCheck, BarChart2, Building2,
 } from 'lucide-react'
 import { API } from '../lib/config'
 
@@ -565,7 +565,8 @@ function labelPeriodo(tipo, ano, mes, tri) {
 
 export default function Dashboard() {
   const navigate = useNavigate()
-  const { selectedFilial } = useAuth()
+  const { user, selectedFilial } = useAuth()
+  const isAdminOrGerencial = user?.perfil === 'admin' || user?.perfil === 'gerencial'
   const hoje = new Date()
   const [frota, setFrota] = useState([])
   const [stats, setStats] = useState(null)
@@ -584,6 +585,19 @@ export default function Dashboard() {
   const [periodoTri, setPeriodoTri] = useState(Math.ceil((hoje.getMonth() + 1) / 3))
 
   const anosDisponiveis = Array.from({ length: 5 }, (_, i) => hoje.getFullYear() - i)
+
+  const [gerencial, setGerencial] = useState([])
+  const [gerencialLoading, setGerencialLoading] = useState(false)
+  const [gerencialSort, setGerencialSort] = useState({ col: 'custo_mes', dir: 'desc' })
+
+  useEffect(() => {
+    if (!isAdminOrGerencial) return
+    setGerencialLoading(true)
+    axios.get(`${API}/dashboard-gerencial`)
+      .then(r => setGerencial(r.data || []))
+      .catch(() => {})
+      .finally(() => setGerencialLoading(false))
+  }, [isAdminOrGerencial])
 
   const fetchStats = async (tipo, ano, mes, tri) => {
     setStatsLoading(true)
@@ -1091,6 +1105,134 @@ export default function Dashboard() {
           </table>
         </div>
       </div>
+
+      {/* ── Visão Gerencial — comparativo por filial ── */}
+      {isAdminOrGerencial && (
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-200 dark:border-gray-700 overflow-hidden">
+          <div className="bg-gradient-to-r from-indigo-700 to-indigo-500 px-5 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Building2 className="w-5 h-5 text-indigo-200" />
+              <span className="text-white font-bold text-sm">Visão Gerencial — Comparativo por Filial</span>
+            </div>
+            <button
+              onClick={() => { setGerencialLoading(true); axios.get(`${API}/dashboard-gerencial`).then(r => setGerencial(r.data || [])).catch(() => {}).finally(() => setGerencialLoading(false)) }}
+              className="text-indigo-200 hover:text-white transition-colors"
+              title="Atualizar"
+            >
+              <RefreshCw className={`w-4 h-4 ${gerencialLoading ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
+
+          {gerencialLoading ? (
+            <div className="flex items-center justify-center py-10 text-gray-400 text-xs gap-2">
+              <RefreshCw className="w-4 h-4 animate-spin" />Carregando...
+            </div>
+          ) : gerencial.length === 0 ? (
+            <div className="py-10 text-center text-gray-400 text-xs">Nenhuma filial cadastrada.</div>
+          ) : (() => {
+            const cols = [
+              { key: 'filial_nome', label: 'Filial' },
+              { key: 'total_veiculos', label: 'Veículos' },
+              { key: 'em_manutencao', label: 'Em Manutenção' },
+              { key: 'sol_abertas', label: 'Solicitações Abertas' },
+              { key: 'venc_criticos', label: 'Vencimentos Críticos' },
+              { key: 'custo_mes', label: 'Custo no Mês' },
+              { key: 'custo_total', label: 'Custo Total' },
+            ]
+            const sorted = [...gerencial].sort((a, b) => {
+              const v1 = a[gerencialSort.col], v2 = b[gerencialSort.col]
+              const cmp = typeof v1 === 'string' ? v1.localeCompare(v2) : (v1 || 0) - (v2 || 0)
+              return gerencialSort.dir === 'asc' ? cmp : -cmp
+            })
+            const fmtCusto = (v) => v > 0 ? 'R$ ' + Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'
+            const toggleSort = (col) => setGerencialSort(s => ({ col, dir: s.col === col && s.dir === 'desc' ? 'asc' : 'desc' }))
+            const th = 'px-3 py-2 text-left text-xs font-semibold text-indigo-900 dark:text-indigo-200 bg-indigo-50 dark:bg-indigo-900/30 border-b border-indigo-100 dark:border-indigo-800 cursor-pointer select-none whitespace-nowrap hover:bg-indigo-100 dark:hover:bg-indigo-900/50'
+            const maxCustoMes = Math.max(...gerencial.map(r => r.custo_mes), 1)
+            return (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr>
+                      {cols.map(c => (
+                        <th key={c.key} className={th} onClick={() => toggleSort(c.key)}>
+                          <span className="flex items-center gap-1">
+                            {c.label}
+                            {gerencialSort.col === c.key && (
+                              <span className="text-indigo-500">{gerencialSort.dir === 'asc' ? '↑' : '↓'}</span>
+                            )}
+                          </span>
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sorted.map((row, i) => (
+                      <tr key={row.filial_id} className={i % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-750'}>
+                        <td className="px-3 py-2.5 font-semibold text-gray-800 dark:text-gray-100 whitespace-nowrap">
+                          {row.filial_nome}
+                        </td>
+                        <td className="px-3 py-2.5 text-center text-gray-600 dark:text-gray-300">{row.total_veiculos}</td>
+                        <td className="px-3 py-2.5 text-center">
+                          {row.em_manutencao > 0
+                            ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400">
+                                <Wrench className="w-3 h-3" />{row.em_manutencao}
+                              </span>
+                            : <span className="text-gray-400 dark:text-gray-500 text-xs">—</span>}
+                        </td>
+                        <td className="px-3 py-2.5 text-center">
+                          {row.sol_abertas > 0
+                            ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400">
+                                <ClipboardList className="w-3 h-3" />{row.sol_abertas}
+                              </span>
+                            : <span className="text-gray-400 dark:text-gray-500 text-xs">—</span>}
+                        </td>
+                        <td className="px-3 py-2.5 text-center">
+                          {row.venc_criticos > 0
+                            ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400">
+                                <Bell className="w-3 h-3" />{row.venc_criticos}
+                              </span>
+                            : <span className="text-green-500 text-xs font-medium">OK</span>}
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold text-gray-700 dark:text-gray-200 w-24 text-right">{fmtCusto(row.custo_mes)}</span>
+                            <div className="flex-1 h-1.5 rounded-full bg-gray-100 dark:bg-gray-700 min-w-[60px]">
+                              <div
+                                className="h-full rounded-full bg-indigo-500 transition-all duration-500"
+                                style={{ width: `${Math.round((row.custo_mes / maxCustoMes) * 100)}%` }}
+                              />
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-3 py-2.5 text-xs text-right text-gray-500 dark:text-gray-400 font-medium">
+                          {fmtCusto(row.custo_total)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-indigo-50 dark:bg-indigo-900/20 border-t border-indigo-100 dark:border-indigo-800">
+                      <td className="px-3 py-2 text-xs font-bold text-indigo-800 dark:text-indigo-300">Total</td>
+                      <td className="px-3 py-2 text-center text-xs font-bold text-indigo-800 dark:text-indigo-300">
+                        {gerencial.reduce((s, r) => s + r.total_veiculos, 0)}
+                      </td>
+                      <td className="px-3 py-2 text-center text-xs font-bold text-orange-600">{gerencial.reduce((s, r) => s + r.em_manutencao, 0) || '—'}</td>
+                      <td className="px-3 py-2 text-center text-xs font-bold text-blue-600">{gerencial.reduce((s, r) => s + r.sol_abertas, 0) || '—'}</td>
+                      <td className="px-3 py-2 text-center text-xs font-bold text-red-600">{gerencial.reduce((s, r) => s + r.venc_criticos, 0) || '—'}</td>
+                      <td className="px-3 py-2 text-xs font-bold text-indigo-800 dark:text-indigo-300 text-right pr-5">
+                        {fmtCusto(gerencial.reduce((s, r) => s + r.custo_mes, 0))}
+                      </td>
+                      <td className="px-3 py-2 text-xs font-bold text-indigo-800 dark:text-indigo-300 text-right">
+                        {fmtCusto(gerencial.reduce((s, r) => s + r.custo_total, 0))}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )
+          })()}
+        </div>
+      )}
 
     </div>
   )

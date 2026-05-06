@@ -2355,6 +2355,85 @@ def frota_status(filial_id: Optional[int] = None, db: Session = Depends(get_db),
     return result
 
 
+# ── Dashboard Gerencial (comparativo por filial) ─────────────────────────────
+
+@app.get("/api/dashboard-gerencial")
+def dashboard_gerencial(db: Session = Depends(get_db), _u: models.Usuario = Depends(auth.require_gerencial_or_admin)):
+    from datetime import date as dt_date
+    from sqlalchemy import func, case as sa_case
+
+    filiais = db.query(models.Filial).filter(models.Filial.ativo == True).order_by(models.Filial.nome).all()
+
+    result = []
+    for f in filiais:
+        fid = f.id
+
+        # Veículos
+        total_veiculos = db.query(models.Veiculo).filter(models.Veiculo.filial_id == fid).count()
+
+        # Manutenções em andamento
+        em_andamento = db.query(models.Manutencao).filter(
+            models.Manutencao.filial_id == fid,
+            models.Manutencao.status == "Em Andamento"
+        ).count()
+
+        # Custo total de serviços (todas as manutenções da filial)
+        custo_raw = (
+            db.query(func.sum(models.ServicoVeiculo.valor))
+            .join(models.Manutencao, models.ServicoVeiculo.manutencao_id == models.Manutencao.id)
+            .filter(models.Manutencao.filial_id == fid)
+            .scalar()
+        )
+        custo_total = float(custo_raw or 0)
+
+        # Custo do mês atual
+        hoje = dt_date.today()
+        custo_mes_raw = (
+            db.query(func.sum(models.ServicoVeiculo.valor))
+            .join(models.Manutencao, models.ServicoVeiculo.manutencao_id == models.Manutencao.id)
+            .filter(
+                models.Manutencao.filial_id == fid,
+                models.ServicoVeiculo.dt_servico >= dt_date(hoje.year, hoje.month, 1),
+            )
+            .scalar()
+        )
+        custo_mes = float(custo_mes_raw or 0)
+
+        # Solicitações abertas
+        sol_abertas = db.query(models.Solicitacao).filter(
+            models.Solicitacao.filial_id == fid,
+            models.Solicitacao.status == "Aberta"
+        ).count()
+
+        # Vencimentos críticos (vencidos + próximos a 30 dias)
+        from datetime import timedelta
+        from sqlalchemy import or_ as sa_or
+        limit_venc = hoje + timedelta(days=30)
+        venc_criticos = (
+            db.query(models.ServicoVeiculo)
+            .join(models.Manutencao, models.ServicoVeiculo.manutencao_id == models.Manutencao.id)
+            .filter(
+                models.Manutencao.filial_id == fid,
+                models.ServicoVeiculo.proxima_dt_validade != None,
+                models.ServicoVeiculo.proxima_dt_validade <= limit_venc,
+            )
+            .count()
+        )
+
+        result.append({
+            "filial_id": fid,
+            "filial_nome": f.nome,
+            "total_veiculos": total_veiculos,
+            "em_manutencao": em_andamento,
+            "sol_abertas": sol_abertas,
+            "venc_criticos": venc_criticos,
+            "custo_total": custo_total,
+            "custo_mes": custo_mes,
+        })
+
+    return result
+
+
 # ── Health ────────────────────────────────────────────────────────────────────
 
 @app.get("/api/health")
