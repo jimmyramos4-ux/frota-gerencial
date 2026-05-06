@@ -18,6 +18,7 @@ import CadastroAtivos from './components/ativos/CadastroAtivos.jsx'
 import Solicitacoes from './components/solicitacoes/Solicitacoes.jsx'
 import Vencimentos from './components/vencimentos/Vencimentos.jsx'
 import Estoque from './components/estoque/Estoque.jsx'
+import PainelAdmin from './components/admin/PainelAdmin.jsx'
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
@@ -61,6 +62,7 @@ export default function App() {
             <Route path="solicitacoes" element={<Solicitacoes />} />
             <Route path="vencimentos" element={<Vencimentos />} />
             <Route path="estoque" element={<Estoque />} />
+            <Route path="admin" element={<PainelAdmin />} />
           </Route>
         </Routes>
       </BrowserRouter>

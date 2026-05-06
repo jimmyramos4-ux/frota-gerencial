@@ -20,6 +20,7 @@ import {
   Store,
   Package,
   LogOut,
+  ShieldCheck,
 } from 'lucide-react'
 import novalogo from '../assets/novalogo.png'
 import { API } from '../lib/config'
@@ -38,6 +39,8 @@ const navItems = [
   { label: 'Tipos de Serviço', icon: Cog, to: '/tipos-servico' },
   { label: 'Oficinas / Prestadores', icon: Store, to: '/oficinas-prestadores' },
   { label: 'Ativos / Equipamentos', icon: Package, to: '/ativos' },
+  { type: 'divider', label: 'Sistema', roles: ['admin', 'gerencial'] },
+  { label: 'Administração', icon: ShieldCheck, to: '/admin', roles: ['admin', 'gerencial'] },
 ]
 
 function fmtSyncDate(iso) {
@@ -105,6 +108,7 @@ export default function Layout() {
         {/* Nav */}
         <nav className="flex-1 py-2 overflow-y-auto w-56 min-w-[224px]">
           {navItems.map((item, i) => {
+            if (item.roles && !item.roles.includes(user?.perfil)) return null
             if (item.type === 'divider') {
               return (
                 <div key={i} className="px-4 pt-3 pb-1 text-xs text-blue-400 uppercase tracking-wider border-t border-blue-800 mt-1 whitespace-nowrap">
