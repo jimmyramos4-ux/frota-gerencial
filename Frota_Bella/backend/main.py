@@ -283,7 +283,7 @@ def get_me(current_user: models.Usuario = Depends(auth.get_current_user)):
 # ── Filiais (admin only) ───────────────────────────────────────────────────────
 
 @app.get("/api/auth/filiais")
-def list_filiais(db: Session = Depends(get_db), _u: models.Usuario = Depends(auth.require_admin)):
+def list_filiais(db: Session = Depends(get_db), _u: models.Usuario = Depends(auth.require_gerencial_or_admin)):
     return db.query(models.Filial).order_by(models.Filial.nome).all()
 
 @app.post("/api/auth/filiais", status_code=201)
@@ -797,13 +797,15 @@ def delete_tipo_servico(item_id: int, db: Session = Depends(get_db)):
 # ── Veiculos ──────────────────────────────────────────────────────────────────
 
 @app.get("/api/veiculos", response_model=list[schemas.VeiculoOut])
-def list_veiculos(search: Optional[str] = None, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.get_current_user)):
+def list_veiculos(search: Optional[str] = None, filial_id: Optional[int] = None, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.get_current_user)):
     from sqlalchemy.orm import joinedload as jlv
     query = db.query(models.Veiculo).options(
         joinedload(models.Veiculo.motorista),
         jlv(models.Veiculo.arquivos),
     )
     query = _filial_scope(query, models.Veiculo, current_user)
+    if filial_id and current_user.perfil != models.PerfilUsuario.filial:
+        query = query.filter(models.Veiculo.filial_id == filial_id)
     if search:
         query = query.filter(
             or_(
@@ -1329,10 +1331,12 @@ def delete_arquivo_veiculo(arquivo_id: int, db: Session = Depends(get_db)):
 # ── Motoristas ────────────────────────────────────────────────────────────────
 
 @app.get("/api/motoristas", response_model=list[schemas.MotoristaOut])
-def list_motoristas(search: Optional[str] = None, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.get_current_user)):
+def list_motoristas(search: Optional[str] = None, filial_id: Optional[int] = None, db: Session = Depends(get_db), current_user: models.Usuario = Depends(auth.get_current_user)):
     from sqlalchemy.orm import joinedload as jl2
     query = db.query(models.Motorista).options(jl2(models.Motorista.arquivos))
     query = _filial_scope(query, models.Motorista, current_user)
+    if filial_id and current_user.perfil != models.PerfilUsuario.filial:
+        query = query.filter(models.Motorista.filial_id == filial_id)
     if search:
         query = query.filter(
             or_(
@@ -1471,11 +1475,14 @@ def list_ativos(
     per_page: int = Query(10, ge=1, le=200),
     search: Optional[str] = None,
     ativo: Optional[str] = None,
+    filial_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(auth.get_current_user),
 ):
     query = db.query(models.Ativo)
     query = _filial_scope(query, models.Ativo, current_user)
+    if filial_id and current_user.perfil != models.PerfilUsuario.filial:
+        query = query.filter(models.Ativo.filial_id == filial_id)
     if search:
         query = query.filter(
             or_(models.Ativo.nome.ilike(f"%{search}%"), models.Ativo.codigo.ilike(f"%{search}%"),
@@ -1555,6 +1562,7 @@ def list_manutencoes(
     anexo: Optional[str] = None,
     tipo_servico: Optional[str] = None,
     search: Optional[str] = None,
+    filial_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(auth.get_current_user),
 ):
@@ -1567,6 +1575,8 @@ def list_manutencoes(
         )
     )
     query = _filial_scope(query, models.Manutencao, current_user)
+    if filial_id and current_user.perfil != models.PerfilUsuario.filial:
+        query = query.filter(models.Manutencao.filial_id == filial_id)
 
     if status:
         query = query.filter(models.Manutencao.status == status)
@@ -2354,6 +2364,7 @@ def list_solicitacoes(
     veiculo_id: Optional[int] = None,
     ativo_id: Optional[int] = None,
     manutencao_id: Optional[int] = None,
+    filial_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(auth.get_current_user),
 ):
@@ -2362,6 +2373,8 @@ def list_solicitacoes(
         joinedload(models.Solicitacao.ativo),
     )
     q = _filial_scope(q, models.Solicitacao, current_user)
+    if filial_id and current_user.perfil != models.PerfilUsuario.filial:
+        q = q.filter(models.Solicitacao.filial_id == filial_id)
     if veiculo_id:
         q = q.filter(models.Solicitacao.veiculo_id == veiculo_id)
     if ativo_id:
