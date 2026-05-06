@@ -1167,7 +1167,7 @@ export default function Dashboard() {
                   </thead>
                   <tbody>
                     {sorted.map((row, i) => (
-                      <tr key={row.filial_id} className={i % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-750'}>
+                      <tr key={row.filial_id} className={i % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-700'}>
                         <td className="px-3 py-2.5 font-semibold text-gray-800 dark:text-gray-100 whitespace-nowrap">
                           {row.filial_nome}
                         </td>
