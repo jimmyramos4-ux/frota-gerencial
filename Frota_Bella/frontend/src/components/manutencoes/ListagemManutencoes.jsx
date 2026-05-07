@@ -544,11 +544,7 @@ export default function ListagemManutencoes() {
   const [deleteModal, setDeleteModal] = useState(null)
   const [sortField, setSortField] = useState('dt_inicio')
   const [sortDir, setSortDir] = useState('desc')
-  const [showFilters, setShowFilters] = useState(() => {
-    const tipo = searchParams.get('tipo') || ''
-    const gte = searchParams.get('dt_inicio_gte') || ''
-    return !!(tipo || gte)
-  })
+  const [showFilters] = useState(true)
   const [lightbox, setLightbox] = useState(null) // { arquivos: [], idx: 0 }
 
   const handleOpenAnexos = async (item) => {
@@ -957,15 +953,10 @@ export default function ListagemManutencoes() {
 
       {/* Filter Form — compacto */}
       <div className="bg-white dark:bg-gray-800 rounded shadow-sm border border-gray-200 dark:border-gray-700">
-        <button
-          type="button"
-          onClick={() => setShowFilters(f => !f)}
-          className="w-full flex items-center justify-between px-4 py-2 text-xs font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-        >
-          <span className="flex items-center gap-2"><Filter className="w-3.5 h-3.5" /> Filtros</span>
-          <ChevronDown className={`w-4 h-4 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
-        </button>
-        {showFilters && <form onSubmit={handleFilter}>
+        <div className="px-4 py-2 text-xs font-semibold text-gray-600 dark:text-gray-300 flex items-center gap-2 border-b border-gray-200 dark:border-gray-700">
+          <Filter className="w-3.5 h-3.5" /> Filtros
+        </div>
+        <form onSubmit={handleFilter}>
           <div className="overflow-x-auto">
           <table className="border-collapse text-xs" style={{minWidth: '860px', width: '100%'}}>
             <tbody>
@@ -1050,7 +1041,7 @@ export default function ListagemManutencoes() {
             <button type="submit" className="px-5 py-0.5 text-xs bg-white dark:bg-gray-700 border border-gray-400 dark:border-gray-500 dark:text-gray-200 rounded hover:bg-gray-50 dark:hover:bg-gray-600 shadow-sm">Filtrar</button>
             <button type="button" className="px-5 py-0.5 text-xs bg-white dark:bg-gray-700 border border-gray-400 dark:border-gray-500 dark:text-gray-200 rounded hover:bg-gray-50 dark:hover:bg-gray-600 shadow-sm" onClick={handleClear}>Limpar</button>
           </div>
-        </form>}
+        </form>
       </div>
 
       {/* Bottom link */}
