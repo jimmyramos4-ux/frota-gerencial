@@ -80,4 +80,5 @@ def user_to_dict(user: models.Usuario) -> dict:
         "perfil": user.perfil,
         "filial_id": user.filial_id,
         "filial_nome": user.filial.nome if user.filial else None,
+        "ativo": bool(user.ativo),
     }
